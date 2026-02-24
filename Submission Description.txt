@@ -1,0 +1,106 @@
+========================================
+AGENTS LEAGUE — PROJECT SUBMISSION
+========================================
+
+TRACK: Creative Apps
+
+PROJECT NAME: Power BI Report Fixer
+
+GITHUB USERNAME: KornAlexander
+
+REPOSITORY URL: https://github.com/KornAlexander/pbi_fixer
+
+----------------------------------------
+PROJECT DESCRIPTION (250 words max)
+----------------------------------------
+
+The Power BI Report Fixer is a free, open-source tool that lets you assess, standardize, and fix Power BI reports and their semantic models from a single function call in a Microsoft Fabric Notebook.
+
+One line of Python — pbi_fixer() — launches an interactive widget UI that combines 11 fixers across two categories:
+
+Report Fixers (5): Replace pie charts with bar charts, clean up bar and column chart formatting (remove axis titles, add data labels, remove gridlines), upgrade default page sizes to Full HD, and hide visual-level filters from end users. These work through the PBIR format, reading and rewriting visual.json and page.json files directly.
+
+Semantic Model Fixers (6): Set DiscourageImplicitMeasures to True, add a calculated calendar table with hierarchies and display folders, add an empty measure table, add a Last Refresh table with M partition, and create Units and Time Intelligence calculation groups. These work through the XMLA endpoint via the Tabular Object Model.
+
+The tool supports three modes: Fix (apply changes), Scan (assess without changing anything), and Scan + Fix (scan first, then apply). Every fixer is idempotent — it checks whether its target change already exists and skips if so.
+
+Built entirely with Python and ipywidgets on top of Semantic Link Labs. GitHub Copilot was used extensively during development for code generation, refactoring, and documentation. The tool requires no installs, no downloads, and no license costs — just one line of Python in a Fabric Notebook.
+
+----------------------------------------
+DEMO VIDEO OR SCREENSHOTS
+----------------------------------------
+
+[Add your demo video link or screenshot links here]
+
+----------------------------------------
+PRIMARY PROGRAMMING LANGUAGE
+----------------------------------------
+
+Python
+
+----------------------------------------
+KEY TECHNOLOGIES USED
+----------------------------------------
+
+Python, ipywidgets, Microsoft Fabric Notebooks, Semantic Link Labs (open-source library), PBIR format (Power BI Enhanced Report Format), XMLA endpoint, Tabular Object Model (TOM), GitHub Copilot
+
+----------------------------------------
+SUBMISSION TYPE
+----------------------------------------
+
+Individual
+
+----------------------------------------
+QUICK SETUP SUMMARY
+----------------------------------------
+
+1. Open a Microsoft Fabric Notebook
+2. In the first cell, run: %pip install git+https://github.com/KornAlexander/semantic-link-labs.git
+3. In the next cell, run:
+   from sempy_labs import pbi_fixer
+   pbi_fixer()
+4. An interactive UI appears — select your workspace, report, fixers, and click Run.
+
+Full details in the repository README.
+
+----------------------------------------
+TECHNICAL HIGHLIGHTS
+----------------------------------------
+
+What I am most proud of:
+
+- The entire tool is a single function call — pbi_fixer() — that opens an interactive ipywidgets UI inside a Fabric Notebook. No CLI, no config files, no separate app. Just run one line and you get a full-featured fixer dashboard.
+
+- Each of the 11 fixers is self-contained and idempotent. They check whether the target change already exists before applying it (e.g., "does a calendar table with DataCategory=Time already exist?"), making them safe to run repeatedly.
+
+- The report fixers work directly on the PBIR format — reading and rewriting JSON files inside the report definition — while the semantic model fixers use the XMLA endpoint via TOM. Combining both layers in one UI is unusual and powerful.
+
+- The Time Intelligence calculation group auto-detects the calendar table and its key date column, then generates 20 calculation items (AC, Y-1 through Y-3, YTD variants, absolute/relative/achievement variances) with all division using DIVIDE() for safety.
+
+- Scan mode lets you preview every change before committing — making it safe for production use across large report estates.
+
+- GitHub Copilot was instrumental throughout the development process, from generating the DAX expressions for calculation groups to building the ipywidgets layout and writing the fixer logic.
+
+----------------------------------------
+CHALLENGES AND LEARNINGS
+----------------------------------------
+
+- Working with the PBIR format required reverse-engineering the JSON structure of visual.json and page.json files. Documentation is sparse, so understanding the schema involved inspecting many reports manually.
+
+- The XMLA write operation is irreversible (the .pbix can no longer embed data), which is why I built the confirmation checkbox and scan mode — to give users full control before any write happens.
+
+- Calculation groups interact with all measures in a model, so designing the Units calc group to skip percentage and ratio measures required careful testing across different model shapes.
+
+- Building a polished ipywidgets UI that works reliably inside Fabric Notebooks (which have their own rendering constraints) involved iterating on layout, styling, and event handling.
+
+----------------------------------------
+COUNTRY/REGION
+----------------------------------------
+
+Germany
+
+----------------------------------------
+CONTACT INFORMATION
+----------------------------------------
+
+[Add your email or LinkedIn here]
