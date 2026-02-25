@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 import ipywidgets as widgets
 import io
@@ -17,7 +17,7 @@ from sempy_labs.report._Fix_PageSize import fix_page_size
 from sempy_labs.report._Fix_HideVisualFilters import fix_hide_visual_filters
 from sempy_labs.semantic_model._Add_CalculatedTable_Calendar import add_calculated_calendar
 from sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures import fix_discourage_implicit_measures
-from sempy_labs.semantic_model._Fix_DefaultDataSourceVersion import fix_default_datasource_version
+# from sempy_labs.semantic_model._Fix_DefaultDataSourceVersion import fix_default_datasource_version  # commented out — requires Large SM storage format enabled first
 from sempy_labs.semantic_model._Add_Table_LastRefresh import add_last_refresh_table
 from sempy_labs.semantic_model._Add_CalcGroup_Units import add_calc_group_units
 from sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence import add_calc_group_time_intelligence
@@ -237,7 +237,7 @@ def pbi_fixer(
     # -----------------------------
     # SEMANTIC MODEL FIXERS
     # -----------------------------
-    cb_datasource_version = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    # cb_datasource_version = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))  # commented out — requires Large SM storage format enabled first
     cb_calendar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_discourage = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_last_refresh = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
@@ -245,10 +245,10 @@ def pbi_fixer(
     cb_time_intel = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_measure_tbl = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
-    datasource_version_row = widgets.HBox(
-        [cb_datasource_version, _fixer_label("Set DataSource Version V3", "sets DefaultPowerBIDataSourceVersion to PowerBI_V3 (required for XMLA writes)")],
-        layout=widgets.Layout(align_items="center", gap="6px"),
-    )
+    # datasource_version_row = widgets.HBox(  # commented out — requires Large SM storage format enabled first
+    #     [cb_datasource_version, _fixer_label("Set DataSource Version V3", "sets DefaultPowerBIDataSourceVersion to PowerBI_V3 (required for XMLA writes)")],
+    #     layout=widgets.Layout(align_items="center", gap="6px"),
+    # )
     calendar_row = widgets.HBox(
         [cb_calendar, _fixer_label("Add Calendar Table", "adds \"CalcCalendar\" calculated table if no table has been \"marked\" as a date table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -297,7 +297,7 @@ def pbi_fixer(
     sm_warning_confirm.add_class("sm-xmla-warning")
 
     # Show/hide warning when any SM fixer checkbox changes
-    _sm_checkboxes = [cb_datasource_version, cb_calendar, cb_discourage, cb_last_refresh, cb_units, cb_time_intel, cb_measure_tbl]
+    _sm_checkboxes = [cb_calendar, cb_discourage, cb_last_refresh, cb_units, cb_time_intel, cb_measure_tbl]  # cb_datasource_version removed
 
     def _on_sm_cb_change(change=None):
         any_checked = any(cb.value for cb in _sm_checkboxes)
@@ -311,7 +311,7 @@ def pbi_fixer(
     _on_sm_cb_change()  # evaluate initial state so warning shows if checkboxes start checked
 
     semantic_model_box = widgets.VBox(
-        [_section_heading("Semantic Model"), datasource_version_row, discourage_row, calendar_row, last_refresh_row, measure_tbl_row, units_row, time_intel_row, sm_warning_confirm],
+        [_section_heading("Semantic Model"), discourage_row, calendar_row, last_refresh_row, measure_tbl_row, units_row, time_intel_row, sm_warning_confirm],  # datasource_version_row removed
         layout=widgets.Layout(
             gap="6px",
             padding="12px",
@@ -349,7 +349,7 @@ def pbi_fixer(
     ]
 
     sm_fixers = [
-        (cb_datasource_version, "Set DataSource Version V3", lambda r, w, s: fix_default_datasource_version(report=r, workspace=w, scan_only=s)),
+        # (cb_datasource_version, "Set DataSource Version V3", lambda r, w, s: fix_default_datasource_version(report=r, workspace=w, scan_only=s)),  # commented out — requires Large SM storage format enabled first
         (cb_discourage, "Discourage Implicit Measures", lambda r, w, s: fix_discourage_implicit_measures(report=r, workspace=w, scan_only=s)),
         (cb_calendar, "Add Calendar Table", lambda r, w, s: add_calculated_calendar(report=r, workspace=w, scan_only=s)),
         (cb_measure_tbl, "Add Measure Table", lambda r, w, s: add_measure_table(report=r, workspace=w, scan_only=s)),
