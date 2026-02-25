@@ -66,6 +66,14 @@ def fix_columncharts(
     """
 
     with connect_report(report=report, workspace=workspace, readonly=scan_only, show_diffs=False) as rw:
+        # Guard: report must be in PBIR format
+        if rw.format != "PBIR":
+            print(
+                f"{icons.red_dot} Report '{rw._report_name}' is in '{rw.format}' format, not PBIR. "
+                f"Run 'Upgrade to PBIR' first."
+            )
+            return
+
         paths_df = rw.list_paths()
         charts_found = 0
         charts_fixed = 0

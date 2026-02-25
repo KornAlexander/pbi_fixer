@@ -7,6 +7,7 @@ from contextlib import redirect_stdout
 from typing import Optional
 from uuid import UUID
 
+from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
 from sempy_labs.report._Fix_PieChart import fix_piecharts
 from sempy_labs.report._Fix_BarChart import fix_barcharts
 from sempy_labs.report._Fix_ColumnChart import fix_columncharts
@@ -14,6 +15,7 @@ from sempy_labs.report._Fix_PageSize import fix_page_size
 from sempy_labs.report._Fix_HideVisualFilters import fix_hide_visual_filters
 from sempy_labs.semantic_model._Add_CalculatedTable_Calendar import add_calculated_calendar
 from sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures import fix_discourage_implicit_measures
+from sempy_labs.semantic_model._Fix_DefaultDataSourceVersion import fix_default_datasource_version
 from sempy_labs.semantic_model._Add_Table_LastRefresh import add_last_refresh_table
 from sempy_labs.semantic_model._Add_CalcGroup_Units import add_calc_group_units
 from sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence import add_calc_group_time_intelligence
@@ -186,12 +188,17 @@ def pbi_fixer(
     # -----------------------------
     # REPORT FIXERS — VISUALS
     # -----------------------------
+    cb_upgrade_pbir = widgets.Checkbox(value=False, indent=False, layout=widgets.Layout(width="22px"))
     cb_pie = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_bar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_col = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_page_size = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_hide_filters = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
+    upgrade_pbir_row = widgets.HBox(
+        [cb_upgrade_pbir, _fixer_label("Upgrade to PBIR", "converts PBIRLegacy → PBIR (required for .pbix uploads)")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
     pie_row = widgets.HBox(
         [cb_pie, _fixer_label("Fix Pie Charts", "replaces all pie charts → Clustered Bar Chart (default)")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -214,7 +221,7 @@ def pbi_fixer(
     )
 
     report_fixers_box = widgets.VBox(
-        [_section_heading("Report — Visuals"), pie_row, bar_row, col_row, page_size_row, hide_filters_row],
+        [_section_heading("Report — Visuals"), upgrade_pbir_row, pie_row, bar_row, col_row, page_size_row, hide_filters_row],
         layout=widgets.Layout(
             gap="6px",
             padding="12px",
@@ -228,6 +235,7 @@ def pbi_fixer(
     # -----------------------------
     # SEMANTIC MODEL FIXERS
     # -----------------------------
+    cb_datasource_version = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_calendar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_discourage = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_last_refresh = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
@@ -235,6 +243,10 @@ def pbi_fixer(
     cb_time_intel = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_measure_tbl = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
+    datasource_version_row = widgets.HBox(
+        [cb_datasource_version, _fixer_label("Set DataSource Version V3", "sets DefaultPowerBIDataSourceVersion to PowerBI_V3 (required for XMLA writes)")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
     calendar_row = widgets.HBox(
         [cb_calendar, _fixer_label("Add Calendar Table", "adds \"CalcCalendar\" calculated table if no table has been \"marked\" as a date table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -283,7 +295,7 @@ def pbi_fixer(
     sm_warning_confirm.add_class("sm-xmla-warning")
 
     # Show/hide warning when any SM fixer checkbox changes
-    _sm_checkboxes = [cb_calendar, cb_discourage, cb_last_refresh, cb_units, cb_time_intel, cb_measure_tbl]
+    _sm_checkboxes = [cb_datasource_version, cb_calendar, cb_discourage, cb_last_refresh, cb_units, cb_time_intel, cb_measure_tbl]
 
     def _on_sm_cb_change(change=None):
         any_checked = any(cb.value for cb in _sm_checkboxes)
@@ -297,7 +309,7 @@ def pbi_fixer(
     _on_sm_cb_change()  # evaluate initial state so warning shows if checkboxes start checked
 
     semantic_model_box = widgets.VBox(
-        [_section_heading("Semantic Model"), discourage_row, calendar_row, last_refresh_row, measure_tbl_row, units_row, time_intel_row, sm_warning_confirm],
+        [_section_heading("Semantic Model"), datasource_version_row, discourage_row, calendar_row, last_refresh_row, measure_tbl_row, units_row, time_intel_row, sm_warning_confirm],
         layout=widgets.Layout(
             gap="6px",
             padding="12px",
@@ -326,6 +338,7 @@ def pbi_fixer(
     # RUN HANDLER
     # -----------------------------
     report_fixers = [
+        (cb_upgrade_pbir, "Upgrade to PBIR", lambda r, p, w, s: fix_upgrade_to_pbir(report=r, page_name=p, workspace=w, scan_only=s)),
         (cb_pie, "Fix Pie Charts",    lambda r, p, w, s: fix_piecharts(report=r, page_name=p, workspace=w, scan_only=s)),
         (cb_bar, "Fix Bar Charts",    lambda r, p, w, s: fix_barcharts(report=r, page_name=p, workspace=w, scan_only=s)),
         (cb_col, "Fix Column Charts", lambda r, p, w, s: fix_columncharts(report=r, page_name=p, workspace=w, scan_only=s)),
@@ -334,6 +347,7 @@ def pbi_fixer(
     ]
 
     sm_fixers = [
+        (cb_datasource_version, "Set DataSource Version V3", lambda r, w, s: fix_default_datasource_version(report=r, workspace=w, scan_only=s)),
         (cb_discourage, "Discourage Implicit Measures", lambda r, w, s: fix_discourage_implicit_measures(report=r, workspace=w, scan_only=s)),
         (cb_calendar, "Add Calendar Table", lambda r, w, s: add_calculated_calendar(report=r, workspace=w, scan_only=s)),
         (cb_measure_tbl, "Add Measure Table", lambda r, w, s: add_measure_table(report=r, workspace=w, scan_only=s)),

@@ -50,6 +50,14 @@ def fix_piecharts(
     """
 
     with connect_report(report=report, workspace=workspace, readonly=scan_only, show_diffs=False) as rw:
+        # Guard: report must be in PBIR format
+        if rw.format != "PBIR":
+            print(
+                f"{icons.red_dot} Report '{rw._report_name}' is in '{rw.format}' format, not PBIR. "
+                f"Run 'Upgrade to PBIR' first."
+            )
+            return
+
         # Get all file paths in the report
         paths_df = rw.list_paths()
         pie_charts_found = 0
