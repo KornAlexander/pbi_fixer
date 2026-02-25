@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "0.2.0"
+__version__ = "1.1.1"
 
 import ipywidgets as widgets
 import io
@@ -80,9 +80,7 @@ def pbi_fixer(
     # -----------------------------
     title = widgets.HTML(
         value=f'<div style="font-size:20px; font-weight:600; color:{text_color}; '
-        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">Power BI Report Fixer'
-        f'<span style="font-size:11px; font-weight:400; color:{gray_color}; '
-        f'margin-left:10px;">v{__version__}</span></div>'
+        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">Power BI Fixer</div>'
     )
     subtitle = widgets.HTML(
         value=f'<div style="font-size:13px; color:{gray_color}; '
@@ -519,6 +517,12 @@ def pbi_fixer(
     # -----------------------------
     # ASSEMBLE & DISPLAY
     # -----------------------------
+    version_footer = widgets.HTML(
+        value=f'<div style="text-align:right; font-size:10px; color:{gray_color}; '
+        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; '
+        f'margin-top:8px;">Version: {__version__}</div>'
+    )
+
     container = widgets.VBox(
         [
             header,
@@ -529,6 +533,7 @@ def pbi_fixer(
             button_row,
             progress,
             status,
+            version_footer,
         ],
         layout=widgets.Layout(
             width="800px",
