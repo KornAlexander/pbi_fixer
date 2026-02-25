@@ -22,8 +22,8 @@ except ImportError:  # allow import outside notebooks
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_JS_EXECUTION_WAIT = 20  # seconds for JS to load SDK, embed, render, and save
-_POLL_TIME_LIMIT = 120  # seconds to poll for server-side format conversion
+_INITIAL_WAIT = 5  # seconds before first poll (JS needs time to load SDK)
+_POLL_TIME_LIMIT = 120  # total seconds (including initial wait) to detect conversion
 _TIME_BETWEEN_REQUESTS = 3  # seconds between status checks
 
 
@@ -53,48 +53,81 @@ def _generate_embed_token(dataset_ids: list, report_ids: list) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Helper: Embed the report in edit mode (hidden) and trigger a save
+# Helper: Embed the report in edit mode and trigger a save
 # ---------------------------------------------------------------------------
-def _embed_report_edit_mode(embed_url: str, access_token: str, height: int = 800):
+def _embed_report_edit_mode(embed_url: str, access_token: str):
     """
-    Renders a hidden Power BI embedded report in edit mode, then
-    automatically saves it.  The save triggers the PBIR format conversion
-    on the server side.
+    Renders a Power BI embedded report in edit mode, then automatically
+    saves it.  The save triggers the PBIR format conversion on the server
+    side.
+
+    The container is rendered at 1×1 px (not ``display:none``) because
+    the Power BI JS SDK requires the container to be in the layout in
+    order to fire the ``rendered`` event.  With ``display:none`` the
+    browser skips layout entirely and the event never fires — which
+    caused the old implementation to always time out.
+
+    A ``loaded`` event fallback is included: if ``rendered`` hasn't
+    fired 15 s after ``loaded``, the fallback calls ``report.save()``
+    anyway.
     """
     html_content = f"""
     <div id="reportContainer"
-         style="height:{height}px;width:100%;display:none;"></div>
+         style="width:1px;height:1px;overflow:hidden;position:absolute;
+                left:-9999px;top:-9999px;opacity:0;"></div>
 
     <script
       src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js">
     </script>
     <script>
-        var models = window['powerbi-client'].models;
+        (function() {{
+            var models = window['powerbi-client'].models;
+            var saved = false;          // guard against double-save
 
-        var embedConfig = {{
-            type: 'report',
-            tokenType: models.TokenType.Embed,
-            accessToken: '{access_token}',
-            embedUrl: '{embed_url}',
-            permissions: models.Permissions.ReadWrite,
-            viewMode: models.ViewMode.Edit
-        }};
+            var embedConfig = {{
+                type: 'report',
+                tokenType: models.TokenType.Embed,
+                accessToken: '{access_token}',
+                embedUrl: '{embed_url}',
+                permissions: models.Permissions.ReadWrite,
+                viewMode: models.ViewMode.Edit
+            }};
 
-        var reportContainer = document.getElementById('reportContainer');
-        var report = powerbi.embed(reportContainer, embedConfig);
+            var reportContainer = document.getElementById('reportContainer');
+            var report = powerbi.embed(reportContainer, embedConfig);
 
-        report.on('rendered', function() {{
-            console.log("Report rendered – triggering save for PBIR upgrade...");
-            report.save().then(function() {{
-                console.log("Report saved – PBIR upgrade triggered.");
-            }}).catch(function(error) {{
-                console.error("Error saving the report:", error);
+            function doSave(trigger) {{
+                if (saved) return;
+                saved = true;
+                console.log("PBI Fixer [" + trigger + "] – calling report.save()...");
+                report.save().then(function() {{
+                    console.log("PBI Fixer – report.save() succeeded.");
+                    window.__pbiFixer_saveStatus = "saved";
+                }}).catch(function(error) {{
+                    console.error("PBI Fixer – report.save() failed:", error);
+                    window.__pbiFixer_saveStatus = "error";
+                }});
+            }}
+
+            // Primary path: save as soon as the report is rendered
+            report.on('rendered', function() {{
+                doSave('rendered');
             }});
-        }});
 
-        report.on('error', function(event) {{
-            console.error("Error embedding the report:", event.detail);
-        }});
+            // Fallback: if rendered never fires, try saving 15 s after loaded
+            report.on('loaded', function() {{
+                console.log("PBI Fixer – report loaded.");
+                window.__pbiFixer_saveStatus = "loaded";
+                setTimeout(function() {{
+                    doSave('loaded-fallback');
+                }}, 15000);
+            }});
+
+            report.on('error', function(event) {{
+                console.error("PBI Fixer – embed error:", event.detail);
+                window.__pbiFixer_saveStatus = "embed-error";
+            }});
+        }})();
     </script>
     """
     if HTML is not None:
@@ -107,18 +140,33 @@ def _embed_report_edit_mode(embed_url: str, access_token: str, height: int = 800
 # Helper: Poll the reports API until the format flips to PBIR
 # ---------------------------------------------------------------------------
 def _check_upgrade_status(
-    url: str, updated_report_ids: list, workspace_name: str
+    url: str, updated_report_ids: list, workspace_name: str,
+    start_time: float,
 ) -> bool:
     """
     Polls ``GET /v1.0/myorg/groups/{ws}/reports`` until every report in
     *updated_report_ids* shows ``format == "PBIR"`` or the time limit is
     exceeded.
 
+    Parameters
+    ----------
+    start_time : float
+        The ``time.time()`` value from when the upgrade process started
+        (before the initial wait), so the total budget is measured from
+        the very beginning.
+
     Returns True if all reports were verified as PBIR, False otherwise.
     """
-    start_time = time.time()
 
+    poll_count = 0
     while time.time() - start_time < _POLL_TIME_LIMIT:
+        poll_count += 1
+        elapsed = int(time.time() - start_time)
+        print(
+            f"{icons.in_progress} Poll #{poll_count} — "
+            f"{elapsed}s / {_POLL_TIME_LIMIT}s elapsed..."
+        )
+
         response = _base_api(request=url, client="fabric_sp")
         verified = {}
         unverified = {}
@@ -139,12 +187,14 @@ def _check_upgrade_status(
 
         time.sleep(_TIME_BETWEEN_REQUESTS)
 
+    elapsed = int(time.time() - start_time)
     all_verified = True
     for rpt_id in updated_report_ids:
         if rpt_id in verified:
             print(
                 f"{icons.green_dot} The '{verified[rpt_id]}' report in the "
-                f"'{workspace_name}' workspace has been upgraded to PBIR format."
+                f"'{workspace_name}' workspace has been upgraded to PBIR format "
+                f"({elapsed}s)."
             )
         else:
             all_verified = False
@@ -262,22 +312,26 @@ def fix_upgrade_to_pbir(
 
     _embed_report_edit_mode(embed_url, access_token)
 
-    # Wait for JavaScript to load the Power BI SDK, embed the report,
-    # trigger the 'rendered' event, and call report.save().
-    # display(HTML(...)) is non-blocking — the JS executes asynchronously
-    # in the browser while Python continues.
+    # Start the clock for the total time budget.
+    # After a short initial wait (for JS to load the SDK and start embedding),
+    # we begin polling immediately.  This avoids the old 20s hard wait —
+    # if the conversion happens fast, we detect it in seconds instead of
+    # always waiting 20s + polling.
+    upgrade_start = time.time()
     print(
-        f"{icons.in_progress} Waiting {_JS_EXECUTION_WAIT}s for browser-side "
-        f"embed and save to complete..."
+        f"{icons.in_progress} Waiting {_INITIAL_WAIT}s for browser-side "
+        f"embed to start..."
     )
-    time.sleep(_JS_EXECUTION_WAIT)
+    time.sleep(_INITIAL_WAIT)
 
-    # Poll for upgrade completion
+    # Poll for upgrade completion (uses remaining time from total budget)
     print(
         f"{icons.in_progress} Polling for format conversion "
-        f"(up to {_POLL_TIME_LIMIT}s)..."
+        f"(up to {_POLL_TIME_LIMIT}s total)..."
     )
-    return _check_upgrade_status(url, [str(rpt_id)], workspace_name)
+    return _check_upgrade_status(
+        url, [str(rpt_id)], workspace_name, start_time=upgrade_start
+    )
 
 
 # Sample usage:
