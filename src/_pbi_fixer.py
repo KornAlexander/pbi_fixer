@@ -419,20 +419,36 @@ def pbi_fixer(
                 def _run_report_fixers(scan: bool):
                     nonlocal idx, errors
                     prefix = "🔍" if scan else "▶"
-                    for _, label, fn in rpt_selected:
+                    pbir_upgrade_failed = False
+                    for cb, label, fn in rpt_selected:
                         idx += 1
+
+                        # If PBIR upgrade failed, skip remaining report fixers
+                        # (they all require PBIR format and would show redundant errors)
+                        if pbir_upgrade_failed and cb is not cb_upgrade_pbir:
+                            _log(f"{prefix} [{idx}/{total}] {label}...")
+                            _log(f"   ⏭️ Skipped — PBIR upgrade did not complete.")
+                            _log()
+                            continue
+
                         _log(f"{prefix} [{idx}/{total}] {'Scanning' if scan else ''} {label}...")
                         try:
                             buf = io.StringIO()
                             with redirect_stdout(buf):
-                                fn(report, page, ws, scan)
+                                result = fn(report, page, ws, scan)
                             captured = buf.getvalue().rstrip()
                             if captured:
                                 for line in captured.splitlines():
                                     _log(f"   {line}")
+
+                            # Check if PBIR upgrade fixer failed (returned False in fix mode)
+                            if cb is cb_upgrade_pbir and not scan and result is False:
+                                pbir_upgrade_failed = True
                         except Exception as e:
                             errors += 1
                             _log(f"   ❌ Error: {e}")
+                            if cb is cb_upgrade_pbir and not scan:
+                                pbir_upgrade_failed = True
                         _log()
 
                 def _run_sm_fixers(scan: bool):

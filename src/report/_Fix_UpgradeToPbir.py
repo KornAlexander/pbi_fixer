@@ -22,8 +22,9 @@ except ImportError:  # allow import outside notebooks
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_TIME_LIMIT = 60  # seconds to poll for upgrade completion
-_TIME_BETWEEN_REQUESTS = 2  # seconds between status checks
+_JS_EXECUTION_WAIT = 20  # seconds for JS to load SDK, embed, render, and save
+_POLL_TIME_LIMIT = 120  # seconds to poll for server-side format conversion
+_TIME_BETWEEN_REQUESTS = 3  # seconds between status checks
 
 
 # ---------------------------------------------------------------------------
@@ -107,15 +108,17 @@ def _embed_report_edit_mode(embed_url: str, access_token: str, height: int = 800
 # ---------------------------------------------------------------------------
 def _check_upgrade_status(
     url: str, updated_report_ids: list, workspace_name: str
-):
+) -> bool:
     """
     Polls ``GET /v1.0/myorg/groups/{ws}/reports`` until every report in
     *updated_report_ids* shows ``format == "PBIR"`` or the time limit is
     exceeded.
+
+    Returns True if all reports were verified as PBIR, False otherwise.
     """
     start_time = time.time()
 
-    while time.time() - start_time < _TIME_LIMIT:
+    while time.time() - start_time < _POLL_TIME_LIMIT:
         response = _base_api(request=url, client="fabric_sp")
         verified = {}
         unverified = {}
@@ -136,6 +139,7 @@ def _check_upgrade_status(
 
         time.sleep(_TIME_BETWEEN_REQUESTS)
 
+    all_verified = True
     for rpt_id in updated_report_ids:
         if rpt_id in verified:
             print(
@@ -143,13 +147,15 @@ def _check_upgrade_status(
                 f"'{workspace_name}' workspace has been upgraded to PBIR format."
             )
         else:
+            all_verified = False
             name = unverified.get(rpt_id, rpt_id)
             print(
                 f"{icons.warning} The '{name}' report in the "
                 f"'{workspace_name}' workspace could not be verified as PBIR "
-                f"within {_TIME_LIMIT}s.  It may still be processing — "
+                f"within {_POLL_TIME_LIMIT}s.  It may still be processing — "
                 f"please check the workspace manually."
             )
+    return all_verified
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +167,7 @@ def fix_upgrade_to_pbir(
     page_name: Optional[str] = None,
     workspace: Optional[str | UUID] = None,
     scan_only: bool = False,
-) -> None:
+) -> bool:
     """
     Upgrades a report from PBIRLegacy format to PBIR format.
 
@@ -184,7 +190,8 @@ def fix_upgrade_to_pbir(
 
     Returns
     -------
-    None
+    bool
+        True if the report is (or was upgraded to) PBIR format, False otherwise.
     """
 
     workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
@@ -212,7 +219,7 @@ def fix_upgrade_to_pbir(
             f"{icons.red_dot} Could not find report '{rpt_name}' in the "
             f"'{workspace_name}' workspace."
         )
-        return
+        return False
 
     # Already PBIR
     if rpt_format == "PBIR":
@@ -220,7 +227,7 @@ def fix_upgrade_to_pbir(
             f"{icons.green_dot} Report '{rpt_name}' is already in PBIR format "
             f"— no upgrade needed."
         )
-        return
+        return True
 
     # Not PBIRLegacy — cannot upgrade
     if rpt_format != "PBIRLegacy":
@@ -228,7 +235,7 @@ def fix_upgrade_to_pbir(
             f"{icons.red_dot} Report '{rpt_name}' is in '{rpt_format}' format. "
             f"Only PBIRLegacy reports can be upgraded to PBIR."
         )
-        return
+        return False
 
     # PBIRLegacy → eligible for upgrade
     if scan_only:
@@ -236,7 +243,7 @@ def fix_upgrade_to_pbir(
             f"{icons.yellow_dot} Report '{rpt_name}' is in PBIRLegacy format "
             f"— eligible for upgrade to PBIR."
         )
-        return
+        return True  # scan mode: report is eligible, not a failure
 
     # Fix mode — perform the upgrade
     print(
@@ -251,12 +258,26 @@ def fix_upgrade_to_pbir(
         print(
             f"{icons.red_dot} Failed to generate embed token for '{rpt_name}': {e}"
         )
-        return
+        return False
 
     _embed_report_edit_mode(embed_url, access_token)
 
+    # Wait for JavaScript to load the Power BI SDK, embed the report,
+    # trigger the 'rendered' event, and call report.save().
+    # display(HTML(...)) is non-blocking — the JS executes asynchronously
+    # in the browser while Python continues.
+    print(
+        f"{icons.in_progress} Waiting {_JS_EXECUTION_WAIT}s for browser-side "
+        f"embed and save to complete..."
+    )
+    time.sleep(_JS_EXECUTION_WAIT)
+
     # Poll for upgrade completion
-    _check_upgrade_status(url, [str(rpt_id)], workspace_name)
+    print(
+        f"{icons.in_progress} Polling for format conversion "
+        f"(up to {_POLL_TIME_LIMIT}s)..."
+    )
+    return _check_upgrade_status(url, [str(rpt_id)], workspace_name)
 
 
 # Sample usage:
