@@ -1,9 +1,9 @@
 # Upgrade Report to PBIR Format
-# Converts PBIRLegacy reports to PBIR format using the embed-and-save approach.
-# Based on: https://github.com/m-kovalsky/semantic-link-labs/blob/7393dfd/src/sempy_labs/report/_upgrade_to_pbir.py
+# Converts PBIRLegacy reports to PBIR format using the Fabric REST API
+# (getDefinition → updateDefinition round-trip).
 
 from uuid import UUID
-from typing import Optional, List
+from typing import Optional
 from sempy_labs._helper_functions import (
     resolve_workspace_name_and_id,
     resolve_item_name_and_id,
@@ -13,152 +13,30 @@ from sempy._utils._log import log
 import sempy_labs._icons as icons
 import time
 
-try:
-    from IPython.display import HTML, display
-except ImportError:  # allow import outside notebooks
-    HTML = None
-    display = print
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_INITIAL_WAIT = 5  # seconds before first poll (JS needs time to load SDK)
-_POLL_TIME_LIMIT = 120  # total seconds (including initial wait) to detect conversion
+_POLL_TIME_LIMIT = 60  # seconds to poll for server-side format conversion
 _TIME_BETWEEN_REQUESTS = 3  # seconds between status checks
-
-
-# ---------------------------------------------------------------------------
-# Helper: Generate an embed token with ReadWrite permission
-# ---------------------------------------------------------------------------
-def _generate_embed_token(dataset_ids: list, report_ids: list) -> str:
-    """Generate a Power BI embed token that includes ReadWrite on the report."""
-
-    if not isinstance(dataset_ids, list):
-        dataset_ids = [dataset_ids]
-    if not isinstance(report_ids, list):
-        report_ids = [report_ids]
-
-    payload = {
-        "datasets": [{"id": str(did)} for did in dataset_ids],
-        "reports": [{"id": str(rid), "allowEdit": True} for rid in report_ids],
-    }
-
-    response = _base_api(
-        request="/v1.0/myorg/GenerateToken",
-        method="post",
-        client="fabric_sp",
-        payload=payload,
-    )
-    return response.json().get("token")
-
-
-# ---------------------------------------------------------------------------
-# Helper: Embed the report in edit mode and trigger a save
-# ---------------------------------------------------------------------------
-def _embed_report_edit_mode(embed_url: str, access_token: str):
-    """
-    Renders a Power BI embedded report in edit mode, then automatically
-    saves it.  The save triggers the PBIR format conversion on the server
-    side.
-
-    The container is rendered at 1×1 px (not ``display:none``) because
-    the Power BI JS SDK requires the container to be in the layout in
-    order to fire the ``rendered`` event.  With ``display:none`` the
-    browser skips layout entirely and the event never fires — which
-    caused the old implementation to always time out.
-
-    A ``loaded`` event fallback is included: if ``rendered`` hasn't
-    fired 15 s after ``loaded``, the fallback calls ``report.save()``
-    anyway.
-    """
-    html_content = f"""
-    <div id="reportContainer"
-         style="width:1px;height:1px;overflow:hidden;position:absolute;
-                left:-9999px;top:-9999px;opacity:0;"></div>
-
-    <script
-      src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js">
-    </script>
-    <script>
-        (function() {{
-            var models = window['powerbi-client'].models;
-            var saved = false;          // guard against double-save
-
-            var embedConfig = {{
-                type: 'report',
-                tokenType: models.TokenType.Embed,
-                accessToken: '{access_token}',
-                embedUrl: '{embed_url}',
-                permissions: models.Permissions.ReadWrite,
-                viewMode: models.ViewMode.Edit
-            }};
-
-            var reportContainer = document.getElementById('reportContainer');
-            var report = powerbi.embed(reportContainer, embedConfig);
-
-            function doSave(trigger) {{
-                if (saved) return;
-                saved = true;
-                console.log("PBI Fixer [" + trigger + "] – calling report.save()...");
-                report.save().then(function() {{
-                    console.log("PBI Fixer – report.save() succeeded.");
-                    window.__pbiFixer_saveStatus = "saved";
-                }}).catch(function(error) {{
-                    console.error("PBI Fixer – report.save() failed:", error);
-                    window.__pbiFixer_saveStatus = "error";
-                }});
-            }}
-
-            // Primary path: save as soon as the report is rendered
-            report.on('rendered', function() {{
-                doSave('rendered');
-            }});
-
-            // Fallback: if rendered never fires, try saving 15 s after loaded
-            report.on('loaded', function() {{
-                console.log("PBI Fixer – report loaded.");
-                window.__pbiFixer_saveStatus = "loaded";
-                setTimeout(function() {{
-                    doSave('loaded-fallback');
-                }}, 15000);
-            }});
-
-            report.on('error', function(event) {{
-                console.error("PBI Fixer – embed error:", event.detail);
-                window.__pbiFixer_saveStatus = "embed-error";
-            }});
-        }})();
-    </script>
-    """
-    if HTML is not None:
-        display(HTML(html_content))
-    else:
-        print(html_content)
 
 
 # ---------------------------------------------------------------------------
 # Helper: Poll the reports API until the format flips to PBIR
 # ---------------------------------------------------------------------------
 def _check_upgrade_status(
-    url: str, updated_report_ids: list, workspace_name: str,
+    url: str, report_id: str, workspace_name: str,
     start_time: float,
 ) -> bool:
     """
-    Polls ``GET /v1.0/myorg/groups/{ws}/reports`` until every report in
-    *updated_report_ids* shows ``format == "PBIR"`` or the time limit is
-    exceeded.
+    Polls ``GET /v1.0/myorg/groups/{ws}/reports`` until the report
+    shows ``format == "PBIR"`` or the time limit is exceeded.
 
-    Parameters
-    ----------
-    start_time : float
-        The ``time.time()`` value from when the upgrade process started
-        (before the initial wait), so the total budget is measured from
-        the very beginning.
-
-    Returns True if all reports were verified as PBIR, False otherwise.
+    Returns True if PBIR was verified, False otherwise.
     """
 
     poll_count = 0
+    verified_name = None
+
     while time.time() - start_time < _POLL_TIME_LIMIT:
         poll_count += 1
         elapsed = int(time.time() - start_time)
@@ -168,44 +46,34 @@ def _check_upgrade_status(
         )
 
         response = _base_api(request=url, client="fabric_sp")
-        verified = {}
-        unverified = {}
 
         for rpt in response.json().get("value", []):
-            rpt_id = rpt.get("id")
-            rpt_name = rpt.get("name")
-            rpt_format = rpt.get("format")
+            if rpt.get("id") == report_id:
+                if rpt.get("format") == "PBIR":
+                    verified_name = rpt.get("name")
+                break
 
-            if rpt_id in updated_report_ids:
-                if rpt_format == "PBIR":
-                    verified[rpt_id] = rpt_name
-                else:
-                    unverified[rpt_id] = rpt_name
-
-        if not unverified:
+        if verified_name:
             break
 
         time.sleep(_TIME_BETWEEN_REQUESTS)
 
     elapsed = int(time.time() - start_time)
-    all_verified = True
-    for rpt_id in updated_report_ids:
-        if rpt_id in verified:
-            print(
-                f"{icons.green_dot} The '{verified[rpt_id]}' report in the "
-                f"'{workspace_name}' workspace has been upgraded to PBIR format "
-                f"({elapsed}s)."
-            )
-        else:
-            all_verified = False
-            name = unverified.get(rpt_id, rpt_id)
-            print(
-                f"{icons.warning} The '{name}' report in the "
-                f"'{workspace_name}' workspace could not be verified as PBIR "
-                f"within {_POLL_TIME_LIMIT}s.  It may still be processing — "
-                f"please check the workspace manually."
-            )
-    return all_verified
+    if verified_name:
+        print(
+            f"{icons.green_dot} The '{verified_name}' report in the "
+            f"'{workspace_name}' workspace has been upgraded to PBIR format "
+            f"({elapsed}s)."
+        )
+        return True
+    else:
+        print(
+            f"{icons.warning} The report in the "
+            f"'{workspace_name}' workspace could not be verified as PBIR "
+            f"within {_POLL_TIME_LIMIT}s.  It may still be processing — "
+            f"please check the workspace manually."
+        )
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +89,12 @@ def fix_upgrade_to_pbir(
     """
     Upgrades a report from PBIRLegacy format to PBIR format.
 
-    In scan mode the function only reports the current format of the report.
-    In fix mode it embeds the report in edit mode (invisible to the user),
-    triggers a save, and polls until the server confirms the upgrade.
+    Uses a pure REST approach: retrieves the report definition via the
+    Fabric Items API (``getDefinition``) and pushes it back via
+    ``updateDefinition``.  The server-side processing converts the
+    definition to the workspace's current format (PBIR).
+
+    In scan mode the function only reports the current format.
 
     Parameters
     ----------
@@ -250,18 +121,13 @@ def fix_upgrade_to_pbir(
     )
 
     # Get report metadata to check current format
-    url = f"/v1.0/myorg/groups/{workspace_id}/reports"
-    response = _base_api(request=url, client="fabric_sp")
+    reports_url = f"/v1.0/myorg/groups/{workspace_id}/reports"
+    response = _base_api(request=reports_url, client="fabric_sp")
 
     rpt_format = None
-    embed_url = None
-    dataset_id = None
-
     for rpt in response.json().get("value", []):
         if rpt.get("id") == str(rpt_id):
             rpt_format = rpt.get("format")
-            embed_url = rpt.get("embedUrl")
-            dataset_id = rpt.get("datasetId")
             break
 
     if rpt_format is None:
@@ -295,45 +161,68 @@ def fix_upgrade_to_pbir(
         )
         return True  # scan mode: report is eligible, not a failure
 
-    # Fix mode — perform the upgrade
+    # ------------------------------------------------------------------
+    # Fix mode — perform the upgrade via REST round-trip
+    # ------------------------------------------------------------------
     print(
         f"{icons.in_progress} Upgrading '{rpt_name}' from PBIRLegacy to PBIR..."
     )
 
+    # Step 1: Get the current report definition (raw base64 parts)
+    print(f"{icons.in_progress} Retrieving report definition...")
     try:
-        access_token = _generate_embed_token(
-            dataset_ids=[dataset_id], report_ids=[rpt_id]
+        result = _base_api(
+            request=f"/v1/workspaces/{workspace_id}/reports/{rpt_id}/getDefinition",
+            method="post",
+            status_codes=None,
+            lro_return_json=True,
+            client="fabric_sp",
         )
     except Exception as e:
         print(
-            f"{icons.red_dot} Failed to generate embed token for '{rpt_name}': {e}"
+            f"{icons.red_dot} Failed to get report definition for "
+            f"'{rpt_name}': {e}"
         )
         return False
 
-    _embed_report_edit_mode(embed_url, access_token)
+    parts = result.get("definition", {}).get("parts", [])
+    if not parts:
+        print(
+            f"{icons.red_dot} Report definition for '{rpt_name}' returned "
+            f"no parts — cannot upgrade."
+        )
+        return False
 
-    # Start the clock for the total time budget.
-    # After a short initial wait (for JS to load the SDK and start embedding),
-    # we begin polling immediately.  This avoids the old 20s hard wait —
-    # if the conversion happens fast, we detect it in seconds instead of
-    # always waiting 20s + polling.
+    part_paths = [p.get("path") for p in parts]
+    print(
+        f"{icons.in_progress} Retrieved {len(parts)} definition "
+        f"part(s): {', '.join(part_paths)}"
+    )
+
+    # Step 2: Push the definition back via updateDefinition
+    # The server processes the definition and stores it in the
+    # workspace's current format.  If the workspace has the
+    # "enhanced report format" (PBIR) enabled this converts the report.
+    print(f"{icons.in_progress} Pushing definition back via updateDefinition...")
+    try:
+        _base_api(
+            request=f"/v1/workspaces/{workspace_id}/reports/{rpt_id}/updateDefinition",
+            method="post",
+            client="fabric_sp",
+            payload={"definition": {"parts": parts}},
+            lro_return_status_code=True,
+            status_codes=None,
+        )
+    except Exception as e:
+        print(
+            f"{icons.red_dot} updateDefinition failed for '{rpt_name}': {e}"
+        )
+        return False
+
+    print(f"{icons.in_progress} updateDefinition completed — checking format...")
+
+    # Step 3: Poll for format change
     upgrade_start = time.time()
-    print(
-        f"{icons.in_progress} Waiting {_INITIAL_WAIT}s for browser-side "
-        f"embed to start..."
-    )
-    time.sleep(_INITIAL_WAIT)
-
-    # Poll for upgrade completion (uses remaining time from total budget)
-    print(
-        f"{icons.in_progress} Polling for format conversion "
-        f"(up to {_POLL_TIME_LIMIT}s total)..."
-    )
     return _check_upgrade_status(
-        url, [str(rpt_id)], workspace_name, start_time=upgrade_start
+        reports_url, str(rpt_id), workspace_name, start_time=upgrade_start
     )
-
-
-# Sample usage:
-# fix_upgrade_to_pbir(report="My Report")
-# fix_upgrade_to_pbir(report="My Report", workspace="My Workspace", scan_only=True)
