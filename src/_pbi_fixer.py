@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 
 import ipywidgets as widgets
 import io
@@ -9,7 +9,7 @@ from contextlib import redirect_stdout
 from typing import Optional
 from uuid import UUID
 
-from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+# from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir  # commented out — PBIR auto-conversion not active yet
 from sempy_labs.report._Fix_PieChart import fix_piecharts
 from sempy_labs.report._Fix_BarChart import fix_barcharts
 from sempy_labs.report._Fix_ColumnChart import fix_columncharts
@@ -190,17 +190,17 @@ def pbi_fixer(
     # -----------------------------
     # REPORT FIXERS — VISUALS
     # -----------------------------
-    cb_upgrade_pbir = widgets.Checkbox(value=False, indent=False, layout=widgets.Layout(width="22px"))
+    # cb_upgrade_pbir = widgets.Checkbox(value=False, indent=False, layout=widgets.Layout(width="22px"))  # commented out — PBIR auto-conversion not active yet
     cb_pie = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_bar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_col = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_page_size = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_hide_filters = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
-    upgrade_pbir_row = widgets.HBox(
-        [cb_upgrade_pbir, _fixer_label("Upgrade to PBIR", "converts PBIRLegacy → PBIR (required for .pbix uploads)")],
-        layout=widgets.Layout(align_items="center", gap="6px"),
-    )
+    # upgrade_pbir_row = widgets.HBox(  # commented out — PBIR auto-conversion not active yet
+    #     [cb_upgrade_pbir, _fixer_label("Upgrade to PBIR", "converts PBIRLegacy → PBIR (required for .pbix uploads)")],
+    #     layout=widgets.Layout(align_items="center", gap="6px"),
+    # )
     pie_row = widgets.HBox(
         [cb_pie, _fixer_label("Fix Pie Charts", "replaces all pie charts → Clustered Bar Chart (default)")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -223,7 +223,7 @@ def pbi_fixer(
     )
 
     report_fixers_box = widgets.VBox(
-        [_section_heading("Report — Visuals"), upgrade_pbir_row, pie_row, bar_row, col_row, page_size_row, hide_filters_row],
+        [_section_heading("Report — Visuals"), pie_row, bar_row, col_row, page_size_row, hide_filters_row],  # upgrade_pbir_row removed — PBIR auto-conversion not active yet
         layout=widgets.Layout(
             gap="6px",
             padding="12px",
@@ -340,7 +340,7 @@ def pbi_fixer(
     # RUN HANDLER
     # -----------------------------
     report_fixers = [
-        (cb_upgrade_pbir, "Upgrade to PBIR", lambda r, p, w, s: fix_upgrade_to_pbir(report=r, page_name=p, workspace=w, scan_only=s)),
+        # (cb_upgrade_pbir, "Upgrade to PBIR", lambda r, p, w, s: fix_upgrade_to_pbir(report=r, page_name=p, workspace=w, scan_only=s)),  # commented out — PBIR auto-conversion not active yet
         (cb_pie, "Fix Pie Charts",    lambda r, p, w, s: fix_piecharts(report=r, page_name=p, workspace=w, scan_only=s)),
         (cb_bar, "Fix Bar Charts",    lambda r, p, w, s: fix_barcharts(report=r, page_name=p, workspace=w, scan_only=s)),
         (cb_col, "Fix Column Charts", lambda r, p, w, s: fix_columncharts(report=r, page_name=p, workspace=w, scan_only=s)),
@@ -421,17 +421,16 @@ def pbi_fixer(
                 def _run_report_fixers(scan: bool):
                     nonlocal idx, errors
                     prefix = "🔍" if scan else "▶"
-                    pbir_upgrade_failed = False
+                    # pbir_upgrade_failed = False  # commented out — PBIR upgrade fixer disabled
                     for cb, label, fn in rpt_selected:
                         idx += 1
 
-                        # If PBIR upgrade failed, skip remaining report fixers
-                        # (they all require PBIR format and would show redundant errors)
-                        if pbir_upgrade_failed and cb is not cb_upgrade_pbir:
-                            _log(f"{prefix} [{idx}/{total}] {label}...")
-                            _log(f"   ⏭️ Skipped — PBIR upgrade did not complete.")
-                            _log()
-                            continue
+                        # # Chain abort logic for PBIR upgrade — commented out (fixer disabled)
+                        # if pbir_upgrade_failed and cb is not cb_upgrade_pbir:
+                        #     _log(f"{prefix} [{idx}/{total}] {label}...")
+                        #     _log(f"   ⏭️ Skipped — PBIR upgrade did not complete.")
+                        #     _log()
+                        #     continue
 
                         _log(f"{prefix} [{idx}/{total}] {'Scanning' if scan else ''} {label}...")
                         try:
@@ -443,14 +442,14 @@ def pbi_fixer(
                                 for line in captured.splitlines():
                                     _log(f"   {line}")
 
-                            # Check if PBIR upgrade fixer failed (returned False in fix mode)
-                            if cb is cb_upgrade_pbir and not scan and result is False:
-                                pbir_upgrade_failed = True
+                            # # Check if PBIR upgrade fixer failed — commented out (fixer disabled)
+                            # if cb is cb_upgrade_pbir and not scan and result is False:
+                            #     pbir_upgrade_failed = True
                         except Exception as e:
                             errors += 1
                             _log(f"   ❌ Error: {e}")
-                            if cb is cb_upgrade_pbir and not scan:
-                                pbir_upgrade_failed = True
+                            # if cb is cb_upgrade_pbir and not scan:
+                            #     pbir_upgrade_failed = True
                         _log()
 
                 def _run_sm_fixers(scan: bool):
