@@ -1,6 +1,8 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
+__version__ = "0.2.0"
+
 import ipywidgets as widgets
 import io
 from contextlib import redirect_stdout
@@ -78,7 +80,9 @@ def pbi_fixer(
     # -----------------------------
     title = widgets.HTML(
         value=f'<div style="font-size:20px; font-weight:600; color:{text_color}; '
-        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">Power BI Report Fixer</div>'
+        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">Power BI Report Fixer'
+        f'<span style="font-size:11px; font-weight:400; color:{gray_color}; '
+        f'margin-left:10px;">v{__version__}</span></div>'
     )
     subtitle = widgets.HTML(
         value=f'<div style="font-size:13px; color:{gray_color}; '
