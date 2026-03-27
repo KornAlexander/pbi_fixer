@@ -391,7 +391,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         selected = change.get("new", ())
         if not selected:
             return
-        # Use the last selected item for expand/collapse and properties
         last = selected[-1]
         if last not in _key_map:
             return
@@ -400,36 +399,37 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         # Store all selected keys for fixer actions
         _selected_keys.clear()
         _selected_keys.extend(_key_map[s] for s in selected if s in _key_map)
-        # Expand/collapse report or page
-        if key.startswith("report:"):
-            r_name = key.split(":", 1)[1]
-            if r_name in _expanded:
-                _expanded.discard(r_name)
-            else:
-                _expanded.add(r_name)
-            _refresh_tree(preserve_selection=selected)
-            # Switch preview to this report
-            if _report_data.get("reports") and _report_widget[0] is not None:
-                r_data = _report_data["reports"].get(r_name, {})
-                rid = r_data.get("report_id", "")
-                wid = r_data.get("workspace_id", "")
-                if rid and wid:
-                    try:
-                        from powerbiclient import Report as PBIReport
-                        rpt_widget = PBIReport(group_id=wid, report_id=rid)
-                        rpt_widget.layout = widgets.Layout(width="100%", height="400px")
-                        _report_widget[0] = rpt_widget
-                        preview_content.children = [rpt_widget]
-                    except Exception:
-                        pass
-            return
-        if key.startswith("page:"):
-            p_name = key.split(":", 1)[1]
-            if p_name in _expanded:
-                _expanded.discard(p_name)
-            else:
-                _expanded.add(p_name)
-            _refresh_tree(preserve_selection=selected)
+        # Only expand/collapse on single-click (not during multi-select)
+        if len(selected) == 1:
+            if key.startswith("report:"):
+                r_name = key.split(":", 1)[1]
+                if r_name in _expanded:
+                    _expanded.discard(r_name)
+                else:
+                    _expanded.add(r_name)
+                _refresh_tree()
+                # Switch preview to this report
+                if _report_data.get("reports") and _report_widget[0] is not None:
+                    r_data = _report_data["reports"].get(r_name, {})
+                    rid = r_data.get("report_id", "")
+                    wid = r_data.get("workspace_id", "")
+                    if rid and wid:
+                        try:
+                            from powerbiclient import Report as PBIReport
+                            rpt_widget = PBIReport(group_id=wid, report_id=rid)
+                            rpt_widget.layout = widgets.Layout(width="100%", height="400px")
+                            _report_widget[0] = rpt_widget
+                            preview_content.children = [rpt_widget]
+                        except Exception:
+                            pass
+                return
+            if key.startswith("page:"):
+                p_name = key.split(":", 1)[1]
+                if p_name in _expanded:
+                    _expanded.discard(p_name)
+                else:
+                    _expanded.add(p_name)
+                _refresh_tree()
         props_html.value = _get_properties_html(_report_data, key)
         # Page navigation via powerbiclient (if widget loaded)
         if _report_widget[0] is not None and key.startswith("page:"):

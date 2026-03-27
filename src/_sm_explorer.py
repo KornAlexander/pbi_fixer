@@ -490,7 +490,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         selected = change.get("new", ())
         if not selected:
             return
-        # Use the last selected item for properties/expand-collapse
+        # Use the last selected item for properties
         last = selected[-1]
         if last not in _key_map:
             return
@@ -499,23 +499,24 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         # Track all selected keys
         _selected_keys.clear()
         _selected_keys.extend(_key_map[s] for s in selected if s in _key_map)
-        # Expand/collapse model or table
-        if key.startswith("model:"):
-            m_name = key.split(":", 1)[1]
-            if m_name in _expanded:
-                _expanded.discard(m_name)
-            else:
-                _expanded.add(m_name)
-            _refresh_tree(preserve_selection=selected)
-            preview.value = ""
-            return
-        if key.startswith("table:"):
-            t_name = key.split(":", 1)[1]
-            if t_name in _expanded:
-                _expanded.discard(t_name)
-            else:
-                _expanded.add(t_name)
-            _refresh_tree(preserve_selection=selected)
+        # Only expand/collapse on single-click (not during multi-select)
+        if len(selected) == 1:
+            if key.startswith("model:"):
+                m_name = key.split(":", 1)[1]
+                if m_name in _expanded:
+                    _expanded.discard(m_name)
+                else:
+                    _expanded.add(m_name)
+                _refresh_tree()
+                preview.value = ""
+                return
+            if key.startswith("table:"):
+                t_name = key.split(":", 1)[1]
+                if t_name in _expanded:
+                    _expanded.discard(t_name)
+                else:
+                    _expanded.add(t_name)
+                _refresh_tree()
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
         save_expr_btn.disabled = key.split(":")[0] not in ("measure", "calc_item")
