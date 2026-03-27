@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.33"
+__version__ = "1.2.34"
 
 import ipywidgets as widgets
 import io
@@ -83,24 +83,29 @@ except Exception:
         from sempy_labs.tom import connect_semantic_model
         created = 0
         with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
-            measures_table = tom.model.Tables.Find(target_table) if target_table else None
             for table in tom.model.Tables:
+                dest_name = target_table or table.Name
                 for col in table.Columns:
                     summarize_by = str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "None"
                     if summarize_by in ("None", "Default"):
                         continue
                     agg_fn = summarize_by.upper()
                     dax_expr = f"{agg_fn}('{table.Name}'[{col.Name}])"
-                    dest = measures_table or table
-                    if dest.Measures.Find(col.Name) is not None:
+                    # Check if measure already exists
+                    dest_tbl = tom.model.Tables[dest_name]
+                    if dest_tbl.Measures.Find(col.Name) is not None:
                         continue
                     if scan_only:
                         print(f"  Would create: [{col.Name}] = {dax_expr}")
                         created += 1
                         continue
-                    m = dest.AddMeasure(col.Name, dax_expr)
-                    m.FormatString = "0.0"
-                    m.DisplayFolder = table.Name
+                    tom.add_measure(
+                        table_name=dest_name,
+                        measure_name=col.Name,
+                        expression=dax_expr,
+                        format_string="0.0",
+                        display_folder=table.Name,
+                    )
                     col.IsHidden = True
                     created += 1
                     print(f"  Created [{col.Name}] = {dax_expr}")
@@ -173,9 +178,13 @@ except Exception:
                         print(f"  Would create: [{v_name}]")
                         created += 1
                         continue
-                    new_m = dest.AddMeasure(v_name, v_expr)
-                    new_m.FormatString = fmt
-                    new_m.DisplayFolder = py_folder
+                    tom.add_measure(
+                        table_name=dest.Name,
+                        measure_name=v_name,
+                        expression=v_expr,
+                        format_string=fmt,
+                        display_folder=py_folder,
+                    )
                     created += 1
                 if not scan_only:
                     print(f"  Created PY variants for [{n}]")

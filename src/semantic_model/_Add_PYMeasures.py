@@ -139,9 +139,13 @@ def add_py_measures(
                     created += 1
                     continue
 
-                new_m = dest.AddMeasure(v_name, v_expr)
-                new_m.FormatString = fmt
-                new_m.DisplayFolder = py_folder
+                tom.add_measure(
+                    table_name=dest.Name,
+                    measure_name=v_name,
+                    expression=v_expr,
+                    format_string=fmt,
+                    display_folder=py_folder,
+                )
                 created += 1
 
             if not scan_only:

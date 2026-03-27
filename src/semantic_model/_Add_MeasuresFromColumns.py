@@ -79,13 +79,17 @@ def add_measures_from_columns(
                     created += 1
                     continue
 
-                new_measure = dest_table.AddMeasure(measure_name, dax_expr)
-                new_measure.FormatString = "0.0"
-                new_measure.Description = (
-                    f"Auto-created {agg_fn} measure from column "
-                    f"'{table.Name}'[{col.Name}]"
+                tom.add_measure(
+                    table_name=dest_table.Name,
+                    measure_name=measure_name,
+                    expression=dax_expr,
+                    format_string="0.0",
+                    description=(
+                        f"Auto-created {agg_fn} measure from column "
+                        f"'{table.Name}'[{col.Name}]"
+                    ),
+                    display_folder=table.Name,
                 )
-                new_measure.DisplayFolder = table.Name
                 col.IsHidden = True
                 created += 1
                 print(
