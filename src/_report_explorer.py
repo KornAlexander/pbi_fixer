@@ -534,16 +534,27 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             set_status(conn_status, "No report selected.", "#ff3b30")
             return
         set_status(conn_status, f"Running {action} on {len(unique)} target(s)\u2026", GRAY_COLOR)
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
         errors = 0
+        all_output = []
         for rpt, page in unique:
             try:
-                fixer_callbacks[action](report=rpt, page_name=page, workspace=ws, scan_only=False)
+                buf = _io.StringIO()
+                with _redirect(buf):
+                    fixer_callbacks[action](report=rpt, page_name=page, workspace=ws, scan_only=False)
+                captured = buf.getvalue().rstrip()
+                if captured:
+                    all_output.append(captured)
             except Exception:
                 errors += 1
+        summary = f"\u2713 {action} on {len(unique)} target(s)."
         if errors:
-            set_status(conn_status, f"\u26a0\ufe0f {action}: {len(unique) - errors} OK, {errors} error(s).", "#ff9500")
-        else:
-            set_status(conn_status, f"\u2713 {action} on {len(unique)} target(s).", "#34c759")
+            summary = f"\u26a0\ufe0f {action}: {len(unique) - errors} OK, {errors} error(s)."
+        if all_output:
+            first_line = all_output[0].splitlines()[0][:80]
+            summary += f" {first_line}"
+        set_status(conn_status, summary, "#34c759" if not errors else "#ff9500")
 
     def on_scan(_):
         """Fast local scan — checks loaded visual types for fixable issues without API calls."""
