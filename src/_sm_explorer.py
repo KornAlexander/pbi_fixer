@@ -189,39 +189,87 @@ def _load_model_data_tom(dataset, workspace):
 
 def _build_tree(model_data, expanded_tables):
     items = []
-    for t_name in sorted(model_data["tables"]):
-        t = model_data["tables"][t_name]
-        icon = "calc_group" if t["type"] == "CalculationGroup" else "table"
-        is_expanded = t_name in expanded_tables
-        marker = EXPANDED if is_expanded else COLLAPSED
-        suffix = " (hidden)" if t["is_hidden"] else ""
-        child_count = len(t["measures"]) + len(t["columns"]) + len(t["hierarchies"]) + len(t["calc_items"])
-        items.append((0, icon, f"{marker} {t_name}{suffix}  [{child_count}]", f"table:{t_name}"))
-        if not is_expanded:
-            continue
-        for m_name in sorted(t["measures"]):
-            items.append((1, "measure", m_name, f"measure:{t_name}:{m_name}"))
-        for c_name in sorted(t["columns"]):
-            c = t["columns"][c_name]
-            hidden = " (hidden)" if c["is_hidden"] else ""
-            items.append((1, "column", f"{c_name} [{c['data_type']}]{hidden}", f"column:{t_name}:{c_name}"))
-        for h_name in sorted(t["hierarchies"]):
-            lvl_str = " \u2192 ".join(t["hierarchies"][h_name]["levels"])
-            items.append((1, "hierarchy", f"{h_name}  ({lvl_str})", f"hierarchy:{t_name}:{h_name}"))
-        for ci_name in sorted(t["calc_items"], key=lambda n: t["calc_items"][n]["ordinal"]):
-            items.append((1, "calc_item", ci_name, f"calc_item:{t_name}:{ci_name}"))
+    models = model_data.get("models", {})
+    if models:
+        # Multi-model: show model-level grouping
+        for m_name in sorted(models):
+            m_tables = models[m_name]
+            is_model_expanded = m_name in expanded_tables
+            marker = EXPANDED if is_model_expanded else COLLAPSED
+            t_count = len(m_tables)
+            items.append((0, "calc_group", f"{marker} {m_name}  [{t_count} tables]", f"model:{m_name}"))
+            if not is_model_expanded:
+                continue
+            for t_name in sorted(m_tables):
+                t = m_tables[t_name]
+                icon = "calc_group" if t["type"] == "CalculationGroup" else "table"
+                full_key = f"{m_name}\x1f{t_name}"
+                is_expanded = full_key in expanded_tables
+                t_marker = EXPANDED if is_expanded else COLLAPSED
+                suffix = " (hidden)" if t["is_hidden"] else ""
+                child_count = len(t["measures"]) + len(t["columns"]) + len(t["hierarchies"]) + len(t["calc_items"])
+                items.append((1, icon, f"{t_marker} {t_name}{suffix}  [{child_count}]", f"table:{full_key}"))
+                if not is_expanded:
+                    continue
+                for mn in sorted(t["measures"]):
+                    items.append((2, "measure", mn, f"measure:{full_key}:{mn}"))
+                for cn in sorted(t["columns"]):
+                    c = t["columns"][cn]
+                    hidden = " (hidden)" if c["is_hidden"] else ""
+                    items.append((2, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{full_key}:{cn}"))
+                for hn in sorted(t["hierarchies"]):
+                    lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
+                    items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{full_key}:{hn}"))
+                for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
+                    items.append((2, "calc_item", ci_name, f"calc_item:{full_key}:{ci_name}"))
+    else:
+        # Single model: flat table list (original behavior)
+        for t_name in sorted(model_data["tables"]):
+            t = model_data["tables"][t_name]
+            icon = "calc_group" if t["type"] == "CalculationGroup" else "table"
+            is_expanded = t_name in expanded_tables
+            marker = EXPANDED if is_expanded else COLLAPSED
+            suffix = " (hidden)" if t["is_hidden"] else ""
+            child_count = len(t["measures"]) + len(t["columns"]) + len(t["hierarchies"]) + len(t["calc_items"])
+            items.append((0, icon, f"{marker} {t_name}{suffix}  [{child_count}]", f"table:{t_name}"))
+            if not is_expanded:
+                continue
+            for mn in sorted(t["measures"]):
+                items.append((1, "measure", mn, f"measure:{t_name}:{mn}"))
+            for cn in sorted(t["columns"]):
+                c = t["columns"][cn]
+                hidden = " (hidden)" if c["is_hidden"] else ""
+                items.append((1, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{t_name}:{cn}"))
+            for hn in sorted(t["hierarchies"]):
+                lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
+                items.append((1, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
+            for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
+                items.append((1, "calc_item", ci_name, f"calc_item:{t_name}:{ci_name}"))
     return build_tree_items(items)
+
+
+def _resolve_table(model_data, table_key):
+    """Resolve a table key to its data dict. Handles both single and multi-model keys."""
+    if "\x1f" in table_key:
+        m_name, t_name = table_key.split("\x1f", 1)
+        return model_data.get("models", {}).get(m_name, {}).get(t_name)
+    return model_data.get("tables", {}).get(table_key)
 
 
 def _get_preview_text(model_data, key):
     parts = key.split(":", 2)
     node_type = parts[0]
+    if node_type in ("model",):
+        return ""
     if node_type == "measure":
-        return model_data["tables"][parts[1]]["measures"].get(parts[2], {}).get("expression", "")
+        t = _resolve_table(model_data, parts[1])
+        return t["measures"].get(parts[2], {}).get("expression", "") if t else ""
     if node_type == "column":
-        return model_data["tables"][parts[1]]["columns"].get(parts[2], {}).get("expression") or ""
+        t = _resolve_table(model_data, parts[1])
+        return (t["columns"].get(parts[2], {}).get("expression") or "") if t else ""
     if node_type == "calc_item":
-        return model_data["tables"][parts[1]]["calc_items"].get(parts[2], {}).get("expression", "")
+        t = _resolve_table(model_data, parts[1])
+        return t["calc_items"].get(parts[2], {}).get("expression", "") if t else ""
     return ""
 
 
@@ -386,7 +434,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
         start_time = time.time()
-        merged_data = {"tables": {}}
+        merged_data = {"tables": {}, "models": {}}
         loaded = 0
         errors = 0
 
@@ -398,9 +446,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                 try:
                     data = _load_model_data_fast(dataset=ds, workspace=ws)
                     if len(items) > 1:
-                        # Prefix table names with model name to avoid collisions
-                        for t_name, t_info in data["tables"].items():
-                            merged_data["tables"][f"{ds} \u203a {t_name}"] = t_info
+                        # Store per-model for grouped tree
+                        merged_data["models"][ds] = data["tables"]
                     else:
                         merged_data["tables"].update(data["tables"])
                     loaded += 1
@@ -409,9 +456,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
             _model_data = merged_data
             _refresh_tree()
-            n_t = len(_model_data["tables"])
-            n_m = sum(len(t["measures"]) for t in _model_data["tables"].values())
-            n_c = sum(len(t["columns"]) for t in _model_data["tables"].values())
+            # Count tables across both single and multi-model structures
+            all_tables = {}
+            all_tables.update(_model_data.get("tables", {}))
+            for m_tables in _model_data.get("models", {}).values():
+                all_tables.update(m_tables)
+            n_t = len(all_tables)
+            n_m = sum(len(t["measures"]) for t in all_tables.values())
+            n_c = sum(len(t["columns"]) for t in all_tables.values())
             elapsed = int(time.time() - start_time)
             err_str = f", {errors} error(s)" if errors else ""
             set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
@@ -428,6 +480,16 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             return
         key = _key_map[selected]
         _current_key[0] = key
+        # Expand/collapse model or table
+        if key.startswith("model:"):
+            m_name = key.split(":", 1)[1]
+            if m_name in _expanded:
+                _expanded.discard(m_name)
+            else:
+                _expanded.add(m_name)
+            _refresh_tree(preserve_selection=selected)
+            preview.value = ""
+            return
         if key.startswith("table:"):
             t_name = key.split(":", 1)[1]
             if t_name in _expanded:
@@ -442,7 +504,15 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     def on_expand_all(_):
         if _model_data:
-            _expanded.update(_model_data["tables"].keys())
+            # Expand all models and all tables
+            models = _model_data.get("models", {})
+            if models:
+                for m_name, m_tables in models.items():
+                    _expanded.add(m_name)
+                    for t_name in m_tables:
+                        _expanded.add(f"{m_name}\x1f{t_name}")
+            else:
+                _expanded.update(_model_data.get("tables", {}).keys())
             _refresh_tree()
 
     def on_collapse_all(_):
