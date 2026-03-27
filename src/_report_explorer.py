@@ -329,10 +329,11 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             else:
                 # Multi-report: load each into grouped structure
                 merged = {"pages": {}, "reports": {}, "report_id": "", "workspace_id": ""}
-                for rpt in items:
+                for i, rpt in enumerate(items):
                     if time.time() - start_time > _LOAD_TIMEOUT:
                         set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)}.", "#ff9500")
                         break
+                    set_status(conn_status, f"Report {i+1}/{len(items)}: loading '{rpt}'\u2026", GRAY_COLOR)
                     try:
                         data = _load_report_data(report=rpt, workspace=ws)
                         merged["reports"][rpt] = data
@@ -342,6 +343,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                         loaded += 1
                     except Exception:
                         errors += 1
+                        set_status(conn_status, f"Report {i+1}/{len(items)}: '{rpt}' failed", "#ff9500")
                 _report_data = merged
 
             _refresh_tree()

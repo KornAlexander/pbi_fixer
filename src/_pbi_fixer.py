@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.18"
+__version__ = "1.2.19"
 
 import ipywidgets as widgets
 import io
@@ -849,28 +849,26 @@ def pbi_fixer(
     def on_load_all(_):
         load_all_btn.disabled = True
         load_all_btn.description = "Loading\u2026"
-        load_status.value = (
-            f'<span style="font-size:12px; color:{gray_color}; '
-            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
-            f'Loading {len(_load_triggers)} tab(s)\u2026</span>'
+        _status_style = (
+            f'font-size:12px; font-family:-apple-system,BlinkMacSystemFont,sans-serif;'
         )
-        try:
-            for load_fn in _load_triggers:
+        total = len(_load_triggers)
+        for i, load_fn in enumerate(_load_triggers):
+            tab_name = ["Models", "Reports"][i] if i < 2 else f"Tab {i+1}"
+            load_status.value = (
+                f'<span style="{_status_style} color:{gray_color};">'
+                f'{tab_name} ({i+1}/{total})\u2026</span>'
+            )
+            try:
                 load_fn(None)
-            load_status.value = (
-                f'<span style="font-size:12px; color:#34c759; '
-                f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
-                f'\u2713 Loaded</span>'
-            )
-        except Exception as e:
-            load_status.value = (
-                f'<span style="font-size:12px; color:#ff3b30; '
-                f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
-                f'Error: {e}</span>'
-            )
-        finally:
-            load_all_btn.disabled = False
-            load_all_btn.description = "Load"
+            except Exception:
+                pass
+        load_status.value = (
+            f'<span style="{_status_style} color:#34c759;">'
+            f'\u2713 Loaded</span>'
+        )
+        load_all_btn.disabled = False
+        load_all_btn.description = "Load"
 
     load_all_btn.on_click(on_load_all)
 

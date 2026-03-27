@@ -284,6 +284,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     _key_map = {}
     _expanded = set()
     _current_key = [None]
+    _selected_keys = []  # all currently selected keys for fixer actions
 
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
@@ -449,20 +450,21 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         errors = 0
 
         try:
-            for ds in items:
+            for i, ds in enumerate(items):
                 if time.time() - start_time > _LOAD_TIMEOUT:
                     set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
                     break
+                set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
                 try:
                     data = _load_model_data_fast(dataset=ds, workspace=ws)
                     if len(items) > 1:
-                        # Store per-model for grouped tree
                         merged_data["models"][ds] = data["tables"]
                     else:
                         merged_data["tables"].update(data["tables"])
                     loaded += 1
                 except Exception as e:
                     errors += 1
+                    set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
 
             _model_data = merged_data
             _refresh_tree()
@@ -494,6 +496,9 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             return
         key = _key_map[last]
         _current_key[0] = key
+        # Track all selected keys
+        _selected_keys.clear()
+        _selected_keys.extend(_key_map[s] for s in selected if s in _key_map)
         # Expand/collapse model or table
         if key.startswith("model:"):
             m_name = key.split(":", 1)[1]
@@ -633,13 +638,30 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             set_status(conn_status, "No model loaded.", "#ff3b30")
             fixer_dropdown.value = "Actions..."
             return
+
+        # Extract selected measure and column names from tree selection
+        sel_measures = []
+        sel_columns = []
+        for key in _selected_keys:
+            parts = key.split(":", 2)
+            if parts[0] == "measure" and len(parts) > 2:
+                sel_measures.append(parts[2])
+            elif parts[0] == "column" and len(parts) > 2:
+                sel_columns.append(parts[2])
+
         set_status(conn_status, f"Running {action}\u2026", GRAY_COLOR)
         try:
             import io as _io
             from contextlib import redirect_stdout as _redirect
             buf = _io.StringIO()
+            # Build kwargs, passing selection if action supports it
+            kwargs = {"report": ds, "workspace": ws, "scan_only": False}
+            if sel_measures and action in ("Add PY Measures (Y-1)",):
+                kwargs["measures"] = sel_measures
+            if sel_columns and action in ("Auto-Create Measures from Columns",):
+                kwargs["columns"] = sel_columns
             with _redirect(buf):
-                fixer_callbacks[action](report=ds, workspace=ws, scan_only=False)
+                fixer_callbacks[action](**kwargs)
             captured = buf.getvalue().rstrip()
             msg = f"\u2713 {action} complete."
             if captured:
