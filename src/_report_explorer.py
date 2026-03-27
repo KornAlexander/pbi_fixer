@@ -225,6 +225,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _key_map = {}
     _expanded = set()
     _current_key = [None]
+    _selected_keys = []  # all currently selected keys for multi-select fixer actions
 
     load_btn = widgets.Button(description="Load Report", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
@@ -243,14 +244,19 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
 
     def _refresh_tree(preserve_selection=None):
         nonlocal _key_map
         options, _key_map = _build_tree(_report_data, _expanded)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        tree.value = preserve_selection if (preserve_selection and preserve_selection in options) else None
+        if preserve_selection:
+            if isinstance(preserve_selection, str):
+                preserve_selection = (preserve_selection,)
+            tree.value = tuple(v for v in preserve_selection if v in options)
+        else:
+            tree.value = ()
         tree.observe(on_select, names="value")
 
     # -- preview (top-right, powerbiclient Report widget) --
@@ -380,11 +386,18 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             load_btn.description = "Load Report"
 
     def on_select(change):
-        selected = change.get("new")
-        if not selected or selected not in _key_map:
+        selected = change.get("new", ())
+        if not selected:
             return
-        key = _key_map[selected]
+        # Use the last selected item for expand/collapse and properties
+        last = selected[-1]
+        if last not in _key_map:
+            return
+        key = _key_map[last]
         _current_key[0] = key
+        # Store all selected keys for fixer actions
+        _selected_keys.clear()
+        _selected_keys.extend(_key_map[s] for s in selected if s in _key_map)
         # Expand/collapse report or page
         if key.startswith("report:"):
             r_name = key.split(":", 1)[1]
@@ -467,11 +480,12 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             return
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        # Determine which report is selected based on current key
-        key = _current_key[0]
-        rpt = ""
-        page = None
-        if key:
+
+        # Collect unique (report, page) pairs from all selected keys
+        targets = []
+        for key in _selected_keys:
+            rpt = ""
+            page = None
             if key.startswith("report:"):
                 rpt = key.split(":", 1)[1]
             elif key.startswith("page:"):
@@ -482,24 +496,43 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     rpt = report_input.value.strip() if report_input else ""
                     page = p_raw
             elif key.startswith("visual:"):
-                v_raw = key.split(":")[1]  # report\x1fpage or page
+                v_raw = key.split(":")[1]
                 if "\x1f" in v_raw:
                     rpt, page = v_raw.split("\x1f", 1)
                 else:
                     rpt = report_input.value.strip() if report_input else ""
                     page = v_raw
-        if not rpt:
+            if rpt:
+                targets.append((rpt, page))
+
+        # Deduplicate and fallback to current selection
+        if not targets:
             rpt = report_input.value.strip() if report_input else ""
-        if not rpt:
+            if rpt:
+                targets = [(rpt, None)]
+        seen = set()
+        unique_targets = []
+        for t in targets:
+            if t not in seen:
+                seen.add(t)
+                unique_targets.append(t)
+
+        if not unique_targets:
             set_status(conn_status, "No report loaded.", "#ff3b30")
             fixer_dropdown.value = "Actions..."
             return
-        set_status(conn_status, f"Running {action}\u2026", GRAY_COLOR)
-        try:
-            fixer_callbacks[action](report=rpt, page_name=page, workspace=ws, scan_only=False)
-            set_status(conn_status, f"\u2713 {action} complete.", "#34c759")
-        except Exception as e:
-            set_status(conn_status, f"Error: {e}", "#ff3b30")
+
+        set_status(conn_status, f"Running {action} on {len(unique_targets)} target(s)\u2026", GRAY_COLOR)
+        errors = 0
+        for rpt, page in unique_targets:
+            try:
+                fixer_callbacks[action](report=rpt, page_name=page, workspace=ws, scan_only=False)
+            except Exception:
+                errors += 1
+        if errors:
+            set_status(conn_status, f"\u26a0\ufe0f {action}: {len(unique_targets) - errors} OK, {errors} error(s).", "#ff9500")
+        else:
+            set_status(conn_status, f"\u2713 {action} complete ({len(unique_targets)} target(s)).", "#34c759")
         fixer_dropdown.value = "Actions..."
 
     load_btn.on_click(on_load)

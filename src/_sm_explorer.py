@@ -315,14 +315,19 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
 
     def _refresh_tree(preserve_selection=None):
         nonlocal _key_map
         options, _key_map = _build_tree(_model_data, _expanded)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        tree.value = preserve_selection if (preserve_selection and preserve_selection in options) else None
+        if preserve_selection:
+            if isinstance(preserve_selection, str):
+                preserve_selection = (preserve_selection,)
+            tree.value = tuple(v for v in preserve_selection if v in options)
+        else:
+            tree.value = ()
         tree.observe(on_select, names="value")
 
     # -- expression panel --
@@ -493,10 +498,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             load_btn.description = "Load Model"
 
     def on_select(change):
-        selected = change.get("new")
-        if not selected or selected not in _key_map:
+        selected = change.get("new", ())
+        if not selected:
             return
-        key = _key_map[selected]
+        # Use the last selected item for properties/expand-collapse
+        last = selected[-1]
+        if last not in _key_map:
+            return
+        key = _key_map[last]
         _current_key[0] = key
         # Expand/collapse model or table
         if key.startswith("model:"):
