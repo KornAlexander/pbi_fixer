@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.15"
+__version__ = "1.2.16"
 
 import ipywidgets as widgets
 import io
@@ -73,6 +73,16 @@ try:
     from sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable import add_measure_table
 except ImportError:
     add_measure_table = None
+
+try:
+    from sempy_labs.semantic_model._Add_MeasuresFromColumns import add_measures_from_columns
+except ImportError:
+    add_measures_from_columns = None
+
+try:
+    from sempy_labs.semantic_model._Add_PYMeasures import add_py_measures
+except ImportError:
+    add_py_measures = None
 
 try:
     from sempy_labs._sm_explorer import sm_explorer_tab
@@ -785,6 +795,10 @@ def pbi_fixer(
         _sm_fixer_cbs["Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
     if add_calc_group_time_intelligence is not None:
         _sm_fixer_cbs["Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
+    if add_measures_from_columns is not None:
+        _sm_fixer_cbs["Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(**kw)
+    if add_py_measures is not None:
+        _sm_fixer_cbs["Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(**kw)
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
