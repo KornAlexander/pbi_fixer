@@ -44,9 +44,7 @@ def _load_model_data_fast(dataset, workspace):
     import sempy.fabric as fabric
     from sempy_labs.tom import connect_semantic_model
 
-    model_data = {"tables": {}}
-
-    # -- Fast DataFrame reads (REST API, no TOM connection needed) --
+    model_data = {"tables": {}, "relationships": []}
     try:
         tables_df = fabric.list_tables(dataset, workspace)
         columns_df = fabric.list_columns(dataset, workspace, extended=True)
@@ -121,6 +119,21 @@ def _load_model_data_fast(dataset, workspace):
                     pass
                 for h in table.Hierarchies:
                     t_info["hierarchies"][h.Name] = {"levels": [str(lvl.Name) for lvl in h.Levels]}
+
+            # Load relationships
+            for rel in tm.model.Relationships:
+                try:
+                    model_data["relationships"].append({
+                        "from_table": str(rel.FromTable.Name),
+                        "from_column": str(rel.FromColumn.Name),
+                        "to_table": str(rel.ToTable.Name),
+                        "to_column": str(rel.ToColumn.Name),
+                        "cross_filter": str(rel.CrossFilteringBehavior) if hasattr(rel, "CrossFilteringBehavior") else "",
+                        "is_active": bool(rel.IsActive) if hasattr(rel, "IsActive") else True,
+                        "multiplicity": str(rel.FromCardinality) + " → " + str(rel.ToCardinality) if hasattr(rel, "FromCardinality") else "",
+                    })
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -131,7 +144,7 @@ def _load_model_data_tom(dataset, workspace):
     """Fallback: load everything via TOM (slower but complete)."""
     from sempy_labs.tom import connect_semantic_model
 
-    model_data = {"tables": {}}
+    model_data = {"tables": {}, "relationships": []}
     with connect_semantic_model(dataset=dataset, readonly=True, workspace=workspace) as tm:
         for table in tm.model.Tables:
             t_name = table.Name
@@ -186,6 +199,21 @@ def _load_model_data_tom(dataset, workspace):
                 except Exception:
                     pass
             model_data["tables"][t_name] = t_info
+
+        # Load relationships
+        for rel in tm.model.Relationships:
+            try:
+                model_data["relationships"].append({
+                    "from_table": str(rel.FromTable.Name),
+                    "from_column": str(rel.FromColumn.Name),
+                    "to_table": str(rel.ToTable.Name),
+                    "to_column": str(rel.ToColumn.Name),
+                    "cross_filter": str(rel.CrossFilteringBehavior) if hasattr(rel, "CrossFilteringBehavior") else "",
+                    "is_active": bool(rel.IsActive) if hasattr(rel, "IsActive") else True,
+                    "multiplicity": str(rel.FromCardinality) + " \u2192 " + str(rel.ToCardinality) if hasattr(rel, "FromCardinality") else "",
+                })
+            except Exception:
+                pass
     return model_data
 
 
@@ -232,6 +260,18 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                     items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{full_key}:{hn}"))
                 for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
                     items.append((2, "calc_item", ci_name, f"calc_item:{full_key}:{ci_name}"))
+            # Relationships for this model
+            m_rels = model_data.get("model_relationships", {}).get(m_name, [])
+            if m_rels:
+                rel_key = f"rels:{m_name}"
+                is_rels_exp = rel_key in expanded_tables
+                r_marker = EXPANDED if is_rels_exp else COLLAPSED
+                items.append((1, "relationship", f"{r_marker} Relationships  [{len(m_rels)}]", rel_key))
+                if is_rels_exp:
+                    for i, rel in enumerate(m_rels):
+                        active = "" if rel.get("is_active", True) else " (inactive)"
+                        label = f"{rel['from_table']}[{rel['from_column']}] \u2194 {rel['to_table']}[{rel['to_column']}]{active}"
+                        items.append((2, "relationship", label, f"rel:{m_name}:{i}"))
     else:
         # Single model: flat table list (original behavior)
         for t_name in sorted(model_data["tables"]):
@@ -255,6 +295,18 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                 items.append((1, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
             for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
                 items.append((1, "calc_item", ci_name, f"calc_item:{t_name}:{ci_name}"))
+        # Relationships (single model)
+        rels = model_data.get("relationships", [])
+        if rels:
+            rel_key = "rels:_single"
+            is_rels_exp = rel_key in expanded_tables
+            r_marker = EXPANDED if is_rels_exp else COLLAPSED
+            items.append((0, "relationship", f"{r_marker} Relationships  [{len(rels)}]", rel_key))
+            if is_rels_exp:
+                for i, rel in enumerate(rels):
+                    active = "" if rel.get("is_active", True) else " (inactive)"
+                    label = f"{rel['from_table']}[{rel['from_column']}] \u2194 {rel['to_table']}[{rel['to_column']}]{active}"
+                    items.append((1, "relationship", label, f"rel:_single:{i}"))
     return build_tree_items(items)
 
 
@@ -269,7 +321,25 @@ def _resolve_table(model_data, table_key):
 def _get_preview_text(model_data, key):
     parts = key.split(":", 2)
     node_type = parts[0]
-    if node_type in ("model",):
+    if node_type in ("model", "rels"):
+        return ""
+    if node_type == "rel":
+        # Show relationship details
+        m_name = parts[1] if len(parts) > 1 else ""
+        idx = int(parts[2]) if len(parts) > 2 else -1
+        if m_name == "_single":
+            rels = model_data.get("relationships", [])
+        else:
+            rels = model_data.get("model_relationships", {}).get(m_name, [])
+        if 0 <= idx < len(rels):
+            r = rels[idx]
+            return (
+                f"From: '{r['from_table']}'[{r['from_column']}]\n"
+                f"To:   '{r['to_table']}'[{r['to_column']}]\n"
+                f"Multiplicity: {r.get('multiplicity', '')}\n"
+                f"Cross-filter: {r.get('cross_filter', '')}\n"
+                f"Active: {r.get('is_active', True)}"
+            )
         return ""
     if node_type == "measure":
         t = _resolve_table(model_data, parts[1])
@@ -466,7 +536,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
         start_time = time.time()
-        merged_data = {"tables": {}, "models": {}}
+        merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}}
         loaded = 0
         errors = 0
 
@@ -480,8 +550,10 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     data = _load_model_data_fast(dataset=ds, workspace=ws)
                     if len(items) > 1:
                         merged_data["models"][ds] = data["tables"]
+                        merged_data["model_relationships"][ds] = data.get("relationships", [])
                     else:
                         merged_data["tables"].update(data["tables"])
+                        merged_data["relationships"] = data.get("relationships", [])
                     loaded += 1
                 except Exception as e:
                     errors += 1
@@ -544,6 +616,13 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                 else:
                     _expanded.add(t_name)
                 _refresh_tree()
+            if key.startswith("rels:"):
+                if key in _expanded:
+                    _expanded.discard(key)
+                else:
+                    _expanded.add(key)
+                _refresh_tree()
+                return
         # Update properties/expression for last selected item
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
