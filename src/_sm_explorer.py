@@ -303,14 +303,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
 
-    def _refresh_tree(preserve_selection=None):
+    def _refresh_tree():
         nonlocal _key_map
         options, _key_map = _build_tree(_model_data, _expanded)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        tree.value = preserve_selection if (preserve_selection and preserve_selection in options) else None
+        tree.value = ()
         tree.observe(on_select, names="value")
 
     # -- expression panel --
@@ -488,28 +488,16 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             load_btn.description = "Load Model"
 
     def on_select(change):
-        selected = change.get("new")
-        if not selected or selected not in _key_map:
+        selected = change.get("new", ())
+        if not selected:
             return
-        key = _key_map[selected]
+        # Use last selected item for properties/expression
+        last = selected[-1]
+        if last not in _key_map:
+            return
+        key = _key_map[last]
         _current_key[0] = key
-        # Expand/collapse model or table
-        if key.startswith("model:"):
-            m_name = key.split(":", 1)[1]
-            if m_name in _expanded:
-                _expanded.discard(m_name)
-            else:
-                _expanded.add(m_name)
-            _refresh_tree(preserve_selection=selected)
-            preview.value = ""
-            return
-        if key.startswith("table:"):
-            t_name = key.split(":", 1)[1]
-            if t_name in _expanded:
-                _expanded.discard(t_name)
-            else:
-                _expanded.add(t_name)
-            _refresh_tree(preserve_selection=selected)
+        # No expand/collapse here — use Expand All / Collapse All buttons
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
         save_expr_btn.disabled = key.split(":")[0] not in ("measure", "calc_item")
