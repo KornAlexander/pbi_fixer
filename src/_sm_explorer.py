@@ -295,23 +295,27 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
-    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="90px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="100px"))
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
         options=["Select action..."] + list(fixer_callbacks.keys()),
         value="Select action...",
-        layout=widgets.Layout(width="200px"),
+        layout=widgets.Layout(width="250px"),
     )
     run_action_btn = widgets.Button(
         description="\u26A1 Run",
         button_style="danger",
-        layout=widgets.Layout(width="80px"),
+        layout=widgets.Layout(width="100px"),
     )
 
     conn_status = status_html()
-    load_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, run_action_btn, conn_status],
+    nav_row = widgets.HBox(
+        [load_btn, expand_btn, collapse_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
+    )
+    action_row = widgets.HBox(
+        [scan_btn, fixer_dropdown, run_action_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -770,5 +774,5 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     scan_btn.on_click(on_scan)
 
-    widget = widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
