@@ -303,19 +303,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
 
     def _refresh_tree(preserve_selection=None):
         nonlocal _key_map
         options, _key_map = _build_tree(_model_data, _expanded)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        if preserve_selection:
-            if isinstance(preserve_selection, str):
-                preserve_selection = (preserve_selection,)
-            tree.value = tuple(v for v in preserve_selection if v in options)
-        else:
-            tree.value = ()
+        tree.value = preserve_selection if (preserve_selection and preserve_selection in options) else None
         tree.observe(on_select, names="value")
 
     # -- expression panel --
@@ -487,36 +482,28 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             load_btn.description = "Load Model"
 
     def on_select(change):
-        selected = change.get("new", ())
-        if not selected:
+        selected = change.get("new")
+        if not selected or selected not in _key_map:
             return
-        # Use the last selected item for properties
-        last = selected[-1]
-        if last not in _key_map:
-            return
-        key = _key_map[last]
+        key = _key_map[selected]
         _current_key[0] = key
-        # Track all selected keys
-        _selected_keys.clear()
-        _selected_keys.extend(_key_map[s] for s in selected if s in _key_map)
-        # Only expand/collapse on single-click (not during multi-select)
-        if len(selected) == 1:
-            if key.startswith("model:"):
-                m_name = key.split(":", 1)[1]
-                if m_name in _expanded:
-                    _expanded.discard(m_name)
-                else:
-                    _expanded.add(m_name)
-                _refresh_tree()
-                preview.value = ""
-                return
-            if key.startswith("table:"):
-                t_name = key.split(":", 1)[1]
-                if t_name in _expanded:
-                    _expanded.discard(t_name)
-                else:
-                    _expanded.add(t_name)
-                _refresh_tree()
+        # Expand/collapse model or table
+        if key.startswith("model:"):
+            m_name = key.split(":", 1)[1]
+            if m_name in _expanded:
+                _expanded.discard(m_name)
+            else:
+                _expanded.add(m_name)
+            _refresh_tree(preserve_selection=selected)
+            preview.value = ""
+            return
+        if key.startswith("table:"):
+            t_name = key.split(":", 1)[1]
+            if t_name in _expanded:
+                _expanded.discard(t_name)
+            else:
+                _expanded.add(t_name)
+            _refresh_tree(preserve_selection=selected)
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
         save_expr_btn.disabled = key.split(":")[0] not in ("measure", "calc_item")
