@@ -369,36 +369,42 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
 
+        # Strip model prefix from table key for display
+        raw_table = parts[1] if len(parts) > 1 else ""
+        display_table = raw_table.split("\x1f")[-1] if "\x1f" in raw_table else raw_table
+
         if node_type == "measure":
-            m = _model_data["tables"][parts[1]]["measures"].get(parts[2], {})
-            prop_name.value, prop_table.value, prop_obj_type.value = parts[2], parts[1], "Measure"
+            t = _resolve_table(_model_data, raw_table)
+            m = t["measures"].get(parts[2], {}) if t else {}
+            prop_name.value, prop_table.value, prop_obj_type.value = parts[2], display_table, "Measure"
             prop_format_str.value = m.get("format_string", "")
             prop_display_folder.value = m.get("display_folder", "")
             prop_description.value = m.get("description", "")
         elif node_type == "column":
-            c = _model_data["tables"][parts[1]]["columns"].get(parts[2], {})
-            prop_name.value, prop_table.value = parts[2], parts[1]
+            t = _resolve_table(_model_data, raw_table)
+            c = t["columns"].get(parts[2], {}) if t else {}
+            prop_name.value, prop_table.value = parts[2], display_table
             prop_obj_type.value = c.get("type", "Column")
             prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
         elif node_type == "table":
-            t = _model_data["tables"].get(parts[1], {})
-            prop_name.value, prop_table.value = parts[1], ""
+            t = _resolve_table(_model_data, raw_table) or {}
+            prop_name.value, prop_table.value = display_table, ""
             prop_obj_type.value = t.get("type", "Table")
             prop_format_str.value, prop_display_folder.value = "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
             prop_description.value = t.get("description", "")
         elif node_type == "calc_item":
-            prop_name.value, prop_table.value = parts[2], parts[1]
+            prop_name.value, prop_table.value = parts[2], display_table
             prop_obj_type.value = "Calculation Item"
             prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
         elif node_type == "hierarchy":
             prop_name.value = parts[2] if len(parts) > 2 else ""
-            prop_table.value, prop_obj_type.value = parts[1], "Hierarchy"
+            prop_table.value, prop_obj_type.value = display_table, "Hierarchy"
             prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
