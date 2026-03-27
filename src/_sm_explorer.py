@@ -560,7 +560,13 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             return
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        ds = report_input.value.strip() if report_input else ""
+        # Extract dataset and table name from key (handles multi-model keys)
+        raw_table = parts[1]
+        if "\x1f" in raw_table:
+            ds, table_name = raw_table.split("\x1f", 1)
+        else:
+            ds = report_input.value.strip() if report_input else ""
+            table_name = raw_table
         if not ds:
             set_status(save_status, "No model loaded.", "#ff3b30")
             return
@@ -571,11 +577,15 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             from sempy_labs.tom import connect_semantic_model
             with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
                 if node_type == "measure":
-                    tm.model.Tables[parts[1]].Measures[parts[2]].Expression = new_expr
-                    _model_data["tables"][parts[1]]["measures"][parts[2]]["expression"] = new_expr
+                    tm.model.Tables[table_name].Measures[parts[2]].Expression = new_expr
+                    t = _resolve_table(_model_data, raw_table)
+                    if t:
+                        t["measures"][parts[2]]["expression"] = new_expr
                 elif node_type == "calc_item":
-                    tm.model.Tables[parts[1]].CalculationGroup.CalculationItems[parts[2]].Expression = new_expr
-                    _model_data["tables"][parts[1]]["calc_items"][parts[2]]["expression"] = new_expr
+                    tm.model.Tables[table_name].CalculationGroup.CalculationItems[parts[2]].Expression = new_expr
+                    t = _resolve_table(_model_data, raw_table)
+                    if t:
+                        t["calc_items"][parts[2]]["expression"] = new_expr
                 tm.model.SaveChanges()
             set_status(save_status, "\u2713 Saved.", "#34c759")
         except Exception as e:
@@ -592,7 +602,13 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         node_type = parts[0]
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        ds = report_input.value.strip() if report_input else ""
+        # Extract dataset and table name from key
+        raw_table = parts[1] if len(parts) > 1 else ""
+        if "\x1f" in raw_table:
+            ds, table_name = raw_table.split("\x1f", 1)
+        else:
+            ds = report_input.value.strip() if report_input else ""
+            table_name = raw_table
         if not ds:
             set_status(props_save_status, "No model loaded.", "#ff3b30")
             return
@@ -603,25 +619,28 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             from sempy_labs.tom import connect_semantic_model
             with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
                 if node_type == "measure":
-                    m_obj = tm.model.Tables[parts[1]].Measures[parts[2]]
+                    m_obj = tm.model.Tables[table_name].Measures[parts[2]]
                     m_obj.Name = prop_name.value
                     m_obj.FormatString = prop_format_str.value
                     m_obj.DisplayFolder = prop_display_folder.value
                     m_obj.Description = prop_description.value
-                    old_name = parts[2]
-                    m_data = _model_data["tables"][parts[1]]["measures"]
-                    entry = m_data.pop(old_name)
-                    entry["format_string"] = prop_format_str.value
-                    entry["display_folder"] = prop_display_folder.value
-                    entry["description"] = prop_description.value
-                    m_data[prop_name.value] = entry
+                    t = _resolve_table(_model_data, raw_table)
+                    if t:
+                        old_name = parts[2]
+                        entry = t["measures"].pop(old_name)
+                        entry["format_string"] = prop_format_str.value
+                        entry["display_folder"] = prop_display_folder.value
+                        entry["description"] = prop_description.value
+                        t["measures"][prop_name.value] = entry
                 elif node_type == "table":
-                    tm.model.Tables[parts[1]].Description = prop_description.value
-                    _model_data["tables"][parts[1]]["description"] = prop_description.value
+                    tm.model.Tables[table_name].Description = prop_description.value
+                    t = _resolve_table(_model_data, raw_table)
+                    if t:
+                        t["description"] = prop_description.value
                 tm.model.SaveChanges()
             set_status(props_save_status, "\u2713 Saved.", "#34c759")
             if node_type == "measure" and prop_name.value != parts[2]:
-                _current_key[0] = f"measure:{parts[1]}:{prop_name.value}"
+                _current_key[0] = f"measure:{raw_table}:{prop_name.value}"
                 _refresh_tree()
         except Exception as e:
             set_status(props_save_status, f"Error: {e}", "#ff3b30")
