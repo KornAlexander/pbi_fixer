@@ -247,14 +247,19 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
-        options=["Actions..."] + list(fixer_callbacks.keys()),
-        value="Actions...",
+        options=["Select action..."] + list(fixer_callbacks.keys()),
+        value="Select action...",
         layout=widgets.Layout(width="200px"),
+    )
+    run_action_btn = widgets.Button(
+        description="\u26A1 Run",
+        button_style="danger",
+        layout=widgets.Layout(width="80px"),
     )
 
     conn_status = status_html()
     load_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, conn_status],
+        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, run_action_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -450,9 +455,11 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         if _report_data:
             _refresh_tree()
 
-    def on_fixer_action(change):
-        action = change.get("new")
-        if action == "Actions..." or action not in fixer_callbacks:
+    def on_run_action(_):
+        """Run the action selected in the dropdown."""
+        action = fixer_dropdown.value
+        if action == "Select action..." or action not in fixer_callbacks:
+            set_status(conn_status, "Select an action from the dropdown first.", "#ff9500")
             return
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
@@ -495,7 +502,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 unique = [(rpt, None)]
         if not unique:
             set_status(conn_status, "No report selected.", "#ff3b30")
-            fixer_dropdown.value = "Actions..."
             return
         set_status(conn_status, f"Running {action} on {len(unique)} target(s)\u2026", GRAY_COLOR)
         errors = 0
@@ -508,7 +514,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             set_status(conn_status, f"\u26a0\ufe0f {action}: {len(unique) - errors} OK, {errors} error(s).", "#ff9500")
         else:
             set_status(conn_status, f"\u2713 {action} on {len(unique)} target(s).", "#34c759")
-        fixer_dropdown.value = "Actions..."
 
     def on_scan(_):
         """Run all report fixers in scan_only mode, collect violation counts."""
@@ -571,7 +576,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
     scan_btn.on_click(on_scan)
-    fixer_dropdown.observe(on_fixer_action, names="value")
+    run_action_btn.on_click(on_run_action)
 
     widget = widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load

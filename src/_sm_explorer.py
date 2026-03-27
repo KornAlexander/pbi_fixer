@@ -299,14 +299,19 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
-        options=["Actions..."] + list(fixer_callbacks.keys()),
-        value="Actions...",
+        options=["Select action..."] + list(fixer_callbacks.keys()),
+        value="Select action...",
         layout=widgets.Layout(width="200px"),
+    )
+    run_action_btn = widgets.Button(
+        description="\u26A1 Run",
+        button_style="danger",
+        layout=widgets.Layout(width="80px"),
     )
 
     conn_status = status_html()
     load_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, conn_status],
+        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, run_action_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -620,16 +625,17 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     save_expr_btn.on_click(on_save_expr)
     save_props_btn.on_click(on_save_props)
 
-    def on_fixer_action(change):
-        action = change.get("new")
-        if action == "Actions..." or action not in fixer_callbacks:
+    def on_run_action(_):
+        """Run the action selected in the dropdown."""
+        action = fixer_dropdown.value
+        if action == "Select action..." or action not in fixer_callbacks:
+            set_status(conn_status, "Select an action from the dropdown first.", "#ff9500")
             return
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds = report_input.value.strip() if report_input else ""
         if not ds:
             set_status(conn_status, "No model loaded.", "#ff3b30")
-            fixer_dropdown.value = "Actions..."
             return
 
         # Extract selected measure and column names from tree selection
@@ -664,9 +670,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             set_status(conn_status, msg, "#34c759")
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
-        fixer_dropdown.value = "Actions..."
 
-    fixer_dropdown.observe(on_fixer_action, names="value")
+    run_action_btn.on_click(on_run_action)
 
     def on_scan(_):
         """Run all SM fixers in scan_only mode, collect findings."""
