@@ -86,11 +86,12 @@ def _load_report_data(report, workspace):
     return report_data
 
 
-def _build_tree(report_data, expanded_pages):
+def _build_tree(report_data, expanded_pages, scan_results=None):
+    """Build tree items, optionally annotating with scan violation counts."""
+    scan_results = scan_results or {}
     items = []
     reports = report_data.get("reports", {})
     if reports:
-        # Multi-report: show report-level grouping
         for r_name in sorted(reports):
             r = reports[r_name]
             is_rpt_expanded = r_name in expanded_pages
@@ -98,7 +99,10 @@ def _build_tree(report_data, expanded_pages):
             fmt = r.get("format", "")
             fmt_str = f" ({fmt})" if fmt else ""
             p_count = len(r.get("pages", {}))
-            items.append((0, "page", f"{marker} {r_name}{fmt_str}  [{p_count} pages]", f"report:{r_name}"))
+            # Count total violations for this report
+            rpt_violations = sum(v for k, v in scan_results.items() if k.startswith(f"report:{r_name}") or k.startswith(f"page:{r_name}\x1f") or k.startswith(f"visual:{r_name}\x1f"))
+            badge = f" \u26a0\ufe0f{rpt_violations}" if rpt_violations > 0 else ""
+            items.append((0, "page", f"{marker} {r_name}{fmt_str}  [{p_count} pages]{badge}", f"report:{r_name}"))
             if not is_rpt_expanded:
                 continue
             for p_name in r["pages"]:
@@ -108,7 +112,9 @@ def _build_tree(report_data, expanded_pages):
                 p_marker = EXPANDED if is_expanded else COLLAPSED
                 hidden_suffix = " (hidden)" if p["hidden"] else ""
                 v_count = len(p["visuals"])
-                items.append((1, "page", f"{p_marker} {p['display_name']}{hidden_suffix}  [{v_count} visuals]", f"page:{full_key}"))
+                page_violations = scan_results.get(f"page:{full_key}", 0)
+                badge = f" \u26a0\ufe0f{page_violations}" if page_violations > 0 else ""
+                items.append((1, "page", f"{p_marker} {p['display_name']}{hidden_suffix}  [{v_count} visuals]{badge}", f"page:{full_key}"))
                 if not is_expanded:
                     continue
                 for v_name in sorted(p["visuals"]):
@@ -118,17 +124,21 @@ def _build_tree(report_data, expanded_pages):
                         label = f"{label}: {v['title']}"
                     if v["hidden"]:
                         label += " (hidden)"
-                    items.append((2, "visual", label, f"visual:{r_name}\x1f{p_name}:{v_name}"))
+                    v_key = f"visual:{r_name}\x1f{p_name}:{v_name}"
+                    if v_key in scan_results:
+                        label += f" \u26a0\ufe0f{scan_results[v_key]}"
+                    items.append((2, "visual", label, v_key))
     else:
-        # Single report: flat page list (original behavior)
-        for p_name in report_data["pages"]:
+        for p_name in report_data.get("pages", {}):
             p = report_data["pages"][p_name]
             is_expanded = p_name in expanded_pages
             marker = EXPANDED if is_expanded else COLLAPSED
             hidden_suffix = " (hidden)" if p["hidden"] else ""
             v_count = len(p["visuals"])
+            page_violations = scan_results.get(f"page:{p_name}", 0)
+            badge = f" \u26a0\ufe0f{page_violations}" if page_violations > 0 else ""
             items.append(
-                (0, "page", f"{marker} {p['display_name']}{hidden_suffix}  [{v_count} visuals]", f"page:{p_name}")
+                (0, "page", f"{marker} {p['display_name']}{hidden_suffix}  [{v_count} visuals]{badge}", f"page:{p_name}")
             )
             if not is_expanded:
                 continue
@@ -139,7 +149,10 @@ def _build_tree(report_data, expanded_pages):
                     label = f"{label}: {v['title']}"
                 if v["hidden"]:
                     label += " (hidden)"
-                items.append((1, "visual", label, f"visual:{p_name}:{v_name}"))
+                v_key = f"visual:{p_name}:{v_name}"
+                if v_key in scan_results:
+                    label += f" \u26a0\ufe0f{scan_results[v_key]}"
+                items.append((1, "visual", label, v_key))
     return build_tree_items(items)
 
 
@@ -225,10 +238,12 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _key_map = {}
     _expanded = set()
     _current_key = [None]
+    _scan_results = {}  # key -> violation count
 
     load_btn = widgets.Button(description="Load Report", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="90px"))
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
@@ -239,7 +254,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     conn_status = status_html()
     load_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, fixer_dropdown, conn_status],
+        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -247,7 +262,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     def _refresh_tree():
         nonlocal _key_map
-        options, _key_map = _build_tree(_report_data, _expanded)
+        options, _key_map = _build_tree(_report_data, _expanded, _scan_results)
         tree.unobserve(on_select, names="value")
         tree.options = options
         tree.value = ()
@@ -495,10 +510,67 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             set_status(conn_status, f"\u2713 {action} on {len(unique)} target(s).", "#34c759")
         fixer_dropdown.value = "Actions..."
 
+    def on_scan(_):
+        """Run all report fixers in scan_only mode, collect violation counts."""
+        if not _report_data or (not _report_data.get("pages") and not _report_data.get("reports")):
+            set_status(conn_status, "No report loaded. Load first.", "#ff3b30")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        scan_btn.disabled = True
+        scan_btn.description = "Scanning\u2026"
+        _scan_results.clear()
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+
+        # Collect all report names to scan
+        report_names = []
+        if _report_data.get("reports"):
+            report_names = list(_report_data["reports"].keys())
+        else:
+            rpt_input = report_input.value.strip() if report_input else ""
+            if rpt_input:
+                report_names = [x.strip() for x in rpt_input.split(",") if x.strip()]
+
+        total_violations = 0
+        fixer_names = [k for k in fixer_callbacks if k != "Actions..."]
+
+        for rpt_name in report_names:
+            set_status(conn_status, f"Scanning '{rpt_name}'\u2026", GRAY_COLOR)
+            for fixer_name in fixer_names:
+                try:
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        fixer_callbacks[fixer_name](report=rpt_name, page_name=None, workspace=ws, scan_only=True)
+                    output = buf.getvalue()
+                    # Count violations from output lines (each non-empty line with a dot icon = 1 finding)
+                    for line in output.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # Try to match page context from common fixer output patterns
+                        # Most fixers print per-page results; count each finding line
+                        total_violations += 1
+                        # Attribute to report level
+                        rpt_key = f"report:{rpt_name}"
+                        _scan_results[rpt_key] = _scan_results.get(rpt_key, 0) + 1
+                except Exception:
+                    pass
+
+        _refresh_tree()
+        scan_btn.disabled = False
+        scan_btn.description = "\U0001F50D Scan"
+        if total_violations > 0:
+            set_status(conn_status, f"\U0001F50D Scan complete: {total_violations} finding(s) across {len(report_names)} report(s).", "#ff9500")
+        else:
+            set_status(conn_status, f"\u2713 Scan complete: no issues found.", "#34c759")
+
     load_btn.on_click(on_load)
     tree.observe(on_select, names="value")
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
+    scan_btn.on_click(on_scan)
     fixer_dropdown.observe(on_fixer_action, names="value")
 
     widget = widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))

@@ -194,17 +194,20 @@ def _table_summary(t):
     return str(len(t.get("columns", {})) + len(t.get("measures", {})) + len(t.get("hierarchies", {})) + len(t.get("calc_items", {})))
 
 
-def _build_tree(model_data, expanded_tables):
+def _build_tree(model_data, expanded_tables, scan_results=None):
+    """Build tree items, optionally annotating with scan findings."""
+    scan_results = scan_results or {}
     items = []
     models = model_data.get("models", {})
     if models:
-        # Multi-model: show model-level grouping
         for m_name in sorted(models):
             m_tables = models[m_name]
             is_model_expanded = m_name in expanded_tables
             marker = EXPANDED if is_model_expanded else COLLAPSED
             t_count = len(m_tables)
-            items.append((0, "calc_group", f"{marker} {m_name}  [{t_count} tables]", f"model:{m_name}"))
+            model_findings = scan_results.get(f"model:{m_name}", 0)
+            badge = f" \u26a0\ufe0f{model_findings}" if model_findings > 0 else ""
+            items.append((0, "calc_group", f"{marker} {m_name}  [{t_count} tables]{badge}", f"model:{m_name}"))
             if not is_model_expanded:
                 continue
             for t_name in sorted(m_tables):
@@ -287,10 +290,12 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     _expanded = set()
     _current_key = [None]
     _selected_keys = []  # all currently selected keys for fixer actions
+    _scan_results = {}  # key -> violation count
 
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="90px"))
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
@@ -301,7 +306,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     conn_status = status_html()
     load_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, fixer_dropdown, conn_status],
+        [load_btn, expand_btn, collapse_btn, scan_btn, fixer_dropdown, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -309,7 +314,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     def _refresh_tree():
         nonlocal _key_map
-        options, _key_map = _build_tree(_model_data, _expanded)
+        options, _key_map = _build_tree(_model_data, _expanded, _scan_results)
         tree.unobserve(on_select, names="value")
         tree.options = options
         tree.value = ()
@@ -662,6 +667,57 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         fixer_dropdown.value = "Actions..."
 
     fixer_dropdown.observe(on_fixer_action, names="value")
+
+    def on_scan(_):
+        """Run all SM fixers in scan_only mode, collect findings."""
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
+        if not items and not _model_data.get("models") and not _model_data.get("tables"):
+            set_status(conn_status, "No model loaded. Load first.", "#ff3b30")
+            return
+        # Use model names from loaded data if no input
+        if not items:
+            items = list(_model_data.get("models", {}).keys())
+            if not items:
+                items = [ds_input] if ds_input else []
+
+        scan_btn.disabled = True
+        scan_btn.description = "Scanning\u2026"
+        _scan_results.clear()
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+
+        total_findings = 0
+        fixer_names = [k for k in fixer_callbacks if k != "Actions..."]
+
+        for ds in items:
+            set_status(conn_status, f"Scanning '{ds}'\u2026", GRAY_COLOR)
+            for fixer_name in fixer_names:
+                try:
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        fixer_callbacks[fixer_name](report=ds, workspace=ws, scan_only=True)
+                    output = buf.getvalue()
+                    count = sum(1 for line in output.splitlines() if line.strip())
+                    if count > 0:
+                        model_key = f"model:{ds}"
+                        _scan_results[model_key] = _scan_results.get(model_key, 0) + count
+                        total_findings += count
+                except Exception:
+                    pass
+
+        _refresh_tree()
+        scan_btn.disabled = False
+        scan_btn.description = "\U0001F50D Scan"
+        if total_findings > 0:
+            set_status(conn_status, f"\U0001F50D Scan complete: {total_findings} finding(s) across {len(items)} model(s).", "#ff9500")
+        else:
+            set_status(conn_status, f"\u2713 Scan complete: no issues found.", "#34c759")
+
+    scan_btn.on_click(on_scan)
 
     widget = widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
