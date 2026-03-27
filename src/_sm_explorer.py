@@ -188,21 +188,8 @@ def _load_model_data_tom(dataset, workspace):
 
 
 def _table_summary(t):
-    """Build compact summary string like '5c 3m 1h' for a table."""
-    nc = len(t.get("columns", {}))
-    nm = len(t.get("measures", {}))
-    nh = len(t.get("hierarchies", {}))
-    nci = len(t.get("calc_items", {}))
-    parts = []
-    if nc:
-        parts.append(f"{nc}c")
-    if nm:
-        parts.append(f"{nm}m")
-    if nh:
-        parts.append(f"{nh}h")
-    if nci:
-        parts.append(f"{nci}ci")
-    return " ".join(parts) if parts else "empty"
+    """Return total child count for a table."""
+    return str(len(t.get("columns", {})) + len(t.get("measures", {})) + len(t.get("hierarchies", {})) + len(t.get("calc_items", {})))
 
 
 def _build_tree(model_data, expanded_tables):
