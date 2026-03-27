@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.38"
+__version__ = "1.2.39"
 
 import ipywidgets as widgets
 import io
@@ -795,7 +795,7 @@ def pbi_fixer(
     if _fixer_visible:
         _tab_options.append("\u26A1 Fixer")
     if perspective_editor_tab is not None:
-        _tab_options.append("\U0001F50D Perspectives")
+        _tab_options.append("\U0001F441 Perspectives")
     _tab_options.append("\U0001F4C8 Vertipaq")
     _tab_options.append("\U0001F4BE Memory")
     if not _tab_options:
