@@ -360,6 +360,15 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                         set_status(conn_status, f"Report {i+1}/{len(items)}: '{rpt}' failed", "#ff9500")
                 _report_data = merged
 
+            # Auto-expand all items after load
+            if _report_data.get("reports"):
+                for r_name, r_data in _report_data["reports"].items():
+                    _expanded.add(r_name)
+                    for p_name in r_data.get("pages", {}):
+                        _expanded.add(f"{r_name}\x1f{p_name}")
+            else:
+                _expanded.update(_report_data.get("pages", {}).keys())
+
             _refresh_tree()
 
             # Compute stats

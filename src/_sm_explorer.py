@@ -484,6 +484,17 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
 
             _model_data = merged_data
+
+            # Auto-expand all items after load
+            models = _model_data.get("models", {})
+            if models:
+                for m_name, m_tables in models.items():
+                    _expanded.add(m_name)
+                    for t_name in m_tables:
+                        _expanded.add(f"{m_name}\x1f{t_name}")
+            else:
+                _expanded.update(_model_data.get("tables", {}).keys())
+
             _refresh_tree()
             # Count tables across both single and multi-model structures
             all_tables = {}
