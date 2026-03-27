@@ -3,6 +3,7 @@
 # calculation groups with DAX expression preview and editable properties.
 
 import ipywidgets as widgets
+import time
 
 from sempy_labs._ui_components import (
     FONT_FAMILY,
@@ -19,6 +20,20 @@ from sempy_labs._ui_components import (
     set_status,
     panel_box,
 )
+
+_LOAD_TIMEOUT = 300  # 5 minutes
+
+
+def _list_workspace_datasets(workspace):
+    """List all semantic model names in a workspace via REST API."""
+    from sempy_labs._helper_functions import (
+        resolve_workspace_name_and_id,
+        _base_api,
+    )
+    _, ws_id = resolve_workspace_name_and_id(workspace)
+    url = f"/v1.0/myorg/groups/{ws_id}/datasets"
+    response = _base_api(request=url, client="fabric_sp")
+    return [d.get("name") for d in response.json().get("value", []) if d.get("name")]
 
 
 def _load_model_data_fast(dataset, workspace):
@@ -343,20 +358,63 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         _expanded.clear()
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        ds = report_input.value.strip() if report_input else ""
-        if not ds:
-            set_status(conn_status, "Enter a report / semantic model name in the top bar.", "#ff3b30")
-            return
+        ds_input = report_input.value.strip() if report_input else ""
+
+        # Parse comma-separated items, or list all if blank
+        if ds_input:
+            items = [x.strip() for x in ds_input.split(",") if x.strip()]
+        else:
+            # Blank = load all semantic models in the workspace
+            load_btn.disabled = True
+            load_btn.description = "Listing\u2026"
+            set_status(conn_status, "Listing semantic models\u2026", GRAY_COLOR)
+            try:
+                items = _list_workspace_datasets(ws)
+            except Exception as e:
+                set_status(conn_status, f"Error listing models: {e}", "#ff3b30")
+                load_btn.disabled = False
+                load_btn.description = "Load Model"
+                return
+            if not items:
+                set_status(conn_status, "No semantic models found in workspace.", "#ff9500")
+                load_btn.disabled = False
+                load_btn.description = "Load Model"
+                return
+
         load_btn.disabled = True
         load_btn.description = "Loading\u2026"
-        set_status(conn_status, "Connecting\u2026", GRAY_COLOR)
+        set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
+
+        start_time = time.time()
+        merged_data = {"tables": {}}
+        loaded = 0
+        errors = 0
+
         try:
-            _model_data = _load_model_data_fast(dataset=ds, workspace=ws)
+            for ds in items:
+                if time.time() - start_time > _LOAD_TIMEOUT:
+                    set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
+                    break
+                try:
+                    data = _load_model_data_fast(dataset=ds, workspace=ws)
+                    if len(items) > 1:
+                        # Prefix table names with model name to avoid collisions
+                        for t_name, t_info in data["tables"].items():
+                            merged_data["tables"][f"{ds} \u203a {t_name}"] = t_info
+                    else:
+                        merged_data["tables"].update(data["tables"])
+                    loaded += 1
+                except Exception as e:
+                    errors += 1
+
+            _model_data = merged_data
             _refresh_tree()
             n_t = len(_model_data["tables"])
             n_m = sum(len(t["measures"]) for t in _model_data["tables"].values())
             n_c = sum(len(t["columns"]) for t in _model_data["tables"].values())
-            set_status(conn_status, f"Loaded: {n_t} tables, {n_c} columns, {n_m} measures", "#34c759")
+            elapsed = int(time.time() - start_time)
+            err_str = f", {errors} error(s)" if errors else ""
+            set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
             preview.value = "Select a measure to view its DAX expression."
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
