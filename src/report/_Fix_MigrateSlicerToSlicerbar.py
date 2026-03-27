@@ -315,7 +315,7 @@ def fix_migrate_slicer_to_slicerbar(
             f"\n{icons.green_dot} Migration complete — {slicers_migrated} slicer(s) migrated, "
             f"{slicers_skipped} skipped."
         )
-
+        
 
 # Sample usage:
 # fix_migrate_slicer_to_slicerbar(report="ReportName", page_name="Page 1")
