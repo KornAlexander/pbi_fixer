@@ -546,58 +546,66 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             set_status(conn_status, f"\u2713 {action} on {len(unique)} target(s).", "#34c759")
 
     def on_scan(_):
-        """Run all report fixers in scan_only mode, collect violation counts."""
+        """Fast local scan — checks loaded visual types for fixable issues without API calls."""
         if not _report_data or (not _report_data.get("pages") and not _report_data.get("reports")):
             set_status(conn_status, "No report loaded. Load first.", "#ff3b30")
             return
-        ws = workspace_input.value.strip() if workspace_input else None
-        ws = ws or None
         scan_btn.disabled = True
         scan_btn.description = "Scanning\u2026"
         _scan_results.clear()
 
-        import io as _io
-        from contextlib import redirect_stdout as _redirect
+        # Fixer rules: visual type patterns that each fixer would flag
+        fixer_rules = {
+            "Fix Pie Charts": lambda v: v.get("type", "").lower() in ("pieChart",) or v.get("display_type", "").lower() in ("pie chart", "donut chart"),
+            "Fix Bar Charts": lambda v: v.get("type", "").lower() in ("barChart",) or "bar chart" in v.get("display_type", "").lower(),
+            "Fix Column Charts": lambda v: v.get("type", "").lower() in ("columnChart",) or "column chart" in v.get("display_type", "").lower(),
+            "Fix Page Size": lambda v: False,  # Would need page-level check, not visual
+            "Hide Visual Filters": lambda v: True,  # All visuals potentially have filters
+        }
 
-        # Collect all report names to scan
-        report_names = []
-        if _report_data.get("reports"):
-            report_names = list(_report_data["reports"].keys())
-        else:
-            rpt_input = report_input.value.strip() if report_input else ""
-            if rpt_input:
-                report_names = [x.strip() for x in rpt_input.split(",") if x.strip()]
+        # Only use rules for fixers that are actually available
+        active_rules = {k: v for k, v in fixer_rules.items() if k in fixer_callbacks}
 
         total_violations = 0
-        fixer_names = [k for k in fixer_callbacks if k != "Actions..."]
 
-        for rpt_name in report_names:
-            set_status(conn_status, f"Scanning '{rpt_name}'\u2026", GRAY_COLOR)
-            for fixer_name in fixer_names:
-                try:
-                    buf = _io.StringIO()
-                    with _redirect(buf):
-                        fixer_callbacks[fixer_name](report=rpt_name, page_name=None, workspace=ws, scan_only=True)
-                    output = buf.getvalue()
-                    # Count violations from output lines (each non-empty line with a dot icon = 1 finding)
-                    for line in output.splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        # Try to match page context from common fixer output patterns
-                        # Most fixers print per-page results; count each finding line
-                        total_violations += 1
-                        # Attribute to report level
-                        rpt_key = f"report:{rpt_name}"
-                        _scan_results[rpt_key] = _scan_results.get(rpt_key, 0) + 1
-                except Exception:
-                    pass
+        def _scan_pages(pages, report_prefix=""):
+            nonlocal total_violations
+            for p_name, p in pages.items():
+                page_key = f"page:{report_prefix}{p_name}" if report_prefix else f"page:{p_name}"
+                page_count = 0
+                for v_name, v in p.get("visuals", {}).items():
+                    v_key = f"visual:{report_prefix}{p_name}:{v_name}" if report_prefix else f"visual:{p_name}:{v_name}"
+                    v_count = 0
+                    for rule_name, rule_fn in active_rules.items():
+                        try:
+                            if rule_fn(v):
+                                v_count += 1
+                        except Exception:
+                            pass
+                    if v_count > 0:
+                        _scan_results[v_key] = v_count
+                        page_count += v_count
+                        total_violations += v_count
+                if page_count > 0:
+                    _scan_results[page_key] = page_count
+
+        if _report_data.get("reports"):
+            for r_name, r_data in _report_data["reports"].items():
+                prefix = f"{r_name}\x1f"
+                _scan_pages(r_data.get("pages", {}), report_prefix=prefix)
+                # Aggregate to report level
+                rpt_total = sum(v for k, v in _scan_results.items() if k.startswith(f"page:{prefix}"))
+                if rpt_total > 0:
+                    _scan_results[f"report:{r_name}"] = rpt_total
+        else:
+            _scan_pages(_report_data.get("pages", {}))
 
         _refresh_tree()
         scan_btn.disabled = False
         scan_btn.description = "\U0001F50D Scan"
         if total_violations > 0:
-            set_status(conn_status, f"\U0001F50D Scan complete: {total_violations} finding(s) across {len(report_names)} report(s).", "#ff9500")
+            n_reports = len(_report_data.get("reports", {})) or 1
+            set_status(conn_status, f"\U0001F50D Scan complete: {total_violations} finding(s) across {n_reports} report(s).", "#ff9500")
         else:
             set_status(conn_status, f"\u2713 Scan complete: no issues found.", "#34c759")
 
