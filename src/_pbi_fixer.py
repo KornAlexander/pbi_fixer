@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.13"
+__version__ = "1.2.14"
 
 import ipywidgets as widgets
 import io
@@ -232,12 +232,12 @@ def pbi_fixer(
     workspace_input = widgets.Text(
         value=str(workspace) if workspace else "",
         placeholder="Leave empty for notebook workspace",
-        layout=widgets.Layout(width="300px"),
+        layout=widgets.Layout(width="400px"),
     )
     report_input = widgets.Text(
         value=str(report) if report else "",
         placeholder="Comma-separated names or IDs (blank = all)",
-        layout=widgets.Layout(width="300px"),
+        layout=widgets.Layout(width="400px"),
     )
     page_input = widgets.Text(
         value=page_name if page_name else "",
@@ -863,7 +863,7 @@ def pbi_fixer(
     container = widgets.VBox(
         [header, shared_inputs_box, tab_selector] + tab_panels + [version_footer],
         layout=widgets.Layout(
-            width="900px",
+            width="100%",
             padding="20px",
             border=f"1px solid {border_color}",
             border_radius="12px",

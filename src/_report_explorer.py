@@ -243,7 +243,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="320px", height="500px", font_family="monospace"))
+    tree = widgets.Select(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
 
     def _refresh_tree(preserve_selection=None):
         nonlocal _key_map
