@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.11"
+__version__ = "1.2.13"
 
 import ipywidgets as widgets
 import io
@@ -124,7 +124,7 @@ def pbi_fixer(
     workspace: Optional[str | UUID] = None,
     report: Optional[str | UUID] = None,
     page_name: Optional[str] = None,
-    show_fixer_tab: bool = True,
+    show_fixer_tab: bool = False,
 ):
     """
     Launches an interactive UI for scanning and fixing Power BI report visuals.
@@ -140,9 +140,9 @@ def pbi_fixer(
         Pre-populates the report input field.
     page_name : str, default=None
         The display name of the page. Pre-populates the page input field.
-    show_fixer_tab : bool, default=True
-        If False, the Fixer tab is hidden. Fixers remain accessible via
-        action dropdowns in the Report and Semantic Model Explorer tabs.
+    show_fixer_tab : bool, default=False
+        If True, shows the Fixer tab. By default hidden since all fixers
+        are accessible via action dropdowns in the Report and SM tabs.
     """
 
     # -----------------------------
@@ -245,6 +245,14 @@ def pbi_fixer(
         layout=widgets.Layout(width="300px"),
     )
 
+    # Shared Load button — triggers SM + Report load in parallel
+    load_all_btn = widgets.Button(
+        description="Load",
+        button_style="primary",
+        layout=widgets.Layout(width="80px"),
+    )
+    load_status = widgets.HTML(value="")
+
     shared_inputs_box = widgets.VBox(
         [
             widgets.HBox(
@@ -252,7 +260,7 @@ def pbi_fixer(
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
             widgets.HBox(
-                [_input_label("Report"), report_input],
+                [_input_label("Report"), report_input, load_all_btn, load_status],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
         ],
@@ -780,19 +788,30 @@ def pbi_fixer(
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
+    _load_triggers = []  # list of (load_fn) to call on shared Load
 
     if sm_explorer_tab is not None:
-        sm_content = sm_explorer_tab(
+        sm_result = sm_explorer_tab(
             workspace_input=workspace_input, report_input=report_input,
             fixer_callbacks=_sm_fixer_cbs,
         )
+        if isinstance(sm_result, tuple):
+            sm_content, sm_load_fn = sm_result
+            _load_triggers.append(sm_load_fn)
+        else:
+            sm_content = sm_result
         tab_panels.append(sm_content)
 
     if report_explorer_tab is not None:
-        rpt_content = report_explorer_tab(
+        rpt_result = report_explorer_tab(
             workspace_input=workspace_input, report_input=report_input,
             fixer_callbacks=_rpt_fixer_cbs,
         )
+        if isinstance(rpt_result, tuple):
+            rpt_content, rpt_load_fn = rpt_result
+            _load_triggers.append(rpt_load_fn)
+        else:
+            rpt_content = rpt_result
         tab_panels.append(rpt_content)
 
     if _fixer_visible:
@@ -811,6 +830,35 @@ def pbi_fixer(
 
     tab_selector.observe(_switch_tab, names="value")
     _switch_tab()  # set initial visibility
+
+    # -- Shared Load button handler --
+    def on_load_all(_):
+        load_all_btn.disabled = True
+        load_all_btn.description = "Loading\u2026"
+        load_status.value = (
+            f'<span style="font-size:12px; color:{gray_color}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+            f'Loading {len(_load_triggers)} tab(s)\u2026</span>'
+        )
+        try:
+            for load_fn in _load_triggers:
+                load_fn(None)
+            load_status.value = (
+                f'<span style="font-size:12px; color:#34c759; '
+                f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+                f'\u2713 Loaded</span>'
+            )
+        except Exception as e:
+            load_status.value = (
+                f'<span style="font-size:12px; color:#ff3b30; '
+                f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+                f'Error: {e}</span>'
+            )
+        finally:
+            load_all_btn.disabled = False
+            load_all_btn.description = "Load"
+
+    load_all_btn.on_click(on_load_all)
 
     container = widgets.VBox(
         [header, shared_inputs_box, tab_selector] + tab_panels + [version_footer],

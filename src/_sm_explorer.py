@@ -187,6 +187,24 @@ def _load_model_data_tom(dataset, workspace):
     return model_data
 
 
+def _table_summary(t):
+    """Build compact summary string like '5c 3m 1h' for a table."""
+    nc = len(t.get("columns", {}))
+    nm = len(t.get("measures", {}))
+    nh = len(t.get("hierarchies", {}))
+    nci = len(t.get("calc_items", {}))
+    parts = []
+    if nc:
+        parts.append(f"{nc}c")
+    if nm:
+        parts.append(f"{nm}m")
+    if nh:
+        parts.append(f"{nh}h")
+    if nci:
+        parts.append(f"{nci}ci")
+    return " ".join(parts) if parts else "empty"
+
+
 def _build_tree(model_data, expanded_tables):
     items = []
     models = model_data.get("models", {})
@@ -207,8 +225,8 @@ def _build_tree(model_data, expanded_tables):
                 is_expanded = full_key in expanded_tables
                 t_marker = EXPANDED if is_expanded else COLLAPSED
                 suffix = " (hidden)" if t["is_hidden"] else ""
-                child_count = len(t["measures"]) + len(t["columns"]) + len(t["hierarchies"]) + len(t["calc_items"])
-                items.append((1, icon, f"{t_marker} {t_name}{suffix}  [{child_count}]", f"table:{full_key}"))
+                summary = _table_summary(t)
+                items.append((1, icon, f"{t_marker} {t_name}{suffix}  [{summary}]", f"table:{full_key}"))
                 if not is_expanded:
                     continue
                 for mn in sorted(t["measures"]):
@@ -230,8 +248,8 @@ def _build_tree(model_data, expanded_tables):
             is_expanded = t_name in expanded_tables
             marker = EXPANDED if is_expanded else COLLAPSED
             suffix = " (hidden)" if t["is_hidden"] else ""
-            child_count = len(t["measures"]) + len(t["columns"]) + len(t["hierarchies"]) + len(t["calc_items"])
-            items.append((0, icon, f"{marker} {t_name}{suffix}  [{child_count}]", f"table:{t_name}"))
+            summary = _table_summary(t)
+            items.append((0, icon, f"{marker} {t_name}{suffix}  [{summary}]", f"table:{t_name}"))
             if not is_expanded:
                 continue
             for mn in sorted(t["measures"]):
@@ -639,4 +657,5 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     fixer_dropdown.observe(on_fixer_action, names="value")
 
-    return widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([load_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget, on_load
