@@ -134,6 +134,10 @@ def _load_model_data_fast(dataset, workspace):
                     })
                 except Exception:
                     pass
+
+            # Load perspectives
+            for p in tm.model.Perspectives:
+                model_data["perspectives"].append(str(p.Name))
     except Exception:
         pass
 
@@ -144,7 +148,7 @@ def _load_model_data_tom(dataset, workspace):
     """Fallback: load everything via TOM (slower but complete)."""
     from sempy_labs.tom import connect_semantic_model
 
-    model_data = {"tables": {}, "relationships": []}
+    model_data = {"tables": {}, "relationships": [], "perspectives": []}
     with connect_semantic_model(dataset=dataset, readonly=True, workspace=workspace) as tm:
         for table in tm.model.Tables:
             t_name = table.Name
@@ -214,6 +218,10 @@ def _load_model_data_tom(dataset, workspace):
                 })
             except Exception:
                 pass
+
+        # Load perspectives
+        for p in tm.model.Perspectives:
+            model_data["perspectives"].append(str(p.Name))
     return model_data
 
 
@@ -272,6 +280,12 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                         active = "" if rel.get("is_active", True) else " (inactive)"
                         label = f"{rel['from_table']}[{rel['from_column']}] \u2194 {rel['to_table']}[{rel['to_column']}]{active}"
                         items.append((2, "relationship", label, f"rel:{m_name}:{i}"))
+            # Perspectives for this model
+            m_persps = model_data.get("model_perspectives", {}).get(m_name, [])
+            if m_persps:
+                items.append((1, "folder", f"Perspectives  [{len(m_persps)}]", f"persps:{m_name}"))
+                for pname in sorted(m_persps):
+                    items.append((2, "calc_item", pname, f"persp:{m_name}:{pname}"))
     else:
         # Single model: flat table list (original behavior)
         for t_name in sorted(model_data["tables"]):
@@ -307,6 +321,12 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                     active = "" if rel.get("is_active", True) else " (inactive)"
                     label = f"{rel['from_table']}[{rel['from_column']}] \u2194 {rel['to_table']}[{rel['to_column']}]{active}"
                     items.append((1, "relationship", label, f"rel:_single:{i}"))
+        # Perspectives (single model)
+        persps = model_data.get("perspectives", [])
+        if persps:
+            items.append((0, "folder", f"Perspectives  [{len(persps)}]", "persps:_single"))
+            for pname in sorted(persps):
+                items.append((1, "calc_item", pname, f"persp:_single:{pname}"))
     return build_tree_items(items)
 
 
@@ -536,7 +556,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
         start_time = time.time()
-        merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}}
+        merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
         loaded = 0
         errors = 0
 
@@ -551,9 +571,11 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     if len(items) > 1:
                         merged_data["models"][ds] = data["tables"]
                         merged_data["model_relationships"][ds] = data.get("relationships", [])
+                        merged_data["model_perspectives"][ds] = data.get("perspectives", [])
                     else:
                         merged_data["tables"].update(data["tables"])
                         merged_data["relationships"] = data.get("relationships", [])
+                        merged_data["perspectives"] = data.get("perspectives", [])
                     loaded += 1
                 except Exception as e:
                     errors += 1
