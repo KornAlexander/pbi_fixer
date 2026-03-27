@@ -78,6 +78,7 @@ def _load_model_data_fast(dataset, workspace):
             "is_hidden": bool(row.get("Is Hidden", False)),
             "expression": str(row.get("Expression", "")) if row.get("Expression") else None,
             "type": str(row.get("Column Type", row.get("Type", ""))),
+            "summarize_by": str(row.get("Summarize By", "")) if row.get("Summarize By") else "",
         }
 
     for _, row in measures_df.iterrows():
@@ -164,6 +165,7 @@ def _load_model_data_tom(dataset, workspace):
                     "is_hidden": bool(col.IsHidden),
                     "expression": str(col.Expression) if hasattr(col, "Expression") and col.Expression else None,
                     "type": str(col.Type) if hasattr(col, "Type") else "",
+                    "summarize_by": str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "",
                 }
             for m in table.Measures:
                 t_info["measures"][m.Name] = {
@@ -339,13 +341,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     prop_format_str, prop_format_row = _prop_input("Format String")
     prop_display_folder, prop_folder_row = _prop_input("Display Folder")
     prop_description, prop_desc_row = _prop_input("Description", width="300px")
+    prop_summarize_by, prop_summarize_row = _prop_input("Summarize By", disabled=True)
 
     save_props_btn = widgets.Button(description="Save Properties", button_style="warning", disabled=True, layout=widgets.Layout(width="140px"))
     props_save_status = status_html()
     props_save_row = widgets.HBox([save_props_btn, props_save_status], layout=widgets.Layout(align_items="center", gap="8px"))
 
     props_container = widgets.VBox(
-        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row, prop_desc_row, props_save_row],
+        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row, prop_summarize_row, prop_desc_row, props_save_row],
         layout=widgets.Layout(gap="4px"),
     )
     props_placeholder = widgets.HTML(
@@ -368,6 +371,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         props_save_status.value = ""
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
+        prop_summarize_row.layout.display = "none"
 
         # Strip model prefix from table key for display
         raw_table = parts[1] if len(parts) > 1 else ""
@@ -385,9 +389,11 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             c = t["columns"].get(parts[2], {}) if t else {}
             prop_name.value, prop_table.value = parts[2], display_table
             prop_obj_type.value = c.get("type", "Column")
+            prop_summarize_by.value = c.get("summarize_by", "")
             prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
+            prop_summarize_row.layout.display = ""
         elif node_type == "table":
             t = _resolve_table(_model_data, raw_table) or {}
             prop_name.value, prop_table.value = display_table, ""
