@@ -518,13 +518,29 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         selected = change.get("new", ())
         if not selected:
             return
-        # Use last selected item for properties/expression
         last = selected[-1]
         if last not in _key_map:
             return
         key = _key_map[last]
         _current_key[0] = key
-        # No expand/collapse here — use Expand All / Collapse All buttons
+        # Single-click on a parent node: toggle expand/collapse
+        if len(selected) == 1:
+            if key.startswith("model:"):
+                m_name = key.split(":", 1)[1]
+                if m_name in _expanded:
+                    _expanded.discard(m_name)
+                else:
+                    _expanded.add(m_name)
+                _refresh_tree()
+                return
+            if key.startswith("table:"):
+                t_name = key.split(":", 1)[1]
+                if t_name in _expanded:
+                    _expanded.discard(t_name)
+                else:
+                    _expanded.add(t_name)
+                _refresh_tree()
+        # Update properties/expression for last selected item
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
         save_expr_btn.disabled = key.split(":")[0] not in ("measure", "calc_item")

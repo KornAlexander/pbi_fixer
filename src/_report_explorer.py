@@ -419,7 +419,24 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             return
         key = _key_map[last]
         _current_key[0] = key
-        # No expand/collapse here — use Expand All / Collapse All buttons
+        # Single-click on a parent node: toggle expand/collapse
+        if len(selected) == 1:
+            if key.startswith("report:"):
+                r_name = key.split(":", 1)[1]
+                if r_name in _expanded:
+                    _expanded.discard(r_name)
+                else:
+                    _expanded.add(r_name)
+                _refresh_tree()
+                return
+            if key.startswith("page:"):
+                p_name = key.split(":", 1)[1]
+                if p_name in _expanded:
+                    _expanded.discard(p_name)
+                else:
+                    _expanded.add(p_name)
+                _refresh_tree()
+        # Update properties + preview navigation
         props_html.value = _get_properties_html(_report_data, key)
         # Page navigation via powerbiclient (if widget loaded)
         if _report_widget[0] is not None and key.startswith("page:"):
