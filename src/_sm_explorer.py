@@ -521,42 +521,35 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         orig = btn.description
         btn.description = "Formatting\u2026"
         try:
-            from sempy_labs._daxformatter import _format_dax
-            formatted = _format_dax([expr])
-            # Patch MaxLineLength into the call if needed
-            if max_line_length > 0:
-                import requests, json
-                from sempy_labs._a_lib_info import lib_name, lib_version
-                payload = {
-                    "Dax": [f"x :={expr}"],
-                    "MaxLineLength": max_line_length,
-                    "SkipSpaceAfterFunctionName": False,
-                    "ListSeparator": ",",
-                    "DecimalSeparator": ".",
-                }
-                headers = {
-                    "Accept": "application/json, text/javascript, */*; q=0.01",
-                    "Content-Type": "application/json; charset=UTF-8",
-                    "Host": "daxformatter.azurewebsites.net",
-                    "CallerApp": lib_name,
-                    "CallerVersion": lib_version,
-                }
-                resp = requests.post("https://daxformatter.azurewebsites.net/api/daxformatter/daxtextformatmulti", json=payload, headers=headers)
-                result = resp.json()
-                if result and result[0].get("formatted"):
-                    txt = result[0]["formatted"]
-                    if txt.startswith("x :="):
-                        txt = txt[4:]
-                    if txt.startswith("\r\n"):
-                        txt = txt[2:]
-                    elif txt.startswith("\n"):
-                        txt = txt[1:]
-                    preview.value = txt
-                    btn.disabled = False
-                    btn.description = orig
-                    return
-            if formatted and formatted[0]:
-                preview.value = formatted[0]
+            import requests
+            from sempy_labs._a_lib_info import lib_name, lib_version
+            payload = {
+                "Dax": [f"x :={expr}"],
+                "MaxLineLength": max_line_length,
+                "SkipSpaceAfterFunctionName": False,
+                "ListSeparator": ",",
+                "DecimalSeparator": ".",
+            }
+            headers = {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Content-Type": "application/json; charset=UTF-8",
+                "Host": "daxformatter.azurewebsites.net",
+                "CallerApp": lib_name,
+                "CallerVersion": lib_version,
+            }
+            resp = requests.post("https://daxformatter.azurewebsites.net/api/daxformatter/daxtextformatmulti", json=payload, headers=headers)
+            result = resp.json()
+            if result and result[0].get("formatted"):
+                txt = result[0]["formatted"]
+                if txt.startswith("x :="):
+                    txt = txt[4:]
+                if txt.startswith("\r\n"):
+                    txt = txt[2:]
+                elif txt.startswith("\n"):
+                    txt = txt[1:]
+                _suppressing_observe[0] = True
+                preview.value = txt
+                _suppressing_observe[0] = False
         except Exception:
             pass
         btn.disabled = False
