@@ -461,13 +461,13 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
-    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="100px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="110px"))
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
         options=["Select action..."] + list(fixer_callbacks.keys()),
         value="Select action...",
-        layout=widgets.Layout(width="250px"),
+        layout=widgets.Layout(width="208px"),
     )
     run_action_btn = widgets.Button(
         description="\u26A1 Run",
