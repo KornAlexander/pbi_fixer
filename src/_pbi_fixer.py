@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.59"
+__version__ = "1.2.60"
 
 import ipywidgets as widgets
 import io
@@ -1691,7 +1691,8 @@ def pbi_fixer(
             f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F4E6 Source</div>'
             f'<div style="font-size:13px;">'
             f'<a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" style="color:#FF9500;">github.com/KornAlexander/pbi_fixer</a><br>'
-            f'<a href="https://github.com/KornAlexander/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/KornAlexander/semantic-link-labs</a>'
+            f'<a href="https://github.com/KornAlexander/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/KornAlexander/semantic-link-labs</a> (fork)<br>'
+            f'<a href="https://github.com/microsoft/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/microsoft/semantic-link-labs</a> (official)'
             f'</div>'
             f'</div>'
             f'<div style="padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
