@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.52"
+__version__ = "1.2.53"
 
 import ipywidgets as widgets
 import io
@@ -224,7 +224,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     _expanded = set()
     _current_key = [None]
 
-    load_btn = widgets.Button(description="Load Vertipaq", button_style="primary", layout=widgets.Layout(width="120px"))
+    load_btn = widgets.Button(description="Load Memory", button_style="primary", layout=widgets.Layout(width="120px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
     conn_status = status_html()
@@ -304,10 +304,10 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
 
     # Properties panel
     props_label = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Vertipaq Stats</div>'
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Memory Stats</div>'
     )
     props_html = widgets.HTML(
-        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Load Vertipaq data to see stats</div>',
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Load Memory to see stats</div>',
     )
     props_box = panel_box([props_label, props_html], flex="1", min_height="400px")
 
@@ -423,21 +423,28 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         import io as _io
         from contextlib import redirect_stdout as _redirect
         for i, ds in enumerate(items):
-            set_status(conn_status, f"Vertipaq {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
+            set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
-                with _redirect(buf):
-                    from sempy_labs import vertipaq_analyzer
-                    result = vertipaq_analyzer(dataset=ds, workspace=ws)
+                # Suppress both print() and display() to keep output inside the UI
+                import IPython.display as _ipd
+                _orig_display = _ipd.display
+                _ipd.display = lambda *a, **kw: None
+                try:
+                    with _redirect(buf):
+                        from sempy_labs import vertipaq_analyzer
+                        result = vertipaq_analyzer(dataset=ds, workspace=ws)
+                finally:
+                    _ipd.display = _orig_display
                 _vp_data[ds] = result
                 _expanded.add(ds)
             except Exception as e:
                 set_status(conn_status, f"Error loading '{ds}': {e}", "#ff3b30")
         _build_tree()
         total_models = len(_vp_data)
-        set_status(conn_status, f"\u2713 Loaded Vertipaq stats for {total_models} model(s).", "#34c759")
+        set_status(conn_status, f"\u2713 Loaded memory stats for {total_models} model(s).", "#34c759")
         load_btn.disabled = False
-        load_btn.description = "Load Vertipaq"
+        load_btn.description = "Load Memory"
 
     def on_expand_all(_):
         for m_name, dfs in _vp_data.items():
