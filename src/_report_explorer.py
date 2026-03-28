@@ -322,10 +322,45 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     preview_placeholder = widgets.HTML(
         value=f'<div style="padding:16px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Load a report to see the live preview</div>',
     )
-    _report_widget = [None]  # mutable container for powerbiclient Report
+    _report_widget = [None]  # current active widget
+    _widget_cache = {}  # report_id -> PBIReport widget (don't recreate)
+    refresh_btn = widgets.Button(description="\U0001F504 Refresh", layout=widgets.Layout(width="100px"))
     # Use a VBox as the container — we swap its children to show the Report widget
     preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="350px"))
-    preview_box = panel_box([preview_label, preview_content], flex="1", min_height="380px")
+    preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="380px")
+
+    def _get_or_create_widget(report_id, workspace_id):
+        """Get cached widget or create new one. Returns widget or None."""
+        if report_id in _widget_cache:
+            return _widget_cache[report_id]
+        try:
+            from powerbiclient import Report as PBIReport
+            rpt_widget = PBIReport(group_id=workspace_id, report_id=report_id)
+            rpt_widget.layout = widgets.Layout(width="100%", height="400px")
+            _widget_cache[report_id] = rpt_widget
+            return rpt_widget
+        except Exception:
+            return None
+
+    def _show_widget(report_id, workspace_id):
+        """Show the cached widget for a report."""
+        w = _get_or_create_widget(report_id, workspace_id)
+        if w is not None:
+            _report_widget[0] = w
+            preview_content.children = [w]
+
+    def on_refresh(_):
+        """Force re-create the current report widget."""
+        if _report_widget[0] is None:
+            return
+        # Find the report_id from cache
+        for rid, w in list(_widget_cache.items()):
+            if w is _report_widget[0]:
+                del _widget_cache[rid]
+                _show_widget(rid, w.group_id if hasattr(w, 'group_id') else "")
+                break
+
+    refresh_btn.on_click(on_refresh)
 
     # -- properties (bottom-right) --
     props_label = widgets.HTML(
@@ -440,16 +475,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 report_id = first.get("report_id", "")
                 workspace_id = first.get("workspace_id", "")
             if report_id and workspace_id:
-                try:
-                    from powerbiclient import Report as PBIReport
-                    rpt_widget = PBIReport(group_id=workspace_id, report_id=report_id)
-                    rpt_widget.layout = widgets.Layout(width="100%", height="400px")
-                    _report_widget[0] = rpt_widget
-                    preview_content.children = [rpt_widget]
-                except Exception as embed_err:
-                    preview_content.children = [widgets.HTML(
-                        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY};">Preview error: {embed_err}</div>'
-                    )]
+                _show_widget(report_id, workspace_id)
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
         finally:
@@ -606,14 +632,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 rid = r_data.get("report_id", "")
                 wid = r_data.get("workspace_id", "")
                 if rid and wid:
-                    try:
-                        from powerbiclient import Report as PBIReport
-                        rpt_widget = PBIReport(group_id=wid, report_id=rid)
-                        rpt_widget.layout = widgets.Layout(width="100%", height="400px")
-                        _report_widget[0] = rpt_widget
-                        preview_content.children = [rpt_widget]
-                    except Exception:
-                        pass
+                    _show_widget(rid, wid)
             else:
                 p = _report_data.get("pages", {}).get(p_raw, {})
             page_display = p.get("display_name", p_raw.split("\x1f")[-1] if "\x1f" in p_raw else p_raw)
