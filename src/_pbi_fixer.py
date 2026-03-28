@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.58"
+__version__ = "1.2.59"
 
 import ipywidgets as widgets
 import io
@@ -1680,9 +1680,11 @@ def pbi_fixer(
             f'<div style="font-size:14px; color:#666; margin-bottom:24px;">Version {__version__}</div>'
             f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
             f'<div style="font-size:20px; font-weight:600; color:#333;">Alexander Korn</div>'
-            f'<div style="font-size:16px; margin-top:8px;">'
-            f'<a href="https://actionablereporting.com" target="_blank" '
-            f'style="color:#FF9500; text-decoration:none; font-weight:600;">actionablereporting.com</a></div>'
+            f'<div style="font-size:13px; margin-top:8px;">'
+            f'<a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank" style="color:#0A66C2; text-decoration:none; margin-right:12px;">LinkedIn</a>'
+            f'<a href="https://github.com/KornAlexander" target="_blank" style="color:#333; text-decoration:none; margin-right:12px;">GitHub</a>'
+            f'<a href="https://actionablereporting.com" target="_blank" style="color:#FF9500; text-decoration:none;">actionablereporting.com</a>'
+            f'</div>'
             f'<div style="font-size:13px; color:#888; margin-top:4px;">Transform data into actionable insights</div>'
             f'</div>'
             f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
