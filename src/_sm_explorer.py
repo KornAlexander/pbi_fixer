@@ -599,9 +599,11 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     _is_dirty = [False]
     _pending_changes = {}  # key -> {expression, name, format_string, display_folder, description}
     _suppressing_observe = [False]  # prevent observe triggers during programmatic updates
+    _tree_stale = [False]  # set when pending_changes updated, cleared after tree refresh
     save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="200px"))
+    discard_btn = widgets.Button(description="\u2718 Discard", button_style="warning", disabled=True, layout=widgets.Layout(width="100px"))
     save_status = status_html()
-    save_row = widgets.HBox([save_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
+    save_row = widgets.HBox([save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
 
     # Refresh controls
     refresh_type_dd = widgets.Dropdown(
@@ -691,18 +693,38 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             _is_dirty[0] = True
         # Capture changes immediately
         _capture_current()
+        _tree_stale[0] = True
         n = len(_pending_changes)
         save_btn.description = f"\u26a0\ufe0f {n} unsaved change(s)"
         save_btn.button_style = "danger"
         save_btn.disabled = False
+        discard_btn.disabled = False
 
     def _mark_clean():
         _is_dirty[0] = False
         _pending_changes.clear()
+        _tree_stale[0] = True
         save_btn.description = "\u2713 No changes"
         save_btn.button_style = "success"
         save_btn.disabled = True
+        discard_btn.disabled = True
         save_status.value = ""
+
+    def on_discard(_):
+        """Discard all pending changes and reload current item from cache."""
+        _pending_changes.clear()
+        _mark_clean()
+        _refresh_tree()
+        # Reload current item from original data
+        key = _current_key[0]
+        if key:
+            _suppressing_observe[0] = True
+            preview.value = _get_preview_text(_model_data, key)
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            _populate_props(key)
+            _suppressing_observe[0] = False
+
+    discard_btn.on_click(on_discard)
 
     # Observe editable fields for changes
     preview.observe(_mark_dirty, names="value")
@@ -907,6 +929,11 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         if last not in _key_map:
             return
         key = _key_map[last]
+        # Refresh tree to update \u270f markers if pending changes were added
+        if _tree_stale[0]:
+            _tree_stale[0] = False
+            _refresh_tree()
+            return  # refresh resets selection, next click will proceed
         _current_key[0] = key
         # Single-click on a parent node: toggle expand/collapse
         if len(selected) == 1:
