@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.47"
+__version__ = "1.2.48"
 
 import ipywidgets as widgets
 import io
@@ -1420,6 +1420,21 @@ def pbi_fixer(
         _sm_fixer_cbs["Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
+
+    def _format_all_dax(**kw):
+        """Format all DAX expressions via daxformatter.com API."""
+        ds = kw.get("report", "")
+        ws = kw.get("workspace")
+        if not ds:
+            print("No model specified.")
+            return
+        from sempy_labs.tom import connect_semantic_model
+        print(f"Formatting DAX in '{ds}'...")
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            tom.format_dax()
+        print(f"\u2713 All DAX expressions formatted.")
+
+    _sm_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
