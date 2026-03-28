@@ -268,9 +268,10 @@ def _table_summary(t):
     return str(len(t.get("columns", {})) + len(t.get("measures", {})) + len(t.get("hierarchies", {})) + len(t.get("calc_items", {})))
 
 
-def _build_tree(model_data, expanded_tables, scan_results=None):
+def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=None):
     """Build tree items, optionally annotating with scan findings."""
     scan_results = scan_results or {}
+    pending_changes = pending_changes or {}
     items = []
     models = model_data.get("models", {})
     if models:
@@ -296,11 +297,15 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                 if not is_expanded:
                     continue
                 for mn in sorted(t["measures"]):
-                    items.append((2, "measure", mn, f"measure:{full_key}:{mn}"))
+                    mk = f"measure:{full_key}:{mn}"
+                    pfx = "\u270f " if mk in pending_changes else ""
+                    items.append((2, "measure", f"{pfx}{mn}", mk))
                 for cn in sorted(t["columns"]):
                     c = t["columns"][cn]
                     hidden = " (hidden)" if c["is_hidden"] else ""
-                    items.append((2, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{full_key}:{cn}"))
+                    ck = f"column:{full_key}:{cn}"
+                    pfx = "\u270f " if ck in pending_changes else ""
+                    items.append((2, "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
                 for hn in sorted(t["hierarchies"]):
                     lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
                     items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{full_key}:{hn}"))
@@ -352,11 +357,15 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
             if not is_expanded:
                 continue
             for mn in sorted(t["measures"]):
-                items.append((2, "measure", mn, f"measure:{t_name}:{mn}"))
+                mk = f"measure:{t_name}:{mn}"
+                pfx = "\u270f " if mk in pending_changes else ""
+                items.append((2, "measure", f"{pfx}{mn}", mk))
             for cn in sorted(t["columns"]):
                 c = t["columns"][cn]
                 hidden = " (hidden)" if c["is_hidden"] else ""
-                items.append((2, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{t_name}:{cn}"))
+                ck = f"column:{t_name}:{cn}"
+                pfx = "\u270f " if ck in pending_changes else ""
+                items.append((2, "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
             for hn in sorted(t["hierarchies"]):
                 lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
                 items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
@@ -489,7 +498,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     def _refresh_tree():
         nonlocal _key_map
-        options, _key_map = _build_tree(_model_data, _expanded, _scan_results)
+        options, _key_map = _build_tree(_model_data, _expanded, _scan_results, _pending_changes)
         tree.unobserve(on_select, names="value")
         tree.options = options
         try:

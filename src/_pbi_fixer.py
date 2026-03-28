@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.68"
+__version__ = "1.2.69"
 
 import ipywidgets as widgets
 import io
@@ -210,10 +210,11 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Vertipaq Analyzer tab (inline — no external file dependency)
 # ---------------------------------------------------------------------------
 def _vertipaq_tab(workspace_input=None, report_input=None):
-    """Build the Vertipaq Analyzer tab widget."""
+    """Build the Vertipaq Analyzer tab with full DataFrame subtabs."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
         ICONS, EXPANDED, COLLAPSED, build_tree_items, status_html, set_status, panel_box,
@@ -223,6 +224,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     _key_map = {}
     _expanded = set()
     _current_key = [None]
+    _current_model = [None]  # track which model is selected for subtabs
 
     load_btn = widgets.Button(description="Load Memory", button_style="primary", layout=widgets.Layout(width="120px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
@@ -234,16 +236,15 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="700px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="350px", height="700px", font_family="monospace"))
 
     def _fmt_bytes(n):
-        """Format bytes to human-readable KB/MB/GB."""
         try:
             if n is None or (isinstance(n, float) and n != n):
-                return "—"
+                return "\u2014"
             n = int(n)
         except (TypeError, ValueError):
-            return "—"
+            return "\u2014"
         if n < 1024:
             return f"{n} B"
         if n < 1024 * 1024:
@@ -255,10 +256,29 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     def _fmt_int(n):
         try:
             if n is None or (isinstance(n, float) and n != n):
-                return "—"
+                return "\u2014"
             return f"{int(n):,}"
         except (TypeError, ValueError):
-            return "—"
+            return "\u2014"
+
+    def _fmt_val(val, col_name):
+        """Format a cell value based on column name."""
+        if val is None or (isinstance(val, float) and val != val):
+            return "\u2014"
+        if "Size" in col_name:
+            return _fmt_bytes(val)
+        if "%" in col_name:
+            try:
+                return f"{float(val):.1f}%"
+            except (TypeError, ValueError):
+                return "\u2014"
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and val == int(val):
+                return _fmt_int(int(val))
+            if isinstance(val, float):
+                return f"{val:,.1f}"
+            return _fmt_int(val)
+        return str(val)
 
     def _build_tree():
         nonlocal _key_map
@@ -281,7 +301,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                 t_size = _fmt_bytes(row.get("Total Size", 0))
                 t_rows = _fmt_int(row.get("Row Count", 0))
                 t_pct = f"{row.get('% DB', 0):.1f}%" if row.get("% DB") else ""
-                full_key = f"{m_name}\\x1f{t_name}"
+                full_key = f"{m_name}\x1f{t_name}"
                 is_t_exp = full_key in _expanded
                 t_marker = EXPANDED if is_t_exp else COLLAPSED
                 items.append((1, "table", f"{t_marker} {t_name}  [{t_size}, {t_rows} rows, {t_pct}]", f"table:{full_key}"))
@@ -302,75 +322,128 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         tree.value = ()
         tree.observe(on_select, names="value")
 
-    # Properties panel
-    props_label = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Memory Stats</div>'
-    )
-    props_html = widgets.HTML(
-        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Load Memory to see stats</div>',
-    )
-    props_box = panel_box([props_label, props_html], flex="1", min_height="400px")
+    # -- DataFrame subtabs --
+    _DF_TABS = ["Model Summary", "Tables", "Partitions", "Columns", "Relationships", "Hierarchies"]
+    _DF_KEY_MAP = {
+        "Model Summary": "Model",
+        "Tables": "Tables",
+        "Partitions": "Partitions",
+        "Columns": "Columns",
+        "Relationships": "Relationships",
+        "Hierarchies": "Hierarchies",
+    }
 
-    tree_header = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Tables &amp; Columns by Size</div>'
+    subtab_selector = widgets.ToggleButtons(
+        options=_DF_TABS,
+        value="Model Summary",
+        layout=widgets.Layout(width="100%"),
+        style={"button_width": "auto", "font_weight": "bold"},
     )
-    right_panel = widgets.VBox([props_box], layout=widgets.Layout(flex="1", gap="8px"))
-    panels = widgets.HBox([tree, right_panel], layout=widgets.Layout(width="100%", gap="8px"))
+    df_html = widgets.HTML(
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Load Memory to analyze model sizes.</div>',
+    )
+    df_container = widgets.VBox(
+        [df_html],
+        layout=widgets.Layout(
+            max_height="660px", overflow_y="auto", overflow_x="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+
+    # Detail panel for tree clicks
+    detail_label = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Details</div>'
+    )
+    detail_html = widgets.HTML(
+        value=f'<div style="padding:8px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select a tree item for details</div>',
+    )
+    detail_container = widgets.VBox(
+        [detail_html],
+        layout=widgets.Layout(
+            max_height="300px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+
+    def _df_to_html(df, highlight_col=None, highlight_val=None, sort_by=None):
+        """Convert a DataFrame to a styled HTML table."""
+        if df is None or len(df) == 0:
+            return f'<div style="color:{GRAY_COLOR}; font-size:13px;">No data available.</div>'
+        if sort_by and sort_by in df.columns:
+            df = df.sort_values(sort_by, ascending=False)
+        html = '<table style="border-collapse:collapse; width:100%; font-size:11px; font-family:monospace;">'
+        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
+        for col in df.columns:
+            align = "right" if any(k in col for k in ("Size", "Count", "%", "Cardinality", "Rows", "Temperature", "Segment", "Max", "Missing")) else "left"
+            html += f'<th style="text-align:{align}; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{col}</th>'
+        html += '</tr>'
+        for _, row in df.iterrows():
+            is_hl = highlight_col and highlight_val and str(row.get(highlight_col, "")) == str(highlight_val)
+            bg = "background:#fff3cd;" if is_hl else ""
+            html += f'<tr style="{bg}">'
+            for col in df.columns:
+                val = row.get(col, "")
+                align = "right" if any(k in col for k in ("Size", "Count", "%", "Cardinality", "Rows", "Temperature", "Segment", "Max", "Missing")) else "left"
+                formatted = _fmt_val(val, col)
+                extra = ""
+                if "% DB" in col or "% Table" in col:
+                    try:
+                        pct_val = float(val) if val == val else 0
+                        bar_color = "#ff3b30" if pct_val > 30 else "#ff9500" if pct_val > 10 else "#34c759"
+                        extra = f'<div style="height:3px; width:{min(pct_val * 2, 100):.0f}%; background:{bar_color}; border-radius:1px; margin-top:1px;"></div>'
+                    except (TypeError, ValueError):
+                        pass
+                html += f'<td style="text-align:{align}; padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{formatted}{extra}</td>'
+            html += '</tr>'
+        html += '</table>'
+        return html
+
+    def _render_subtab(tab_name=None, highlight_col=None, highlight_val=None):
+        """Render the selected DataFrame subtab."""
+        tab_name = tab_name or subtab_selector.value
+        m_name = _current_model[0]
+        if not m_name and _vp_data:
+            m_name = next(iter(_vp_data))
+        if not m_name or m_name not in _vp_data:
+            df_html.value = f'<div style="color:{GRAY_COLOR};">No data loaded.</div>'
+            return
+        dfs = _vp_data[m_name]
+        df_key = _DF_KEY_MAP.get(tab_name, tab_name)
+        df = dfs.get(df_key)
+        sort_by = "Total Size" if df is not None and "Total Size" in df.columns else None
+        df_html.value = _df_to_html(df, highlight_col=highlight_col, highlight_val=highlight_val, sort_by=sort_by)
+
+    def on_subtab_change(change):
+        _render_subtab(change.get("new"))
+
+    subtab_selector.observe(on_subtab_change, names="value")
 
     def _prop_row(label, value):
         return f'<tr><td style="padding:2px 10px 2px 0; font-weight:600; color:#555; white-space:nowrap;">{label}</td><td style="padding:2px 0;">{value}</td></tr>'
 
-    def _show_props(key):
+    def _show_detail(key):
+        """Show detail for a tree item + switch subtab + highlight."""
         parts = key.split(":", 2)
         node_type = parts[0]
         if node_type == "model":
             m_name = parts[1]
+            _current_model[0] = m_name
             dfs = _vp_data.get(m_name, {})
             model_df = dfs.get("Model")
-            tables_df = dfs.get("Tables")
-            html = ""
             if model_df is not None and len(model_df) > 0:
                 r = model_df.iloc[0]
                 rows = ""
                 for col in model_df.columns:
-                    val = r.get(col, "")
-                    if "Size" in col:
-                        val = _fmt_bytes(val)
-                    elif isinstance(val, (int, float)) and val == val:
-                        val = _fmt_int(val)
-                    rows += _prop_row(col, val)
-                html += f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:12px; margin-bottom:4px;">MODEL SUMMARY</div>'
-                html += f'<table style="font-size:12px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%; margin-bottom:12px;">{rows}</table>'
-            if tables_df is not None and len(tables_df) > 0:
-                html += f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:12px; margin:8px 0 4px 0;">ALL TABLES (sorted by size)</div>'
-                html += '<table style="font-size:11px; font-family:monospace; border-collapse:collapse; width:100%;">'
-                html += '<tr style="background:#f5f5f5;">'
-                for c in ["Table Name", "Row Count", "Total Size", "% DB"]:
-                    if c in tables_df.columns:
-                        html += f'<th style="text-align:left; padding:3px 6px; border-bottom:1px solid #ddd;">{c}</th>'
-                html += '</tr>'
-                for _, tr in tables_df.sort_values("Total Size", ascending=False).iterrows():
-                    html += '<tr>'
-                    for c in ["Table Name", "Row Count", "Total Size", "% DB"]:
-                        if c not in tables_df.columns:
-                            continue
-                        val = tr.get(c, "")
-                        if "Size" in c:
-                            val = _fmt_bytes(val)
-                        elif "%" in c:
-                            try:
-                                val = f"{float(val):.1f}%"
-                            except Exception:
-                                pass
-                        elif isinstance(val, (int, float)) and val == val:
-                            val = _fmt_int(val)
-                        html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0;">{val}</td>'
-                    html += '</tr>'
-                html += '</table>'
-            props_html.value = html if html else "No data"
+                    rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
+                detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+            subtab_selector.value = "Model Summary"
+            _render_subtab("Model Summary")
         elif node_type == "table":
             raw = parts[1]
-            m_name, t_name = raw.replace("\\x1f", "\x1f").split("\x1f", 1) if "\x1f" in raw.replace("\\x1f", "\x1f") else (raw, "")
+            m_name, t_name = raw.split("\x1f", 1) if "\x1f" in raw else (raw, "")
+            _current_model[0] = m_name
             dfs = _vp_data.get(m_name, {})
             tables_df = dfs.get("Tables")
             if tables_df is not None:
@@ -379,19 +452,15 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                     r = t_row.iloc[0]
                     rows = ""
                     for col in tables_df.columns:
-                        val = r.get(col, "")
-                        if "Size" in col:
-                            val = _fmt_bytes(val)
-                        elif "%" in col:
-                            val = f"{val:.1f}%" if isinstance(val, float) else val
-                        elif isinstance(val, (int, float)) and val == val:
-                            val = _fmt_int(val)
-                        rows += _prop_row(col, val)
-                    props_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+                        rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
+                    detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+            subtab_selector.value = "Tables"
+            _render_subtab("Tables", highlight_col="Table Name", highlight_val=t_name)
         elif node_type == "col":
-            raw_table = parts[1].replace("\\x1f", "\x1f")
+            raw_table = parts[1]
             c_name = parts[2] if len(parts) > 2 else ""
             m_name, t_name = raw_table.split("\x1f", 1) if "\x1f" in raw_table else (raw_table, "")
+            _current_model[0] = m_name
             dfs = _vp_data.get(m_name, {})
             cols_df = dfs.get("Columns")
             if cols_df is not None:
@@ -400,15 +469,10 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                     r = c_row.iloc[0]
                     rows = ""
                     for col in cols_df.columns:
-                        val = r.get(col, "")
-                        if "Size" in col:
-                            val = _fmt_bytes(val)
-                        elif "%" in col:
-                            val = f"{val:.1f}%" if isinstance(val, float) else val
-                        elif isinstance(val, (int, float)) and val == val:
-                            val = _fmt_int(val)
-                        rows += _prop_row(col, val)
-                    props_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+                        rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
+                    detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+            subtab_selector.value = "Columns"
+            _render_subtab("Columns", highlight_col="Column Name", highlight_val=c_name)
 
     def on_select(change):
         selected = change.get("new", ())
@@ -427,15 +491,14 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                 else:
                     _expanded.add(m_name)
                 _build_tree()
-                return
             if key.startswith("table:"):
-                t_name = key.split(":", 1)[1].replace("\\x1f", "\x1f")
+                t_name = key.split(":", 1)[1]
                 if t_name in _expanded:
                     _expanded.discard(t_name)
                 else:
                     _expanded.add(t_name)
                 _build_tree()
-        _show_props(key)
+        _show_detail(key)
 
     def on_load(_):
         nonlocal _vp_data
@@ -456,7 +519,6 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
-                # Suppress ALL display paths to keep output inside the UI
                 import IPython.display as _ipd
                 _orig_display = _ipd.display
                 _ipd.display = lambda *a, **kw: None
@@ -477,9 +539,11 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                         _idf.display = _orig_display2
                 _vp_data[ds] = result
                 _expanded.add(ds)
+                _current_model[0] = ds
             except Exception as e:
                 set_status(conn_status, f"Error loading '{ds}': {e}", "#ff3b30")
         _build_tree()
+        _render_subtab()
         total_models = len(_vp_data)
         set_status(conn_status, f"\u2713 Loaded memory stats for {total_models} model(s).", "#34c759")
         load_btn.disabled = False
@@ -502,6 +566,12 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     tree.observe(on_select, names="value")
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
+
+    tree_header = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Tables &amp; Columns by Size</div>'
+    )
+    right_panel = widgets.VBox([subtab_selector, df_container, detail_label, detail_container], layout=widgets.Layout(flex="1", gap="4px"))
+    panels = widgets.HBox([tree, right_panel], layout=widgets.Layout(width="100%", gap="8px"))
 
     widget = widgets.VBox([nav_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
@@ -760,146 +830,6 @@ def _bpa_tab(workspace_input=None, report_input=None):
     fix_all_btn.on_click(on_fix_all)
 
     widget = widgets.VBox([nav_row, header_label, results_box], layout=widgets.Layout(padding="12px", gap="4px"))
-    return widget
-def _memory_tab(workspace_input=None, report_input=None):
-    """Build the Memory Overview tab widget showing model/table size breakdown."""
-    from sempy_labs._ui_components import (
-        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
-        status_html, set_status, panel_box,
-    )
-
-    _vp_data = {}
-    load_btn = widgets.Button(description="Load Memory", button_style="primary", layout=widgets.Layout(width="120px"))
-    conn_status = status_html()
-    nav_row = widgets.HBox(
-        [load_btn, conn_status],
-        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
-    )
-
-    header_label = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Memory Overview</div>'
-    )
-    content_html = widgets.HTML(
-        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Load Memory to analyze model sizes.</div>',
-    )
-
-    def _fmt_bytes(n):
-        if n is None or n != n:
-            return "—"
-        n = int(n)
-        if n < 1024:
-            return f"{n} B"
-        if n < 1024 * 1024:
-            return f"{n / 1024:.1f} KB"
-        if n < 1024 * 1024 * 1024:
-            return f"{n / (1024 * 1024):.1f} MB"
-        return f"{n / (1024 * 1024 * 1024):.2f} GB"
-
-    def _build_summary():
-        html_parts = []
-        _style = f"font-family:{FONT_FAMILY}; font-size:13px;"
-        _header = f"font-weight:600; color:{ICON_ACCENT}; font-size:14px; margin:12px 0 6px 0;"
-        for m_name in sorted(_vp_data):
-            dfs = _vp_data[m_name]
-            model_df = dfs.get("Model")
-            tables_df = dfs.get("Tables")
-            cols_df = dfs.get("Columns")
-            rels_df = dfs.get("Relationships")
-
-            # Model summary
-            total_size = "—"
-            if model_df is not None and len(model_df) > 0:
-                total_size = _fmt_bytes(model_df.iloc[0].get("Total Size", 0))
-            html_parts.append(f'<div style="{_header}">\U0001F4CA {m_name} — {total_size}</div>')
-
-            # Top 10 tables by size
-            if tables_df is not None and len(tables_df) > 0:
-                top = tables_df.sort_values("Total Size", ascending=False).head(10)
-                html_parts.append(f'<div style="{_style}; margin-bottom:4px;"><b>Top tables by size:</b></div>')
-                html_parts.append('<table style="border-collapse:collapse; width:100%; margin-bottom:8px;">')
-                html_parts.append(f'<tr style="background:#f5f5f5;"><th style="text-align:left; padding:4px 8px;">Table</th><th style="text-align:right; padding:4px 8px;">Size</th><th style="text-align:right; padding:4px 8px;">Rows</th><th style="text-align:right; padding:4px 8px;">% DB</th></tr>')
-                for _, r in top.iterrows():
-                    pct = f"{r.get('% DB', 0):.1f}%" if r.get("% DB") else "—"
-                    row_count = f"{int(r.get('Row Count', 0)):,}" if r.get("Row Count") is not None else "—"
-                    # Color bar based on percentage
-                    pct_val = r.get("% DB", 0) or 0
-                    bar_color = "#ff3b30" if pct_val > 30 else "#ff9500" if pct_val > 10 else "#34c759"
-                    html_parts.append(
-                        f'<tr><td style="padding:3px 8px; border-bottom:1px solid #eee;">{r.get("Table Name","")}'
-                        f'<div style="height:4px; width:{min(pct_val * 2, 100)}%; background:{bar_color}; border-radius:2px; margin-top:2px;"></div>'
-                        f'</td><td style="text-align:right; padding:3px 8px; border-bottom:1px solid #eee;">{_fmt_bytes(r.get("Total Size", 0))}</td>'
-                        f'<td style="text-align:right; padding:3px 8px; border-bottom:1px solid #eee;">{row_count}</td>'
-                        f'<td style="text-align:right; padding:3px 8px; border-bottom:1px solid #eee;">{pct}</td></tr>'
-                    )
-                html_parts.append('</table>')
-
-            # Top 10 columns by size (hotspots)
-            if cols_df is not None and len(cols_df) > 0:
-                top_cols = cols_df.sort_values("Total Size", ascending=False).head(10)
-                html_parts.append(f'<div style="{_style}; margin-bottom:4px;"><b>Top column hotspots:</b></div>')
-                html_parts.append('<table style="border-collapse:collapse; width:100%; margin-bottom:8px;">')
-                html_parts.append(f'<tr style="background:#f5f5f5;"><th style="text-align:left; padding:4px 8px;">Table.Column</th><th style="text-align:right; padding:4px 8px;">Size</th><th style="text-align:right; padding:4px 8px;">Cardinality</th><th style="text-align:left; padding:4px 8px;">Encoding</th></tr>')
-                for _, c in top_cols.iterrows():
-                    card = f"{int(c.get('Cardinality', 0)):,}" if c.get("Cardinality") is not None else "—"
-                    html_parts.append(
-                        f'<tr><td style="padding:3px 8px; border-bottom:1px solid #eee;">{c.get("Table Name","")}.{c.get("Column Name","")}</td>'
-                        f'<td style="text-align:right; padding:3px 8px; border-bottom:1px solid #eee;">{_fmt_bytes(c.get("Total Size", 0))}</td>'
-                        f'<td style="text-align:right; padding:3px 8px; border-bottom:1px solid #eee;">{card}</td>'
-                        f'<td style="padding:3px 8px; border-bottom:1px solid #eee;">{c.get("Encoding","")}</td></tr>'
-                    )
-                html_parts.append('</table>')
-
-            # Relationships summary
-            if rels_df is not None and len(rels_df) > 0:
-                missing = rels_df[rels_df.get("Missing Rows", 0) > 0] if "Missing Rows" in rels_df.columns else rels_df.iloc[0:0]
-                html_parts.append(f'<div style="{_style};"><b>Relationships:</b> {len(rels_df)} total')
-                if len(missing) > 0:
-                    html_parts.append(f', <span style="color:#ff3b30;">{len(missing)} with missing rows</span>')
-                html_parts.append('</div>')
-
-        content_html.value = "\n".join(html_parts) if html_parts else f'<div style="color:{GRAY_COLOR};">No data loaded.</div>'
-
-    def on_load(_):
-        nonlocal _vp_data
-        ws = workspace_input.value.strip() if workspace_input else None
-        ws = ws or None
-        ds_input = report_input.value.strip() if report_input else ""
-        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
-        if not items:
-            set_status(conn_status, "Enter a semantic model name.", "#ff3b30")
-            return
-        load_btn.disabled = True
-        load_btn.description = "Loading\u2026"
-        _vp_data = {}
-        import io as _io
-        from contextlib import redirect_stdout as _redirect
-        for i, ds in enumerate(items):
-            set_status(conn_status, f"Memory {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
-            try:
-                buf = _io.StringIO()
-                with _redirect(buf):
-                    from sempy_labs import vertipaq_analyzer
-                    result = vertipaq_analyzer(dataset=ds, workspace=ws)
-                _vp_data[ds] = result
-            except Exception as e:
-                set_status(conn_status, f"Error: {e}", "#ff3b30")
-        _build_summary()
-        set_status(conn_status, f"\u2713 Memory analysis for {len(_vp_data)} model(s).", "#34c759")
-        load_btn.disabled = False
-        load_btn.description = "Load Memory"
-
-    load_btn.on_click(on_load)
-
-    content_box = widgets.VBox(
-        [content_html],
-        layout=widgets.Layout(
-            max_height="600px", overflow_y="auto",
-            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
-            padding="12px", background_color=SECTION_BG,
-        ),
-    )
-
-    widget = widgets.VBox([nav_row, header_label, content_box], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 # ---------------------------------------------------------------------------
