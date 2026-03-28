@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.40"
+__version__ = "1.2.41"
 
 import ipywidgets as widgets
 import io
@@ -798,6 +798,7 @@ def pbi_fixer(
         _tab_options.append("\U0001F441 Perspectives")
     _tab_options.append("\U0001F4C8 Vertipaq")
     _tab_options.append("\U0001F4BE Memory")
+    _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
         _fixer_visible = True
@@ -1354,6 +1355,45 @@ def pbi_fixer(
         workspace_input=workspace_input, report_input=report_input
     )
     tab_panels.append(mem_content)
+
+    # About tab
+    about_content = widgets.HTML(
+        value=(
+            f'<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:24px; max-width:600px;">'
+            f'<div style="font-size:28px; font-weight:700; color:#FF9500; margin-bottom:4px;">Power BI Fixer</div>'
+            f'<div style="font-size:14px; color:#666; margin-bottom:24px;">Version {__version__}</div>'
+            f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
+            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">Created by</div>'
+            f'<div style="font-size:20px; font-weight:600; color:#333;">Alexander Korn</div>'
+            f'<div style="font-size:14px; color:#666; margin-top:4px;">Solution Engineer Data Platform @ Microsoft</div>'
+            f'</div>'
+            f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
+            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F310 Website</div>'
+            f'<div style="font-size:16px;"><a href="https://actionablereporting.com" target="_blank" '
+            f'style="color:#FF9500; text-decoration:none; font-weight:600;">actionablereporting.com</a></div>'
+            f'<div style="font-size:13px; color:#888; margin-top:4px;">Transform data into actionable insights</div>'
+            f'</div>'
+            f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
+            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F4E6 Source</div>'
+            f'<div style="font-size:13px;">'
+            f'<a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" style="color:#FF9500;">github.com/KornAlexander/pbi_fixer</a><br>'
+            f'<a href="https://github.com/KornAlexander/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/KornAlexander/semantic-link-labs</a>'
+            f'</div>'
+            f'</div>'
+            f'<div style="padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
+            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F6E0\ufe0f Built with</div>'
+            f'<div style="font-size:13px; color:#555; line-height:1.8;">'
+            f'\u2022 <b>Semantic Link Labs</b> \u2014 TOM, connect_report, vertipaq_analyzer<br>'
+            f'\u2022 <b>ipywidgets</b> \u2014 interactive UI in Fabric Notebooks<br>'
+            f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed<br>'
+            f'\u2022 <b>Michael Kovalsky</b> \u2014 perspective_editor inspiration'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        ),
+        layout=widgets.Layout(padding="12px"),
+    )
+    tab_panels.append(about_content)
 
     def _switch_tab(change=None):
         idx = _tab_options.index(tab_selector.value)
