@@ -813,8 +813,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     run_action_btn.on_click(on_run_action)
 
+    # Scan results detail panel (below save row)
+    scan_results_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px",
+        max_height="400px", overflow_y="auto",
+        border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+        padding="8px", background_color=SECTION_BG, margin="8px 0 0 0"))
+
     def on_scan(_):
-        """Run all SM fixers in scan_only mode, collect findings."""
+        """Run all SM fixers in scan_only mode, collect detailed findings."""
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds_input = report_input.value.strip() if report_input else ""
@@ -822,7 +828,6 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         if not items and not _model_data.get("models") and not _model_data.get("tables"):
             set_status(conn_status, "No model loaded. Load first.", "#ff3b30")
             return
-        # Use model names from loaded data if no input
         if not items:
             items = list(_model_data.get("models", {}).keys())
             if not items:
@@ -836,7 +841,10 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         from contextlib import redirect_stdout as _redirect
 
         total_findings = 0
-        fixer_names = [k for k in fixer_callbacks if k != "Actions..."]
+        all_findings = []  # [(model, fixer_name, detail_line), ...]
+        # Skip these from scan (they're additive actions, not violations)
+        skip_fixers = {"Auto-Create Measures from Columns", "Add PY Measures (Y-1)", "Format All DAX"}
+        fixer_names = [k for k in fixer_callbacks if k not in skip_fixers and k != "Select action..."]
 
         for ds in items:
             set_status(conn_status, f"Scanning '{ds}'\u2026", GRAY_COLOR)
@@ -846,23 +854,76 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     with _redirect(buf):
                         fixer_callbacks[fixer_name](report=ds, workspace=ws, scan_only=True)
                     output = buf.getvalue()
-                    count = sum(1 for line in output.splitlines() if line.strip())
-                    if count > 0:
-                        model_key = f"model:{ds}"
-                        _scan_results[model_key] = _scan_results.get(model_key, 0) + count
-                        total_findings += count
+                    for line in output.splitlines():
+                        line = line.strip()
+                        if line:
+                            all_findings.append((ds, fixer_name, line))
+                            total_findings += 1
+                            model_key = f"model:{ds}"
+                            _scan_results[model_key] = _scan_results.get(model_key, 0) + 1
                 except Exception:
                     pass
 
         _refresh_tree()
+
+        # Build results panel with Fix buttons
+        if all_findings:
+            result_widgets = []
+            result_widgets.append(widgets.HTML(
+                value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; '
+                f'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">'
+                f'\u26a0\ufe0f {total_findings} Finding(s)</div>'
+            ))
+            # Table header
+            result_widgets.append(widgets.HTML(
+                value=f'<div style="display:flex; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
+                f'padding:4px 0; border-bottom:1px solid {BORDER_COLOR};">'
+                f'<span style="flex:0 0 120px;">Model</span>'
+                f'<span style="flex:0 0 180px;">Check</span>'
+                f'<span style="flex:1;">Finding</span>'
+                f'</div>'
+            ))
+            for ds, fixer_name, detail in all_findings:
+                fix_btn = widgets.Button(
+                    description=f"Fix",
+                    button_style="warning",
+                    layout=widgets.Layout(width="60px", height="24px"),
+                )
+                def _make_fix(fn, model):
+                    def _handler(_):
+                        _ws = ws
+                        set_status(conn_status, f"Fixing: {fn} on '{model}'\u2026", GRAY_COLOR)
+                        try:
+                            buf2 = _io.StringIO()
+                            with _redirect(buf2):
+                                fixer_callbacks[fn](report=model, workspace=_ws, scan_only=False)
+                            set_status(conn_status, f"\u2713 {fn} applied to '{model}'.", "#34c759")
+                        except Exception as e:
+                            set_status(conn_status, f"Error: {e}", "#ff3b30")
+                    return _handler
+                fix_btn.on_click(_make_fix(fixer_name, ds))
+                row = widgets.HBox([
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333; flex:0 0 120px; overflow:hidden;">{ds}</span>'),
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT}; flex:0 0 180px;">{fixer_name}</span>'),
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#555; flex:1;">{detail[:100]}</span>'),
+                    fix_btn,
+                ], layout=widgets.Layout(align_items="center", gap="4px", padding="2px 0",
+                    border_bottom=f"1px solid #f0f0f0"))
+                result_widgets.append(row)
+            scan_results_box.children = result_widgets
+            scan_results_box.layout.display = ""
+        else:
+            scan_results_box.children = []
+            scan_results_box.layout.display = "none"
+
         scan_btn.disabled = False
         scan_btn.description = "\U0001F50D Scan"
         if total_findings > 0:
-            set_status(conn_status, f"\U0001F50D Scan complete: {total_findings} finding(s) across {len(items)} model(s).", "#ff9500")
+            set_status(conn_status, f"\U0001F50D Scan: {total_findings} finding(s) across {len(items)} model(s).", "#ff9500")
         else:
             set_status(conn_status, f"\u2713 Scan complete: no issues found.", "#34c759")
 
     scan_btn.on_click(on_scan)
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row, scan_results_box], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
