@@ -563,7 +563,33 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     fmt_long_btn.on_click(on_format_long)
     fmt_short_btn.on_click(on_format_short)
-    format_row = widgets.HBox([fmt_long_btn, fmt_short_btn], layout=widgets.Layout(gap="8px"))
+
+    insert_ref_btn = widgets.Button(description="📋 Insert Ref", layout=widgets.Layout(width="110px"), disabled=True)
+
+    def on_insert_ref(_):
+        """Insert the selected column/measure DAX reference into the expression."""
+        key = _current_key[0]
+        if not key:
+            return
+        parts = key.split(":", 2)
+        node_type = parts[0]
+        if node_type == "measure":
+            # [MeasureName]
+            m_name = parts[2] if len(parts) > 2 else ""
+            ref = f"[{m_name}]"
+        elif node_type == "column":
+            raw_table = parts[1] if len(parts) > 1 else ""
+            table_name = raw_table.split("\x1f")[-1] if "\x1f" in raw_table else raw_table
+            c_name = parts[2] if len(parts) > 2 else ""
+            ref = f"'{table_name}'[{c_name}]"
+        else:
+            return
+        _suppressing_observe[0] = True
+        preview.value = preview.value + ref
+        _suppressing_observe[0] = False
+
+    insert_ref_btn.on_click(on_insert_ref)
+    format_row = widgets.HBox([fmt_long_btn, fmt_short_btn, insert_ref_btn], layout=widgets.Layout(gap="8px"))
 
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
@@ -974,6 +1000,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             preview.value = _get_preview_text(_model_data, key)
             preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
             _populate_props(key)
+        # Enable insert ref button for measures and columns
+        insert_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
         _suppressing_observe[0] = False
 
     def on_expand_all(_):
