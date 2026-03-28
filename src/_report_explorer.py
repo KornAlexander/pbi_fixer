@@ -52,28 +52,6 @@ def _load_report_data(report, workspace):
         pages_df = rw.list_pages()
         visuals_df = rw.list_visuals()
 
-        # Try to load visual-level measure/column usage (PBIR only)
-        visual_objects = {}
-        try:
-            vo_df = rw.list_visual_objects()
-            for _, row in vo_df.iterrows():
-                v_name = str(row.get("Visual Name", ""))
-                p_name = str(row.get("Page Name", ""))
-                key = f"{p_name}:{v_name}"
-                if key not in visual_objects:
-                    visual_objects[key] = []
-                visual_objects[key].append({
-                    "table": str(row.get("Table Name", "")),
-                    "object": str(row.get("Object Name", "")),
-                    "type": str(row.get("Object Type", "")),
-                    "display_name": str(row.get("Object Display Name", "")),
-                })
-        except Exception:
-            pass
-        report_data["visual_objects"] = visual_objects
-        pages_df = rw.list_pages()
-        visuals_df = rw.list_visuals()
-
         for _, row in pages_df.iterrows():
             p_name = str(row.get("Page Name", row.get("Page Display Name", "")))
             display_name = str(row.get("Page Display Name", p_name))
