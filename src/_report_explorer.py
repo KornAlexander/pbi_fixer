@@ -280,7 +280,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="700px", font_family="monospace"))
 
     def _refresh_tree():
         nonlocal _key_map
@@ -304,7 +304,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _widget_cache = {}  # report_id -> PBIReport widget (don't recreate)
     refresh_btn = widgets.Button(description="\U0001F504 Refresh", layout=widgets.Layout(width="100px"))
     # Use a VBox as the container — we swap its children to show the Report widget
-    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="350px"))
+    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="500px"))
     preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="380px")
 
     def _get_or_create_widget(report_id, workspace_id):

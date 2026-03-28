@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.56"
+__version__ = "1.2.57"
 
 import ipywidgets as widgets
 import io
@@ -234,7 +234,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="700px", font_family="monospace"))
 
     def _fmt_bytes(n):
         """Format bytes to human-readable KB/MB/GB."""

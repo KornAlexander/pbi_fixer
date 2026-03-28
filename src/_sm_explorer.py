@@ -409,7 +409,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="500px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="700px", font_family="monospace"))
 
     def _refresh_tree():
         nonlocal _key_map
