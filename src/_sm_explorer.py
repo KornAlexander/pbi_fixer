@@ -1123,38 +1123,47 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             ))
             # Table header
             result_widgets.append(widgets.HTML(
-                value=f'<div style="display:flex; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
-                f'padding:4px 0; border-bottom:1px solid {BORDER_COLOR};">'
-                f'<span style="flex:0 0 120px;">Model</span>'
-                f'<span style="flex:0 0 180px;">Check</span>'
-                f'<span style="flex:1;">Finding</span>'
+                value=f'<div style="display:grid; grid-template-columns:120px 200px 1fr 60px; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
+                f'padding:4px 8px; border-bottom:1px solid {BORDER_COLOR}; gap:8px;">'
+                f'<span>Model</span>'
+                f'<span>Check</span>'
+                f'<span>Finding</span>'
+                f'<span></span>'
                 f'</div>'
             ))
             for ds, fixer_name, detail in all_findings:
-                fix_btn = widgets.Button(
-                    description=f"Fix",
-                    button_style="warning",
-                    layout=widgets.Layout(width="60px", height="24px"),
-                )
-                def _make_fix(fn, model):
-                    def _handler(_):
-                        _ws = ws
-                        set_status(conn_status, f"Fixing: {fn} on '{model}'\u2026", GRAY_COLOR)
-                        try:
-                            buf2 = _io.StringIO()
-                            with _redirect(buf2):
-                                fixer_callbacks[fn](report=model, workspace=_ws, scan_only=False)
-                            set_status(conn_status, f"\u2713 {fn} applied to '{model}'.", "#34c759")
-                        except Exception as e:
-                            set_status(conn_status, f"Error: {e}", "#ff3b30")
-                    return _handler
-                fix_btn.on_click(_make_fix(fixer_name, ds))
+                no_action = "no action needed" in detail.lower()
+                if no_action:
+                    action_widget = widgets.HTML(value='<span style="width:60px;display:inline-block;"></span>')
+                else:
+                    fix_btn = widgets.Button(
+                        description="Fix",
+                        button_style="warning",
+                        layout=widgets.Layout(width="60px", height="24px"),
+                    )
+                    def _make_fix(fn, model):
+                        def _handler(_):
+                            _ws = ws
+                            set_status(conn_status, f"Fixing: {fn} on '{model}'\u2026", GRAY_COLOR)
+                            try:
+                                buf2 = _io.StringIO()
+                                with _redirect(buf2):
+                                    fixer_callbacks[fn](report=model, workspace=_ws, scan_only=False)
+                                set_status(conn_status, f"\u2713 {fn} applied to '{model}'.", "#34c759")
+                            except Exception as e:
+                                set_status(conn_status, f"Error: {e}", "#ff3b30")
+                        return _handler
+                    fix_btn.on_click(_make_fix(fixer_name, ds))
+                    action_widget = fix_btn
                 row = widgets.HBox([
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333; flex:0 0 120px; overflow:hidden;">{ds}</span>'),
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT}; flex:0 0 180px;">{fixer_name}</span>'),
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#555; flex:1;">{detail[:100]}</span>'),
-                    fix_btn,
-                ], layout=widgets.Layout(align_items="center", gap="4px", padding="2px 0",
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{ds}</span>',
+                        layout=widgets.Layout(width="120px")),
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT}; width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{fixer_name}</span>',
+                        layout=widgets.Layout(width="200px")),
+                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">{detail[:120]}</span>',
+                        layout=widgets.Layout(flex="1")),
+                    action_widget,
+                ], layout=widgets.Layout(align_items="center", gap="8px", padding="2px 8px",
                     border_bottom=f"1px solid #f0f0f0"))
                 result_widgets.append(row)
             scan_results_box.children = result_widgets
