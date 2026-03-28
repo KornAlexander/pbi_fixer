@@ -594,32 +594,33 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     fmt_long_btn.on_click(on_format_long)
     fmt_short_btn.on_click(on_format_short)
 
-    insert_ref_btn = widgets.Button(description="📋 Insert Ref", layout=widgets.Layout(width="110px"), disabled=True)
+    copy_ref_btn = widgets.Button(description="📋 Copy Ref", layout=widgets.Layout(width="100px"), disabled=True)
+    ref_output = widgets.Text(value="", disabled=True, layout=widgets.Layout(width="250px", display="none"))
 
-    def on_insert_ref(_):
-        """Insert the selected column/measure DAX reference into the expression."""
-        key = _current_key[0]
+    def _get_dax_ref(key):
+        """Return DAX reference string for a measure or column key."""
         if not key:
-            return
+            return ""
         parts = key.split(":", 2)
         node_type = parts[0]
         if node_type == "measure":
-            # [MeasureName]
-            m_name = parts[2] if len(parts) > 2 else ""
-            ref = f"[{m_name}]"
-        elif node_type == "column":
+            return f"[{parts[2]}]" if len(parts) > 2 else ""
+        if node_type == "column":
             raw_table = parts[1] if len(parts) > 1 else ""
             table_name = raw_table.split("\x1f")[-1] if "\x1f" in raw_table else raw_table
             c_name = parts[2] if len(parts) > 2 else ""
-            ref = f"'{table_name}'[{c_name}]"
-        else:
-            return
-        _suppressing_observe[0] = True
-        preview.value = preview.value + ref
-        _suppressing_observe[0] = False
+            return f"'{table_name}'[{c_name}]"
+        return ""
 
-    insert_ref_btn.on_click(on_insert_ref)
-    format_row = widgets.HBox([fmt_long_btn, fmt_short_btn, insert_ref_btn], layout=widgets.Layout(gap="8px"))
+    def on_copy_ref(_):
+        """Show DAX reference in a text field for easy copy."""
+        ref = _get_dax_ref(_current_key[0])
+        if ref:
+            ref_output.value = ref
+            ref_output.layout.display = ""
+
+    copy_ref_btn.on_click(on_copy_ref)
+    format_row = widgets.HBox([fmt_long_btn, fmt_short_btn, copy_ref_btn, ref_output], layout=widgets.Layout(gap="8px", align_items="center"))
 
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
@@ -1037,8 +1038,10 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             preview.value = _get_preview_text(_model_data, key)
             preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
             _populate_props(key)
-        # Enable insert ref button for measures and columns
-        insert_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
+        # Enable copy ref button for measures and columns
+        copy_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
+        if key.split(":")[0] not in ("measure", "column"):
+            ref_output.layout.display = "none"
         _suppressing_observe[0] = False
 
     def _expand_folders(tables, table_prefix=""):
