@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.57"
+__version__ = "1.2.58"
 
 import ipywidgets as widgets
 import io
@@ -327,6 +327,8 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             m_name = parts[1]
             dfs = _vp_data.get(m_name, {})
             model_df = dfs.get("Model")
+            tables_df = dfs.get("Tables")
+            html = ""
             if model_df is not None and len(model_df) > 0:
                 r = model_df.iloc[0]
                 rows = ""
@@ -337,7 +339,35 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                     elif isinstance(val, (int, float)) and val == val:
                         val = _fmt_int(val)
                     rows += _prop_row(col, val)
-                props_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
+                html += f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:12px; margin-bottom:4px;">MODEL SUMMARY</div>'
+                html += f'<table style="font-size:12px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%; margin-bottom:12px;">{rows}</table>'
+            if tables_df is not None and len(tables_df) > 0:
+                html += f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:12px; margin:8px 0 4px 0;">ALL TABLES (sorted by size)</div>'
+                html += '<table style="font-size:11px; font-family:monospace; border-collapse:collapse; width:100%;">'
+                html += '<tr style="background:#f5f5f5;">'
+                for c in ["Table Name", "Row Count", "Total Size", "% DB"]:
+                    if c in tables_df.columns:
+                        html += f'<th style="text-align:left; padding:3px 6px; border-bottom:1px solid #ddd;">{c}</th>'
+                html += '</tr>'
+                for _, tr in tables_df.sort_values("Total Size", ascending=False).iterrows():
+                    html += '<tr>'
+                    for c in ["Table Name", "Row Count", "Total Size", "% DB"]:
+                        if c not in tables_df.columns:
+                            continue
+                        val = tr.get(c, "")
+                        if "Size" in c:
+                            val = _fmt_bytes(val)
+                        elif "%" in c:
+                            try:
+                                val = f"{float(val):.1f}%"
+                            except Exception:
+                                pass
+                        elif isinstance(val, (int, float)) and val == val:
+                            val = _fmt_int(val)
+                        html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0;">{val}</td>'
+                    html += '</tr>'
+                html += '</table>'
+            props_html.value = html if html else "No data"
         elif node_type == "table":
             raw = parts[1]
             m_name, t_name = raw.replace("\\x1f", "\x1f").split("\x1f", 1) if "\x1f" in raw.replace("\\x1f", "\x1f") else (raw, "")
@@ -426,16 +456,25 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
-                # Suppress both print() and display() to keep output inside the UI
+                # Suppress ALL display paths to keep output inside the UI
                 import IPython.display as _ipd
                 _orig_display = _ipd.display
                 _ipd.display = lambda *a, **kw: None
+                try:
+                    import IPython.core.display_functions as _idf
+                    _orig_display2 = _idf.display
+                    _idf.display = lambda *a, **kw: None
+                except Exception:
+                    _idf = None
+                    _orig_display2 = None
                 try:
                     with _redirect(buf):
                         from sempy_labs import vertipaq_analyzer
                         result = vertipaq_analyzer(dataset=ds, workspace=ws)
                 finally:
                     _ipd.display = _orig_display
+                    if _idf is not None and _orig_display2 is not None:
+                        _idf.display = _orig_display2
                 _vp_data[ds] = result
                 _expanded.add(ds)
             except Exception as e:
