@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.46"
+__version__ = "1.2.47"
 
 import ipywidgets as widgets
 import io
@@ -1530,20 +1530,26 @@ def pbi_fixer(
         _status_style = (
             f'font-size:12px; font-family:-apple-system,BlinkMacSystemFont,sans-serif;'
         )
+        tab_labels = ["Semantic Models", "Reports"]
         total = len(_load_triggers)
         for i, load_fn in enumerate(_load_triggers):
-            tab_name = ["Models", "Reports"][i] if i < 2 else f"Tab {i+1}"
+            label = tab_labels[i] if i < len(tab_labels) else f"Tab {i+1}"
+            done_parts = []
+            for j in range(i):
+                done_parts.append(f"{tab_labels[j] if j < len(tab_labels) else f'Tab {j+1}'} \u2713")
+            progress_text = " | ".join(done_parts + [f"{label} loading\u2026"]) if done_parts else f"{label} loading\u2026"
             load_status.value = (
                 f'<span style="{_status_style} color:{gray_color};">'
-                f'{tab_name} ({i+1}/{total})\u2026</span>'
+                f'{progress_text} ({i+1}/{total})</span>'
             )
             try:
                 load_fn(None)
             except Exception:
                 pass
+        all_done = " | ".join(f"{tab_labels[j] if j < len(tab_labels) else f'Tab {j+1}'} \u2713" for j in range(total))
         load_status.value = (
             f'<span style="{_status_style} color:#34c759;">'
-            f'\u2713 Loaded</span>'
+            f'\u2713 {all_done}</span>'
         )
         load_all_btn.disabled = False
         load_all_btn.description = "Load"
