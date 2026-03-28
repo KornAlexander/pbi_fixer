@@ -650,7 +650,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     _suppressing_observe = [False]  # prevent observe triggers during programmatic updates
     _tree_stale = [False]  # set when pending_changes updated, cleared after tree refresh
     save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="200px"))
-    discard_btn = widgets.Button(description="\u2718 Discard", button_style="warning", disabled=True, layout=widgets.Layout(width="100px"))
+    discard_btn = widgets.Button(description="\u2718 Discard", button_style="warning", layout=widgets.Layout(width="100px", display="none"))
     save_status = status_html()
     save_row = widgets.HBox([save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
 
@@ -747,7 +747,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         save_btn.description = f"\u26a0\ufe0f {n} unsaved change(s)"
         save_btn.button_style = "danger"
         save_btn.disabled = False
-        discard_btn.disabled = False
+        discard_btn.layout.display = ""
 
     def _mark_clean():
         _is_dirty[0] = False
@@ -756,7 +756,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         save_btn.description = "\u2713 No changes"
         save_btn.button_style = "success"
         save_btn.disabled = True
-        discard_btn.disabled = True
+        discard_btn.layout.display = "none"
         save_status.value = ""
 
     def on_discard(_):
