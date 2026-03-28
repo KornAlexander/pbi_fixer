@@ -424,10 +424,31 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     # -- expression panel --
     preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
+    format_dax_btn = widgets.Button(description="Format DAX", layout=widgets.Layout(width="110px"))
+
+    def on_format_dax(_):
+        """Format the current DAX expression via daxformatter.com API."""
+        expr = preview.value.strip()
+        if not expr:
+            return
+        format_dax_btn.disabled = True
+        format_dax_btn.description = "Formatting\u2026"
+        try:
+            from sempy_labs._daxformatter import _format_dax
+            formatted = _format_dax([expr])
+            if formatted and formatted[0]:
+                preview.value = formatted[0]
+        except Exception:
+            pass
+        format_dax_btn.disabled = False
+        format_dax_btn.description = "Format DAX"
+
+    format_dax_btn.on_click(on_format_dax)
+
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    preview_box = panel_box([preview_label, preview], flex="1")
+    preview_box = panel_box([preview_label, preview, format_dax_btn], flex="1")
 
     # -- editable properties --
     props_label = widgets.HTML(
