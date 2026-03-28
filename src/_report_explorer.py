@@ -720,12 +720,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         _scan_results.clear()
         _scan_details.clear()
 
-        # Fixer rules: visual type patterns that each fixer would flag
+        # Fixer rules: only flag clear per-visual violations
+        # Bar/column chart formatting and filter hiding are report-level actions (not violations)
         fixer_rules = {
             "Fix Pie Charts": (lambda v: v.get("type", "").lower() in ("piechart",) or v.get("display_type", "").lower() in ("pie chart", "donut chart"), "Replace pie chart \u2192 bar chart"),
-            "Fix Bar Charts": (lambda v: v.get("type", "").lower() in ("barchart",) or "bar chart" in v.get("display_type", "").lower(), "Apply formatting best practices"),
-            "Fix Column Charts": (lambda v: v.get("type", "").lower() in ("columnchart",) or "column chart" in v.get("display_type", "").lower(), "Apply formatting best practices"),
-            "Hide Visual Filters": (lambda v: True, "Hide visual-level filters from filter pane"),
         }
 
         # Only use rules for fixers that are actually available
