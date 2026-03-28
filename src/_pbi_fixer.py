@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.70"
+__version__ = "1.2.71"
 
 import ipywidgets as widgets
 import io
@@ -1624,7 +1624,10 @@ def pbi_fixer(
             f'<div style="font-size:13px; color:#555; line-height:1.8;">'
             f'\u2022 <b>Semantic Link Labs</b> \u2014 TOM, connect_report, vertipaq_analyzer<br>'
             f'\u2022 <b>ipywidgets</b> \u2014 interactive UI in Fabric Notebooks<br>'
-            f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed'
+            f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed<br>'
+            f'\u2022 <b>DAX Formatter</b> by SQLBI \u2014 '
+            f'<a href="https://www.daxformatter.com/" target="_blank" style="color:#FF9500;">daxformatter.com</a> '
+            f'(<a href="https://www.sqlbi.com/blog/marco/2014/02/24/how-to-pass-a-dax-query-to-dax-formatter/" target="_blank" style="color:#FF9500;">API docs</a>)'
             f'</div>'
             f'<div style="font-size:13px; color:#888; margin-top:12px; padding-top:8px; border-top:1px solid #e0e0e0;">'
             f'The Perspective Editor is based on work by <b>Michael Kovalsky</b> '
