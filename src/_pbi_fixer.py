@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.53"
+__version__ = "1.2.54"
 
 import ipywidgets as widgets
 import io
@@ -472,27 +472,106 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
 # Best Practice Analyzer tab (inline)
 # ---------------------------------------------------------------------------
 def _bpa_tab(workspace_input=None, report_input=None):
-    """Build the BPA tab widget using run_model_bpa from semantic-link-labs."""
+    """Build the BPA tab with fix buttons per violation."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
         status_html, set_status,
     )
 
+    # BPA fix functions — each takes (dataset, workspace, table_name, object_name)
+    def _fix_floating_point(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            import Microsoft.AnalysisServices.Tabular as TOM
+            col.DataType = TOM.DataType.Decimal
+            tom.model.SaveChanges()
+        return f"Changed '{table}'[{obj}] from Double to Decimal"
+
+    def _fix_isavailableinmdx(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.IsAvailableInMDX = False
+            tom.model.SaveChanges()
+        return f"Set IsAvailableInMDX=False on '{table}'[{obj}]"
+
+    def _fix_description_measure(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            m = tom.model.Tables[table].Measures[obj]
+            m.Description = str(m.Expression) if m.Expression else ""
+            tom.model.SaveChanges()
+        return f"Set description of [{obj}] to its DAX expression"
+
+    def _fix_date_format(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.FormatString = "mm/dd/yyyy"
+            tom.model.SaveChanges()
+        return f"Set format of '{table}'[{obj}] to mm/dd/yyyy"
+
+    def _fix_month_format(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.FormatString = "MMMM yyyy"
+            tom.model.SaveChanges()
+        return f"Set format of '{table}'[{obj}] to MMMM yyyy"
+
+    def _fix_integer_format(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            m = tom.model.Tables[table].Measures[obj]
+            m.FormatString = "#,0"
+            tom.model.SaveChanges()
+        return f"Set format of [{obj}] to #,0"
+
+    def _fix_hide_foreign_key(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.IsHidden = True
+            tom.model.SaveChanges()
+        return f"Hidden '{table}'[{obj}]"
+
+    # Map BPA rule IDs to fix functions
+    _fix_map = {
+        "AVOID_FLOATING_POINT_DATA_TYPES": _fix_floating_point,
+        "ISAVAILABLEINMDX_FALSE_NONATTRIBUTE_COLUMNS": _fix_isavailableinmdx,
+        "DATECOLUMN_FORMATSTRING": _fix_date_format,
+        "MONTHCOLUMN_FORMATSTRING": _fix_month_format,
+        "INTEGER_FORMATTING": _fix_integer_format,
+        "HIDE_FOREIGN_KEYS": _fix_hide_foreign_key,
+    }
+    # Special: description fix only for measures
+    _desc_fix_rule = "OBJECTS_WITH_NO_DESCRIPTION"
+
     load_btn = widgets.Button(description="Run BPA", button_style="primary", layout=widgets.Layout(width="120px"))
+    fix_all_btn = widgets.Button(description="\u26a1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
     conn_status = status_html()
     nav_row = widgets.HBox(
-        [load_btn, conn_status],
+        [load_btn, fix_all_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
     header_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Best Practice Analyzer</div>'
     )
-    content_html = widgets.HTML(
-        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan for best practice violations.</div>',
-    )
+    results_box = widgets.VBox(layout=widgets.Layout(
+        max_height="600px", overflow_y="auto",
+        border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+        padding="8px", background_color=SECTION_BG,
+    ))
+    results_box.children = [widgets.HTML(
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan.</div>'
+    )]
+
+    _all_findings = []  # [(ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name), ...]
 
     def on_load(_):
+        nonlocal _all_findings
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds_input = report_input.value.strip() if report_input else ""
@@ -504,72 +583,140 @@ def _bpa_tab(workspace_input=None, report_input=None):
         load_btn.description = "Scanning\u2026"
         import io as _io
         from contextlib import redirect_stdout as _redirect
+        import IPython.display as _ipd
+        _orig_display = _ipd.display
 
-        html_parts = []
+        _all_findings = []
+
         for i, ds in enumerate(items):
             set_status(conn_status, f"BPA {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
-                with _redirect(buf):
-                    from sempy_labs import run_model_bpa
-                    df = run_model_bpa(dataset=ds, workspace=ws, return_dataframe=True)
+                _ipd.display = lambda *a, **kw: None
+                try:
+                    with _redirect(buf):
+                        from sempy_labs import run_model_bpa
+                        df = run_model_bpa(dataset=ds, workspace=ws, return_dataframe=True)
+                finally:
+                    _ipd.display = _orig_display
 
                 if df is not None and len(df) > 0:
-                    # Group by severity/category
-                    html_parts.append(
-                        f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:14px; margin:12px 0 6px 0;">'
-                        f'\U0001F4CA {ds} \u2014 {len(df)} violation(s)</div>'
-                    )
-                    html_parts.append('<table style="border-collapse:collapse; width:100%; margin-bottom:12px;">')
-                    html_parts.append(
-                        f'<tr style="background:#f5f5f5;">'
-                        f'<th style="text-align:left; padding:4px 8px;">Category</th>'
-                        f'<th style="text-align:left; padding:4px 8px;">Rule</th>'
-                        f'<th style="text-align:left; padding:4px 8px;">Object</th>'
-                        f'<th style="text-align:left; padding:4px 8px;">Severity</th>'
-                        f'</tr>'
-                    )
                     for _, row in df.iterrows():
+                        rule_id = str(row.get("Rule ID", row.get("ID", "")))
+                        rule_name = str(row.get("Rule Name", ""))
+                        category = str(row.get("Category", ""))
+                        obj_name = str(row.get("Object Name", ""))
+                        obj_type = str(row.get("Object Type", ""))
                         severity = str(row.get("Severity", ""))
-                        sev_color = "#ff3b30" if "error" in severity.lower() else "#ff9500" if "warning" in severity.lower() else "#555"
-                        html_parts.append(
-                            f'<tr>'
-                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Category", "")}</td>'
-                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Rule Name", "")}</td>'
-                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Object Name", "")}</td>'
-                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px; color:{sev_color};">{severity}</td>'
-                            f'</tr>'
-                        )
-                    html_parts.append('</table>')
-                else:
-                    html_parts.append(
-                        f'<div style="font-weight:600; color:#34c759; font-size:14px; margin:12px 0;">'
-                        f'\u2713 {ds} \u2014 no violations found</div>'
-                    )
+                        table_name = str(row.get("Table Name", ""))
+                        _all_findings.append((ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name))
             except Exception as e:
-                html_parts.append(
-                    f'<div style="color:#ff3b30; font-size:13px; margin:8px 0;">'
-                    f'\u274c {ds}: {e}</div>'
-                )
+                _all_findings.append((ds, "ERROR", str(e), "Error", "", "", "3", ""))
 
-        content_html.value = "\n".join(html_parts) if html_parts else f'<div style="color:{GRAY_COLOR};">No data.</div>'
-        total = sum(1 for p in html_parts if "violation" in p)
-        set_status(conn_status, f"\u2713 BPA complete for {len(items)} model(s).", "#34c759")
+        _build_results(ws)
+        n = len([f for f in _all_findings if f[1] != "ERROR"])
+        set_status(conn_status, f"\u2713 BPA: {n} finding(s) across {len(items)} model(s).", "#34c759" if n == 0 else "#ff9500")
         load_btn.disabled = False
         load_btn.description = "Run BPA"
 
+    def _build_results(ws):
+        if not _all_findings:
+            results_box.children = [widgets.HTML(
+                value=f'<div style="color:#34c759; font-size:14px; font-weight:600;">\u2713 No violations found.</div>'
+            )]
+            return
+
+        rows = []
+        # Header
+        rows.append(widgets.HTML(
+            value=f'<div style="display:flex; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
+            f'padding:4px 0; border-bottom:2px solid {BORDER_COLOR};">'
+            f'<span style="flex:0 0 90px;">Model</span>'
+            f'<span style="flex:0 0 130px;">Rule</span>'
+            f'<span style="flex:0 0 70px;">Type</span>'
+            f'<span style="flex:1;">Object</span>'
+            f'<span style="flex:0 0 60px;">Severity</span>'
+            f'</div>'
+        ))
+
+        import io as _io2
+        from contextlib import redirect_stdout as _redirect2
+
+        for ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name in _all_findings:
+            if rule_id == "ERROR":
+                rows.append(widgets.HTML(
+                    value=f'<div style="color:#ff3b30; font-size:11px; padding:3px 0;">\u274c {ds}: {rule_name}</div>'
+                ))
+                continue
+
+            sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
+            has_fix = rule_id in _fix_map or (rule_id == _desc_fix_rule and obj_type == "Measure")
+
+            info_html = widgets.HTML(
+                value=f'<div style="display:flex; align-items:center; font-size:11px; font-family:{FONT_FAMILY}; '
+                f'padding:2px 0; border-bottom:1px solid #f0f0f0;">'
+                f'<span style="flex:0 0 90px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{ds[:15]}</span>'
+                f'<span style="flex:0 0 130px; color:{ICON_ACCENT}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{rule_name}">{rule_name[:22]}</span>'
+                f'<span style="flex:0 0 70px; color:#888;">{obj_type}</span>'
+                f'<span style="flex:1; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title=\"{table_name}.{obj_name}\">{obj_name}</span>'
+                f'<span style="flex:0 0 60px; color:{sev_color};">{severity}</span>'
+                f'</div>'
+            )
+
+            if has_fix:
+                fix_btn = widgets.Button(description="Fix", button_style="warning", layout=widgets.Layout(width="50px", height="22px"))
+                def _make_fix(rule, dataset, table, obj, otype):
+                    def _handler(_):
+                        try:
+                            if rule in _fix_map:
+                                msg = _fix_map[rule](dataset, ws, table, obj)
+                            elif rule == _desc_fix_rule and otype == "Measure":
+                                msg = _fix_description_measure(dataset, ws, table, obj)
+                            else:
+                                msg = "No fix available"
+                            set_status(conn_status, f"\u2713 {msg}", "#34c759")
+                        except Exception as e:
+                            set_status(conn_status, f"Error: {e}", "#ff3b30")
+                    return _handler
+                fix_btn.on_click(_make_fix(rule_id, ds, table_name, obj_name, obj_type))
+                row_w = widgets.HBox([info_html, fix_btn], layout=widgets.Layout(align_items="center", gap="4px"))
+            else:
+                row_w = info_html
+
+            rows.append(row_w)
+
+        results_box.children = rows
+
+    def on_fix_all(_):
+        """Fix all fixable violations."""
+        if not _all_findings:
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        fix_all_btn.disabled = True
+        fix_all_btn.description = "Fixing\u2026"
+        fixed = 0
+        errors = 0
+        for ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name in _all_findings:
+            if rule_id == "ERROR":
+                continue
+            try:
+                if rule_id in _fix_map:
+                    _fix_map[rule_id](ds, ws, table_name, obj_name)
+                    fixed += 1
+                elif rule_id == _desc_fix_rule and obj_type == "Measure":
+                    _fix_description_measure(ds, ws, table_name, obj_name)
+                    fixed += 1
+            except Exception:
+                errors += 1
+        set_status(conn_status, f"\u2713 Fixed {fixed}, {errors} error(s).", "#34c759" if errors == 0 else "#ff9500")
+        fix_all_btn.disabled = False
+        fix_all_btn.description = "\u26a1 Fix All"
+
     load_btn.on_click(on_load)
+    fix_all_btn.on_click(on_fix_all)
 
-    content_box = widgets.VBox(
-        [content_html],
-        layout=widgets.Layout(
-            max_height="600px", overflow_y="auto",
-            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
-            padding="12px", background_color=SECTION_BG,
-        ),
-    )
-
-    widget = widgets.VBox([nav_row, header_label, content_box], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, header_label, results_box], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 def _memory_tab(workspace_input=None, report_input=None):
     """Build the Memory Overview tab widget showing model/table size breakdown."""
