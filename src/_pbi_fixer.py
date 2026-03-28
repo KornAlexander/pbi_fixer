@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.72"
+__version__ = "1.2.73"
 
 import ipywidgets as widgets
 import io
@@ -373,7 +373,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             return f'<div style="color:{GRAY_COLOR}; font-size:13px;">No data available.</div>'
         if sort_by and sort_by in df.columns:
             df = df.sort_values(sort_by, ascending=False)
-        html = '<table style="border-collapse:collapse; width:100%; font-size:11px; font-family:monospace;">'
+        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
         html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
         for col in df.columns:
             align = "right" if any(k in col for k in ("Size", "Count", "%", "Cardinality", "Rows", "Temperature", "Segment", "Max", "Missing")) else "left"
@@ -397,7 +397,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                         pass
                 html += f'<td style="text-align:{align}; padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{formatted}{extra}</td>'
             html += '</tr>'
-        html += '</table>'
+        html += '</table></div>'
         return html
 
     def _render_subtab(tab_name=None, highlight_col=None, highlight_val=None):
@@ -519,6 +519,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
+                # Suppress ALL display paths: module-level, core, and vertipaq's own imported display
                 import IPython.display as _ipd
                 _orig_display = _ipd.display
                 _ipd.display = lambda *a, **kw: None
@@ -529,6 +530,10 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                 except Exception:
                     _idf = None
                     _orig_display2 = None
+                # Patch the display imported directly in _vertipaq module
+                import sempy_labs._vertipaq as _vp_mod
+                _orig_vp_display = getattr(_vp_mod, 'display', None)
+                _vp_mod.display = lambda *a, **kw: None
                 try:
                     with _redirect(buf):
                         from sempy_labs import vertipaq_analyzer
@@ -537,6 +542,8 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                     _ipd.display = _orig_display
                     if _idf is not None and _orig_display2 is not None:
                         _idf.display = _orig_display2
+                    if _orig_vp_display is not None:
+                        _vp_mod.display = _orig_vp_display
                 _vp_data[ds] = result
                 _expanded.add(ds)
                 _current_model[0] = ds
