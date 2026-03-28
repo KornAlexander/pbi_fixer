@@ -416,11 +416,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         options, _key_map = _build_tree(_model_data, _expanded, _scan_results)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        tree.value = ()
+        try:
+            tree.value = ()
+        except Exception:
+            pass
         tree.observe(on_select, names="value")
 
     # -- expression panel --
-    preview = widgets.Textarea(value="Select a measure to view its DAX expression.", layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
+    preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
@@ -665,6 +668,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                 return
         # Update properties/expression for last selected item
         preview.value = _get_preview_text(_model_data, key)
+        preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
         _populate_props(key)
         _mark_clean()  # new selection = no unsaved changes
 

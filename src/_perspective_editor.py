@@ -377,12 +377,17 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds = report_input.value.strip() if report_input else ""
+        if "," in ds:
+            ds = ds.split(",")[0].strip()
+        # Use first model only if comma-separated
+        if "," in ds:
+            ds = ds.split(",")[0].strip()
         if not ds:
             set_status(conn_status, "Enter a semantic model name in the top bar.", "#ff3b30")
             return
         load_btn.disabled = True
         load_btn.description = "Loading\u2026"
-        set_status(conn_status, "Connecting\u2026", GRAY_COLOR)
+        set_status(conn_status, f"Connecting to '{ds}'\u2026", GRAY_COLOR)
         try:
             _data = _load_perspective_data(ds, ws)
             _build_tree()
@@ -403,6 +408,8 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds = report_input.value.strip() if report_input else ""
+        if "," in ds:
+            ds = ds.split(",")[0].strip()
         p_name = persp_dropdown.value
         if p_name == NEW_PERSPECTIVE:
             p_name = new_name_input.value.strip()
@@ -504,6 +511,8 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds = report_input.value.strip() if report_input else ""
+        if "," in ds:
+            ds = ds.split(",")[0].strip()
         if not ds or not p_name:
             return
         try:
@@ -539,6 +548,8 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds = report_input.value.strip() if report_input else ""
+        if "," in ds:
+            ds = ds.split(",")[0].strip()
         if not ds:
             set_status(save_status, "No model loaded.", "#ff3b30")
             return

@@ -309,7 +309,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         options, _key_map = _build_tree(_report_data, _expanded, _scan_results)
         tree.unobserve(on_select, names="value")
         tree.options = options
-        tree.value = ()
+        try:
+            tree.value = ()
+        except Exception:
+            pass
         tree.observe(on_select, names="value")
 
     # -- preview (top-right, powerbiclient Report widget) --

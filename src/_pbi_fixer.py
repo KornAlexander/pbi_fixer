@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.44"
+__version__ = "1.2.45"
 
 import ipywidgets as widgets
 import io
@@ -238,9 +238,12 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
 
     def _fmt_bytes(n):
         """Format bytes to human-readable KB/MB/GB."""
-        if n is None or n != n:  # NaN check
+        try:
+            if n is None or (isinstance(n, float) and n != n):
+                return "—"
+            n = int(n)
+        except (TypeError, ValueError):
             return "—"
-        n = int(n)
         if n < 1024:
             return f"{n} B"
         if n < 1024 * 1024:
@@ -250,9 +253,12 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         return f"{n / (1024 * 1024 * 1024):.2f} GB"
 
     def _fmt_int(n):
-        if n is None or n != n:
+        try:
+            if n is None or (isinstance(n, float) and n != n):
+                return "—"
+            return f"{int(n):,}"
+        except (TypeError, ValueError):
             return "—"
-        return f"{int(n):,}"
 
     def _build_tree():
         nonlocal _key_map
@@ -456,8 +462,108 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
 
 
 # ---------------------------------------------------------------------------
-# Memory Overview tab (inline — summary of model sizes)
+# Best Practice Analyzer tab (inline)
 # ---------------------------------------------------------------------------
+def _bpa_tab(workspace_input=None, report_input=None):
+    """Build the BPA tab widget using run_model_bpa from semantic-link-labs."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    load_btn = widgets.Button(description="Run BPA", button_style="primary", layout=widgets.Layout(width="120px"))
+    conn_status = status_html()
+    nav_row = widgets.HBox(
+        [load_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    header_label = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Best Practice Analyzer</div>'
+    )
+    content_html = widgets.HTML(
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan for best practice violations.</div>',
+    )
+
+    def on_load(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
+        if not items:
+            set_status(conn_status, "Enter a semantic model name.", "#ff3b30")
+            return
+        load_btn.disabled = True
+        load_btn.description = "Scanning\u2026"
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+
+        html_parts = []
+        for i, ds in enumerate(items):
+            set_status(conn_status, f"BPA {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
+            try:
+                buf = _io.StringIO()
+                with _redirect(buf):
+                    from sempy_labs import run_model_bpa
+                    df = run_model_bpa(dataset=ds, workspace=ws, return_dataframe=True)
+
+                if df is not None and len(df) > 0:
+                    # Group by severity/category
+                    html_parts.append(
+                        f'<div style="font-weight:600; color:{ICON_ACCENT}; font-size:14px; margin:12px 0 6px 0;">'
+                        f'\U0001F4CA {ds} \u2014 {len(df)} violation(s)</div>'
+                    )
+                    html_parts.append('<table style="border-collapse:collapse; width:100%; margin-bottom:12px;">')
+                    html_parts.append(
+                        f'<tr style="background:#f5f5f5;">'
+                        f'<th style="text-align:left; padding:4px 8px;">Category</th>'
+                        f'<th style="text-align:left; padding:4px 8px;">Rule</th>'
+                        f'<th style="text-align:left; padding:4px 8px;">Object</th>'
+                        f'<th style="text-align:left; padding:4px 8px;">Severity</th>'
+                        f'</tr>'
+                    )
+                    for _, row in df.iterrows():
+                        severity = str(row.get("Severity", ""))
+                        sev_color = "#ff3b30" if "error" in severity.lower() else "#ff9500" if "warning" in severity.lower() else "#555"
+                        html_parts.append(
+                            f'<tr>'
+                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Category", "")}</td>'
+                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Rule Name", "")}</td>'
+                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px;">{row.get("Object Name", "")}</td>'
+                            f'<td style="padding:3px 8px; border-bottom:1px solid #eee; font-size:12px; color:{sev_color};">{severity}</td>'
+                            f'</tr>'
+                        )
+                    html_parts.append('</table>')
+                else:
+                    html_parts.append(
+                        f'<div style="font-weight:600; color:#34c759; font-size:14px; margin:12px 0;">'
+                        f'\u2713 {ds} \u2014 no violations found</div>'
+                    )
+            except Exception as e:
+                html_parts.append(
+                    f'<div style="color:#ff3b30; font-size:13px; margin:8px 0;">'
+                    f'\u274c {ds}: {e}</div>'
+                )
+
+        content_html.value = "\n".join(html_parts) if html_parts else f'<div style="color:{GRAY_COLOR};">No data.</div>'
+        total = sum(1 for p in html_parts if "violation" in p)
+        set_status(conn_status, f"\u2713 BPA complete for {len(items)} model(s).", "#34c759")
+        load_btn.disabled = False
+        load_btn.description = "Run BPA"
+
+    load_btn.on_click(on_load)
+
+    content_box = widgets.VBox(
+        [content_html],
+        layout=widgets.Layout(
+            max_height="600px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="12px", background_color=SECTION_BG,
+        ),
+    )
+
+    widget = widgets.VBox([nav_row, header_label, content_box], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
 def _memory_tab(workspace_input=None, report_input=None):
     """Build the Memory Overview tab widget showing model/table size breakdown."""
     from sempy_labs._ui_components import (
@@ -801,8 +907,8 @@ def pbi_fixer(
         _tab_options.append("\u26A1 Fixer")
     if perspective_editor_tab is not None:
         _tab_options.append("\U0001F441 Perspectives")
-    _tab_options.append("\U0001F4C8 Vertipaq")
-    _tab_options.append("\U0001F4BE Memory")
+    _tab_options.append("\U0001F4BE Memory Analyzer")
+    _tab_options.append("\U0001F4CB BPA")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -1359,17 +1465,17 @@ def pbi_fixer(
         )
         tab_panels.append(persp_content)
 
-    # Vertipaq Analyzer tab
+    # Memory Analyzer tab (renamed from Vertipaq)
     vp_content = _vertipaq_tab(
         workspace_input=workspace_input, report_input=report_input
     )
     tab_panels.append(vp_content)
 
-    # Memory Overview tab
-    mem_content = _memory_tab(
+    # BPA tab
+    bpa_content = _bpa_tab(
         workspace_input=workspace_input, report_input=report_input
     )
-    tab_panels.append(mem_content)
+    tab_panels.append(bpa_content)
 
     # About tab
     about_content = widgets.HTML(
@@ -1378,13 +1484,9 @@ def pbi_fixer(
             f'<div style="font-size:28px; font-weight:700; color:#FF9500; margin-bottom:4px;">Power BI Fixer</div>'
             f'<div style="font-size:14px; color:#666; margin-bottom:24px;">Version {__version__}</div>'
             f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
-            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">Created by</div>'
             f'<div style="font-size:20px; font-weight:600; color:#333;">Alexander Korn</div>'
-            f'<div style="font-size:14px; color:#666; margin-top:4px;">Solution Engineer Data Platform @ Microsoft</div>'
-            f'</div>'
-            f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
-            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F310 Website</div>'
-            f'<div style="font-size:16px;"><a href="https://actionablereporting.com" target="_blank" '
+            f'<div style="font-size:16px; margin-top:8px;">'
+            f'<a href="https://actionablereporting.com" target="_blank" '
             f'style="color:#FF9500; text-decoration:none; font-weight:600;">actionablereporting.com</a></div>'
             f'<div style="font-size:13px; color:#888; margin-top:4px;">Transform data into actionable insights</div>'
             f'</div>'
@@ -1400,8 +1502,11 @@ def pbi_fixer(
             f'<div style="font-size:13px; color:#555; line-height:1.8;">'
             f'\u2022 <b>Semantic Link Labs</b> \u2014 TOM, connect_report, vertipaq_analyzer<br>'
             f'\u2022 <b>ipywidgets</b> \u2014 interactive UI in Fabric Notebooks<br>'
-            f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed<br>'
-            f'\u2022 <b>Michael Kovalsky</b> \u2014 perspective_editor inspiration'
+            f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed'
+            f'</div>'
+            f'<div style="font-size:13px; color:#888; margin-top:12px; padding-top:8px; border-top:1px solid #e0e0e0;">'
+            f'The Perspective Editor is based on work by <b>Michael Kovalsky</b> '
+            f'(<a href="https://github.com/m-kovalsky/semantic-link-labs" target="_blank" style="color:#FF9500;">m-kovalsky/semantic-link-labs</a>).'
             f'</div>'
             f'</div>'
             f'</div>'
