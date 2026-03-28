@@ -268,6 +268,42 @@ def _table_summary(t):
     return str(len(t.get("columns", {})) + len(t.get("measures", {})) + len(t.get("hierarchies", {})) + len(t.get("calc_items", {})))
 
 
+def _build_measures_with_folders(measures, table_key, base_indent, expanded, pending_changes):
+    """Build tree items for measures grouped by display folder.
+    Returns list of (indent, icon, label, key) tuples."""
+    items = []
+    # Group measures by top-level display folder
+    folders = {}  # folder_path -> [measure_names]
+    no_folder = []
+    for mn in sorted(measures):
+        df = measures[mn].get("display_folder", "")
+        if df:
+            folders.setdefault(df, []).append(mn)
+        else:
+            no_folder.append(mn)
+
+    # Measures without folder — directly under table
+    for mn in no_folder:
+        mk = f"measure:{table_key}:{mn}"
+        pfx = "\u270f " if mk in pending_changes else ""
+        items.append((base_indent, "measure", f"{pfx}{mn}", mk))
+
+    # Measures in folders — grouped
+    for folder_path in sorted(folders):
+        folder_key = f"folder:{table_key}:{folder_path}"
+        is_exp = folder_key in expanded
+        marker = EXPANDED if is_exp else COLLAPSED
+        count = len(folders[folder_path])
+        items.append((base_indent, "folder", f"{marker} \U0001F4C1 {folder_path}  [{count}]", folder_key))
+        if is_exp:
+            for mn in sorted(folders[folder_path]):
+                mk = f"measure:{table_key}:{mn}"
+                pfx = "\u270f " if mk in pending_changes else ""
+                items.append((base_indent + 1, "measure", f"{pfx}{mn}", mk))
+
+    return items
+
+
 def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=None):
     """Build tree items, optionally annotating with scan findings."""
     scan_results = scan_results or {}
@@ -296,10 +332,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
                 items.append((1, icon, f"{t_marker} {t_name}{suffix}  [{summary}]", f"table:{full_key}"))
                 if not is_expanded:
                     continue
-                for mn in sorted(t["measures"]):
-                    mk = f"measure:{full_key}:{mn}"
-                    pfx = "\u270f " if mk in pending_changes else ""
-                    items.append((2, "measure", f"{pfx}{mn}", mk))
+                items.extend(_build_measures_with_folders(t["measures"], full_key, 2, expanded_tables, pending_changes))
                 for cn in sorted(t["columns"]):
                     c = t["columns"][cn]
                     hidden = " (hidden)" if c["is_hidden"] else ""
@@ -356,10 +389,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
             items.append((1, icon, f"{marker} {t_name}{suffix}  [{summary}]", f"table:{t_name}"))
             if not is_expanded:
                 continue
-            for mn in sorted(t["measures"]):
-                mk = f"measure:{t_name}:{mn}"
-                pfx = "\u270f " if mk in pending_changes else ""
-                items.append((2, "measure", f"{pfx}{mn}", mk))
+            items.extend(_build_measures_with_folders(t["measures"], t_name, 2, expanded_tables, pending_changes))
             for cn in sorted(t["columns"]):
                 c = t["columns"][cn]
                 hidden = " (hidden)" if c["is_hidden"] else ""
@@ -978,6 +1008,13 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     _expanded.add(key)
                 _refresh_tree()
                 return
+            if key.startswith("folder:"):
+                if key in _expanded:
+                    _expanded.discard(key)
+                else:
+                    _expanded.add(key)
+                _refresh_tree()
+                return
         # Update properties/expression for last selected item
         # Restore pending changes if this item was previously edited
         _suppressing_observe[0] = True
@@ -1004,6 +1041,15 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         insert_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
         _suppressing_observe[0] = False
 
+    def _expand_folders(tables, table_prefix=""):
+        """Add all display folder keys to _expanded for given tables."""
+        for t_name, t in tables.items():
+            for mn in t.get("measures", {}):
+                df = t["measures"][mn].get("display_folder", "")
+                if df:
+                    key_base = f"{table_prefix}{t_name}" if not table_prefix else f"{table_prefix}\x1f{t_name}"
+                    _expanded.add(f"folder:{key_base}:{df}")
+
     def on_expand_all(_):
         if _model_data:
             # Expand all models and all tables
@@ -1013,10 +1059,12 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     _expanded.add(m_name)
                     for t_name in m_tables:
                         _expanded.add(f"{m_name}\x1f{t_name}")
+                    _expand_folders(m_tables, m_name)
             else:
                 ds_name = _model_data.get("_dataset_name", "Model")
                 _expanded.add(ds_name)
                 _expanded.update(_model_data.get("tables", {}).keys())
+                _expand_folders(_model_data.get("tables", {}))
             _refresh_tree()
 
     def on_collapse_all(_):
