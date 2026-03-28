@@ -447,21 +447,43 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     prop_description, prop_desc_row = _prop_input("Description", width="300px")
     prop_summarize_by, prop_summarize_row = _prop_input("Summarize By", disabled=True)
 
-    # Unified save button with dirty state
+    # Unified save button with dirty state + pending changes buffer
     _is_dirty = [False]
-    save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="160px"))
+    _pending_changes = {}  # key -> {expression, name, format_string, display_folder, description}
+    _suppressing_observe = [False]  # prevent observe triggers during programmatic updates
+    save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="200px"))
     save_status = status_html()
     save_row = widgets.HBox([save_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
 
+    def _capture_current():
+        """Store current field values as pending changes for the current key."""
+        key = _current_key[0]
+        if key and not _suppressing_observe[0]:
+            node_type = key.split(":")[0]
+            if node_type in ("measure", "calc_item", "column", "table"):
+                _pending_changes[key] = {
+                    "expression": preview.value,
+                    "name": prop_name.value,
+                    "format_string": prop_format_str.value,
+                    "display_folder": prop_display_folder.value,
+                    "description": prop_description.value,
+                }
+
     def _mark_dirty(*_):
+        if _suppressing_observe[0]:
+            return
         if not _is_dirty[0]:
             _is_dirty[0] = True
-            save_btn.description = "\u26a0\ufe0f Unsaved changes"
-            save_btn.button_style = "danger"
-            save_btn.disabled = False
+        # Capture changes immediately
+        _capture_current()
+        n = len(_pending_changes)
+        save_btn.description = f"\u26a0\ufe0f {n} unsaved change(s)"
+        save_btn.button_style = "danger"
+        save_btn.disabled = False
 
     def _mark_clean():
         _is_dirty[0] = False
+        _pending_changes.clear()
         save_btn.description = "\u2713 No changes"
         save_btn.button_style = "success"
         save_btn.disabled = True
@@ -667,10 +689,28 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                 _refresh_tree()
                 return
         # Update properties/expression for last selected item
-        preview.value = _get_preview_text(_model_data, key)
-        preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
-        _populate_props(key)
-        _mark_clean()  # new selection = no unsaved changes
+        # Restore pending changes if this item was previously edited
+        _suppressing_observe[0] = True
+        if key in _pending_changes:
+            pending = _pending_changes[key]
+            preview.value = pending.get("expression", "")
+            prop_name.value = pending.get("name", "")
+            prop_format_str.value = pending.get("format_string", "")
+            prop_display_folder.value = pending.get("display_folder", "")
+            prop_description.value = pending.get("description", "")
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            _populate_props(key)
+            # Re-apply pending values (populate_props may overwrite)
+            prop_name.value = pending.get("name", prop_name.value)
+            prop_format_str.value = pending.get("format_string", prop_format_str.value)
+            prop_display_folder.value = pending.get("display_folder", prop_display_folder.value)
+            prop_description.value = pending.get("description", prop_description.value)
+            preview.value = pending.get("expression", preview.value)
+        else:
+            preview.value = _get_preview_text(_model_data, key)
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            _populate_props(key)
+        _suppressing_observe[0] = False
 
     def on_expand_all(_):
         if _model_data:
@@ -691,73 +731,85 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             _refresh_tree()
 
     def on_save(_):
-        """Unified save — writes expression + properties in one TOM connection."""
-        key = _current_key[0]
-        if not key or not _is_dirty[0]:
+        """Save ALL pending changes across all modified items."""
+        # Also capture current item's latest state
+        _capture_current()
+        if not _pending_changes:
             return
-        parts = key.split(":", 2)
-        node_type = parts[0]
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        raw_table = parts[1] if len(parts) > 1 else ""
-        if "\x1f" in raw_table:
-            ds, table_name = raw_table.split("\x1f", 1)
-        else:
-            ds = report_input.value.strip() if report_input else ""
-            table_name = raw_table
-        if not ds:
-            set_status(save_status, "No model loaded.", "#ff3b30")
-            return
         save_btn.disabled = True
         save_btn.description = "Saving\u2026"
-        set_status(save_status, "Writing via XMLA\u2026", GRAY_COLOR)
-        try:
-            from sempy_labs.tom import connect_semantic_model
-            with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
-                if node_type == "measure":
-                    m_obj = tm.model.Tables[table_name].Measures[parts[2]]
-                    # Save expression
-                    new_expr = preview.value
-                    m_obj.Expression = new_expr
-                    # Save properties
-                    m_obj.Name = prop_name.value
-                    m_obj.FormatString = prop_format_str.value
-                    m_obj.DisplayFolder = prop_display_folder.value
-                    m_obj.Description = prop_description.value
-                    # Update local cache
-                    t = _resolve_table(_model_data, raw_table)
-                    if t:
-                        old_name = parts[2]
-                        entry = t["measures"].pop(old_name)
-                        entry["expression"] = new_expr
-                        entry["format_string"] = prop_format_str.value
-                        entry["display_folder"] = prop_display_folder.value
-                        entry["description"] = prop_description.value
-                        t["measures"][prop_name.value] = entry
-                elif node_type == "calc_item":
-                    new_expr = preview.value
-                    tm.model.Tables[table_name].CalculationGroup.CalculationItems[parts[2]].Expression = new_expr
-                    t = _resolve_table(_model_data, raw_table)
-                    if t:
-                        t["calc_items"][parts[2]]["expression"] = new_expr
-                elif node_type == "table":
-                    tm.model.Tables[table_name].Description = prop_description.value
-                    t = _resolve_table(_model_data, raw_table)
-                    if t:
-                        t["description"] = prop_description.value
-                tm.model.SaveChanges()
-            _mark_clean()
-            set_status(save_status, "\u2713 Saved.", "#34c759")
-            if node_type == "measure" and prop_name.value != parts[2]:
-                _current_key[0] = f"measure:{raw_table}:{prop_name.value}"
-                _refresh_tree()
-        except Exception as e:
-            set_status(save_status, f"Error: {e}", "#ff3b30")
-        finally:
-            if _is_dirty[0]:
-                save_btn.description = "\u26a0\ufe0f Unsaved changes"
-                save_btn.button_style = "danger"
-                save_btn.disabled = False
+        set_status(save_status, f"Writing {len(_pending_changes)} change(s) via XMLA\u2026", GRAY_COLOR)
+        saved = 0
+        errors = 0
+        # Group by dataset
+        by_ds = {}
+        for pkey, changes in _pending_changes.items():
+            parts = pkey.split(":", 2)
+            raw_table = parts[1] if len(parts) > 1 else ""
+            if "\x1f" in raw_table:
+                ds, table_name = raw_table.split("\x1f", 1)
+            else:
+                ds = report_input.value.strip() if report_input else ""
+                table_name = raw_table
+            if ds not in by_ds:
+                by_ds[ds] = []
+            by_ds[ds].append((pkey, parts, table_name, changes))
+
+        for ds, items_list in by_ds.items():
+            if not ds:
+                continue
+            try:
+                from sempy_labs.tom import connect_semantic_model
+                with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
+                    for pkey, parts, table_name, changes in items_list:
+                        node_type = parts[0]
+                        try:
+                            if node_type == "measure":
+                                m_obj = tm.model.Tables[table_name].Measures[parts[2]]
+                                m_obj.Expression = changes.get("expression", m_obj.Expression)
+                                m_obj.Name = changes.get("name", m_obj.Name)
+                                m_obj.FormatString = changes.get("format_string", "")
+                                m_obj.DisplayFolder = changes.get("display_folder", "")
+                                m_obj.Description = changes.get("description", "")
+                                # Update local cache
+                                raw_table = parts[1]
+                                t = _resolve_table(_model_data, raw_table)
+                                if t:
+                                    old_name = parts[2]
+                                    entry = t["measures"].pop(old_name, {})
+                                    entry["expression"] = changes.get("expression", "")
+                                    entry["format_string"] = changes.get("format_string", "")
+                                    entry["display_folder"] = changes.get("display_folder", "")
+                                    entry["description"] = changes.get("description", "")
+                                    t["measures"][changes.get("name", old_name)] = entry
+                                saved += 1
+                            elif node_type == "calc_item":
+                                tm.model.Tables[table_name].CalculationGroup.CalculationItems[parts[2]].Expression = changes.get("expression", "")
+                                t = _resolve_table(_model_data, parts[1])
+                                if t:
+                                    t["calc_items"][parts[2]]["expression"] = changes.get("expression", "")
+                                saved += 1
+                            elif node_type == "table":
+                                tm.model.Tables[table_name].Description = changes.get("description", "")
+                                t = _resolve_table(_model_data, parts[1])
+                                if t:
+                                    t["description"] = changes.get("description", "")
+                                saved += 1
+                        except Exception:
+                            errors += 1
+                    tm.model.SaveChanges()
+            except Exception as e:
+                errors += len(items_list)
+                set_status(save_status, f"Error on '{ds}': {e}", "#ff3b30")
+
+        _mark_clean()
+        if errors:
+            set_status(save_status, f"\u26a0\ufe0f Saved {saved}, {errors} error(s).", "#ff9500")
+        else:
+            set_status(save_status, f"\u2713 Saved {saved} change(s).", "#34c759")
+        _refresh_tree()
 
     load_btn.on_click(on_load)
     tree.observe(on_select, names="value")
