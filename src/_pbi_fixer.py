@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.71"
+__version__ = "1.2.72"
 
 import ipywidgets as widgets
 import io
@@ -236,7 +236,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="350px", height="700px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="350px", height="450px", font_family="monospace"))
 
     def _fmt_bytes(n):
         try:
@@ -345,7 +345,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     df_container = widgets.VBox(
         [df_html],
         layout=widgets.Layout(
-            max_height="660px", overflow_y="auto", overflow_x="auto",
+            max_height="420px", overflow_y="auto", overflow_x="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
             padding="8px", background_color=SECTION_BG,
         ),
@@ -669,7 +669,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Best Practice Analyzer</div>'
     )
     results_box = widgets.VBox(layout=widgets.Layout(
-        max_height="600px", overflow_y="auto",
+        max_height="400px", overflow_y="auto",
         border=f"1px solid {BORDER_COLOR}", border_radius="8px",
         padding="8px", background_color=SECTION_BG,
     ))

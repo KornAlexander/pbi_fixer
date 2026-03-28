@@ -494,7 +494,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=28, layout=widgets.Layout(width="400px", height="700px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="400px", height="450px", font_family="monospace"))
 
     def _refresh_tree():
         nonlocal _key_map
@@ -508,7 +508,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         tree.observe(on_select, names="value")
 
     # -- expression panel --
-    preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
+    preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="160px", font_family="monospace"))
     fmt_long_btn = widgets.Button(description="Format Long", layout=widgets.Layout(width="110px"))
     fmt_short_btn = widgets.Button(description="Format Short", layout=widgets.Layout(width="110px"))
 
