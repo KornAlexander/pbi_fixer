@@ -238,7 +238,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _key_map = {}
     _expanded = set()
     _current_key = [None]
-    _scan_results = {}  # key -> violation count
+    _scan_results = {}  # key -> count (for tree badges)
+    _scan_details = {}  # key -> [(fixer_name, description), ...]
 
     load_btn = widgets.Button(description="Load Report", button_style="primary", layout=widgets.Layout(width="110px"))
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
@@ -296,7 +297,9 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     props_html = widgets.HTML(
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
     )
-    props_box = panel_box([props_label, props_html], flex="0 0 auto", min_height="150px")
+    # Violations panel (shown below properties when scan results exist)
+    violations_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
+    props_box = panel_box([props_label, props_html, violations_box], flex="0 0 auto", min_height="150px")
 
     panels = create_three_panel_layout(tree, preview_box, props_box)
     tree_header = widgets.HTML(
@@ -442,6 +445,71 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 _refresh_tree()
         # Update properties + preview navigation
         props_html.value = _get_properties_html(_report_data, key)
+
+        # Show violation details with Fix buttons if scan results exist
+        details = _scan_details.get(key, [])
+        if details:
+            violation_widgets = []
+            violation_widgets.append(widgets.HTML(
+                value=f'<div style="font-size:12px; font-weight:600; color:#ff3b30; font-family:{FONT_FAMILY}; '
+                f'text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px 0;">'
+                f'\u26a0\ufe0f {len(details)} Violation(s)</div>'
+            ))
+            for fixer_name, desc in details:
+                fix_btn = widgets.Button(
+                    description=f"Fix: {fixer_name}",
+                    button_style="warning",
+                    layout=widgets.Layout(width="auto"),
+                )
+                fix_label = widgets.HTML(
+                    value=f'<span style="font-size:12px; color:#555; font-family:{FONT_FAMILY};">{desc}</span>'
+                )
+                # Capture fixer_name for closure
+                def _make_fix_handler(fn, k):
+                    def _handler(_):
+                        ws = workspace_input.value.strip() if workspace_input else None
+                        ws = ws or None
+                        # Extract report + page from key
+                        rpt = ""
+                        page = None
+                        if k.startswith("visual:"):
+                            v_raw = k.split(":")[1]
+                            if "\x1f" in v_raw:
+                                rpt, page = v_raw.split("\x1f", 1)
+                            else:
+                                rpt = report_input.value.strip() if report_input else ""
+                                page = v_raw
+                        elif k.startswith("page:"):
+                            p_raw = k.split(":", 1)[1]
+                            if "\x1f" in p_raw:
+                                rpt, page = p_raw.split("\x1f", 1)
+                            else:
+                                rpt = report_input.value.strip() if report_input else ""
+                                page = p_raw
+                        if not rpt:
+                            rpt = report_input.value.strip() if report_input else ""
+                        if rpt and fn in fixer_callbacks:
+                            set_status(conn_status, f"Fixing: {fn}\u2026", GRAY_COLOR)
+                            try:
+                                import io as _io
+                                from contextlib import redirect_stdout as _redirect
+                                buf = _io.StringIO()
+                                with _redirect(buf):
+                                    fixer_callbacks[fn](report=rpt, page_name=page, workspace=ws, scan_only=False)
+                                set_status(conn_status, f"\u2713 {fn} applied.", "#34c759")
+                            except Exception as e:
+                                set_status(conn_status, f"Error: {e}", "#ff3b30")
+                    return _handler
+                fix_btn.on_click(_make_fix_handler(fixer_name, key))
+                violation_widgets.append(widgets.HBox(
+                    [fix_btn, fix_label],
+                    layout=widgets.Layout(align_items="center", gap="8px"),
+                ))
+            violations_box.children = violation_widgets
+            violations_box.layout.display = ""
+        else:
+            violations_box.children = []
+            violations_box.layout.display = "none"
         # Page navigation via powerbiclient (if widget loaded)
         if _report_widget[0] is not None and key.startswith("page:"):
             p_raw = key.split(":", 1)[1]
@@ -564,14 +632,14 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         scan_btn.disabled = True
         scan_btn.description = "Scanning\u2026"
         _scan_results.clear()
+        _scan_details.clear()
 
         # Fixer rules: visual type patterns that each fixer would flag
         fixer_rules = {
-            "Fix Pie Charts": lambda v: v.get("type", "").lower() in ("pieChart",) or v.get("display_type", "").lower() in ("pie chart", "donut chart"),
-            "Fix Bar Charts": lambda v: v.get("type", "").lower() in ("barChart",) or "bar chart" in v.get("display_type", "").lower(),
-            "Fix Column Charts": lambda v: v.get("type", "").lower() in ("columnChart",) or "column chart" in v.get("display_type", "").lower(),
-            "Fix Page Size": lambda v: False,  # Would need page-level check, not visual
-            "Hide Visual Filters": lambda v: True,  # All visuals potentially have filters
+            "Fix Pie Charts": (lambda v: v.get("type", "").lower() in ("piechart",) or v.get("display_type", "").lower() in ("pie chart", "donut chart"), "Replace pie chart \u2192 bar chart"),
+            "Fix Bar Charts": (lambda v: v.get("type", "").lower() in ("barchart",) or "bar chart" in v.get("display_type", "").lower(), "Apply formatting best practices"),
+            "Fix Column Charts": (lambda v: v.get("type", "").lower() in ("columnchart",) or "column chart" in v.get("display_type", "").lower(), "Apply formatting best practices"),
+            "Hide Visual Filters": (lambda v: True, "Hide visual-level filters from filter pane"),
         }
 
         # Only use rules for fixers that are actually available
@@ -586,17 +654,18 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 page_count = 0
                 for v_name, v in p.get("visuals", {}).items():
                     v_key = f"visual:{report_prefix}{p_name}:{v_name}" if report_prefix else f"visual:{p_name}:{v_name}"
-                    v_count = 0
-                    for rule_name, rule_fn in active_rules.items():
+                    v_violations = []
+                    for rule_name, (rule_fn, rule_desc) in active_rules.items():
                         try:
                             if rule_fn(v):
-                                v_count += 1
+                                v_violations.append((rule_name, rule_desc))
                         except Exception:
                             pass
-                    if v_count > 0:
-                        _scan_results[v_key] = v_count
-                        page_count += v_count
-                        total_violations += v_count
+                    if v_violations:
+                        _scan_results[v_key] = len(v_violations)
+                        _scan_details[v_key] = v_violations
+                        page_count += len(v_violations)
+                        total_violations += len(v_violations)
                 if page_count > 0:
                     _scan_results[page_key] = page_count
 
