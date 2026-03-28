@@ -500,31 +500,73 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     # -- expression panel --
     preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
-    format_dax_btn = widgets.Button(description="Format DAX", layout=widgets.Layout(width="110px"))
+    fmt_long_btn = widgets.Button(description="Format Long", layout=widgets.Layout(width="110px"))
+    fmt_short_btn = widgets.Button(description="Format Short", layout=widgets.Layout(width="110px"))
 
-    def on_format_dax(_):
+    def _do_format_dax(max_line_length, btn):
         """Format the current DAX expression via daxformatter.com API."""
         expr = preview.value.strip()
         if not expr:
             return
-        format_dax_btn.disabled = True
-        format_dax_btn.description = "Formatting\u2026"
+        btn.disabled = True
+        orig = btn.description
+        btn.description = "Formatting\u2026"
         try:
             from sempy_labs._daxformatter import _format_dax
             formatted = _format_dax([expr])
+            # Patch MaxLineLength into the call if needed
+            if max_line_length > 0:
+                import requests, json
+                from sempy_labs._a_lib_info import lib_name, lib_version
+                payload = {
+                    "Dax": [f"x :={expr}"],
+                    "MaxLineLength": max_line_length,
+                    "SkipSpaceAfterFunctionName": False,
+                    "ListSeparator": ",",
+                    "DecimalSeparator": ".",
+                }
+                headers = {
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                    "Content-Type": "application/json; charset=UTF-8",
+                    "Host": "daxformatter.azurewebsites.net",
+                    "CallerApp": lib_name,
+                    "CallerVersion": lib_version,
+                }
+                resp = requests.post("https://daxformatter.azurewebsites.net/api/daxformatter/daxtextformatmulti", json=payload, headers=headers)
+                result = resp.json()
+                if result and result[0].get("formatted"):
+                    txt = result[0]["formatted"]
+                    if txt.startswith("x :="):
+                        txt = txt[4:]
+                    if txt.startswith("\r\n"):
+                        txt = txt[2:]
+                    elif txt.startswith("\n"):
+                        txt = txt[1:]
+                    preview.value = txt
+                    btn.disabled = False
+                    btn.description = orig
+                    return
             if formatted and formatted[0]:
                 preview.value = formatted[0]
         except Exception:
             pass
-        format_dax_btn.disabled = False
-        format_dax_btn.description = "Format DAX"
+        btn.disabled = False
+        btn.description = orig
 
-    format_dax_btn.on_click(on_format_dax)
+    def on_format_long(_):
+        _do_format_dax(0, fmt_long_btn)
+
+    def on_format_short(_):
+        _do_format_dax(80, fmt_short_btn)
+
+    fmt_long_btn.on_click(on_format_long)
+    fmt_short_btn.on_click(on_format_short)
+    format_row = widgets.HBox([fmt_long_btn, fmt_short_btn], layout=widgets.Layout(gap="8px"))
 
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    preview_box = panel_box([preview_label, preview, format_dax_btn], flex="1")
+    preview_box = panel_box([preview_label, preview, format_row], flex="1")
 
     # -- editable properties --
     props_label = widgets.HTML(
