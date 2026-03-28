@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.50"
+__version__ = "1.2.51"
 
 import ipywidgets as widgets
 import io
@@ -863,14 +863,6 @@ def pbi_fixer(
         layout=widgets.Layout(width="300px"),
     )
 
-    # Shared Load button — triggers SM + Report load in parallel
-    load_all_btn = widgets.Button(
-        description="Load",
-        button_style="primary",
-        layout=widgets.Layout(width="80px"),
-    )
-    load_status = widgets.HTML(value="")
-
     shared_inputs_box = widgets.VBox(
         [
             widgets.HBox(
@@ -878,7 +870,7 @@ def pbi_fixer(
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
             widgets.HBox(
-                [_input_label("Report"), report_input, load_all_btn, load_status],
+                [_input_label("Report"), report_input],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
         ],
@@ -1436,7 +1428,6 @@ def pbi_fixer(
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
-    _load_triggers = []  # list of (load_fn) to call on shared Load
 
     if sm_explorer_tab is not None:
         sm_result = sm_explorer_tab(
@@ -1444,8 +1435,7 @@ def pbi_fixer(
             fixer_callbacks=_sm_fixer_cbs,
         )
         if isinstance(sm_result, tuple):
-            sm_content, sm_load_fn = sm_result
-            _load_triggers.append(sm_load_fn)
+            sm_content, _sm_load_fn = sm_result
         else:
             sm_content = sm_result
         tab_panels.append(sm_content)
@@ -1463,8 +1453,7 @@ def pbi_fixer(
             navigate_to_sm=_navigate_to_sm if sm_explorer_tab is not None else None,
         )
         if isinstance(rpt_result, tuple):
-            rpt_content, rpt_load_fn = rpt_result
-            _load_triggers.append(rpt_load_fn)
+            rpt_content, _rpt_load_fn = rpt_result
         else:
             rpt_content = rpt_result
         tab_panels.append(rpt_content)
@@ -1535,39 +1524,6 @@ def pbi_fixer(
 
     tab_selector.observe(_switch_tab, names="value")
     _switch_tab()  # set initial visibility
-
-    # -- Shared Load button handler --
-    def on_load_all(_):
-        load_all_btn.disabled = True
-        load_all_btn.description = "Loading\u2026"
-        _status_style = (
-            f'font-size:12px; font-family:-apple-system,BlinkMacSystemFont,sans-serif;'
-        )
-        tab_labels = ["Semantic Models", "Reports"]
-        total = len(_load_triggers)
-        for i, load_fn in enumerate(_load_triggers):
-            label = tab_labels[i] if i < len(tab_labels) else f"Tab {i+1}"
-            done_parts = []
-            for j in range(i):
-                done_parts.append(f"{tab_labels[j] if j < len(tab_labels) else f'Tab {j+1}'} \u2713")
-            progress_text = " | ".join(done_parts + [f"{label} loading\u2026"]) if done_parts else f"{label} loading\u2026"
-            load_status.value = (
-                f'<span style="{_status_style} color:{gray_color};">'
-                f'{progress_text} ({i+1}/{total})</span>'
-            )
-            try:
-                load_fn(None)
-            except Exception:
-                pass
-        all_done = " | ".join(f"{tab_labels[j] if j < len(tab_labels) else f'Tab {j+1}'} \u2713" for j in range(total))
-        load_status.value = (
-            f'<span style="{_status_style} color:#34c759;">'
-            f'\u2713 {all_done}</span>'
-        )
-        load_all_btn.disabled = False
-        load_all_btn.description = "Load"
-
-    load_all_btn.on_click(on_load_all)
 
     container = widgets.VBox(
         [header, shared_inputs_box, tab_selector] + tab_panels + [version_footer],
