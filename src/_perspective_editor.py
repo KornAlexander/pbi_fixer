@@ -132,6 +132,9 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; '
         f'font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; '
         f'margin-bottom:2px;">Perspective Editor</div>'
+        f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; '
+        f'font-style:italic; margin-bottom:4px;">'
+        f'\u2139\ufe0f Works with a single model. If multiple models are entered, the first one is used.</div>'
     )
 
     persp_row = widgets.HBox(
@@ -379,9 +382,7 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
         ds = report_input.value.strip() if report_input else ""
         if "," in ds:
             ds = ds.split(",")[0].strip()
-        # Use first model only if comma-separated
-        if "," in ds:
-            ds = ds.split(",")[0].strip()
+            set_status(conn_status, f"Using first model: '{ds}'", "#ff9500")
         if not ds:
             set_status(conn_status, "Enter a semantic model name in the top bar.", "#ff3b30")
             return
