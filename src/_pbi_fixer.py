@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.41"
+__version__ = "1.2.42"
 
 import ipywidgets as widgets
 import io
@@ -690,17 +690,21 @@ def pbi_fixer(
     # HEADER
     # -----------------------------
     title = widgets.HTML(
-        value=f'<div style="font-size:20px; font-weight:600; color:{text_color}; '
-        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">Power BI Fixer</div>'
+        value=f'<div style="font-size:22px; font-weight:700; color:{icon_accent}; '
+        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+        f'\U0001F527 Power BI Fixer</div>'
     )
     subtitle = widgets.HTML(
         value=f'<div style="font-size:13px; color:{gray_color}; '
         f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-top:2px;">'
-        f'Scan, fix, and explore your Power BI reports and semantic models</div>'
+        f'Scan, fix, and explore your Power BI reports and semantic models '
+        f'\u2014 <a href="https://actionablereporting.com" target="_blank" '
+        f'style="color:{icon_accent}; text-decoration:none;">actionablereporting.com</a></div>'
     )
     header = widgets.VBox(
         [title, subtitle],
-        layout=widgets.Layout(margin="0 0 12px 0"),
+        layout=widgets.Layout(margin="0 0 12px 0", padding="0 0 8px 0",
+                              border_bottom=f"2px solid {icon_accent}"),
     )
 
     # -----------------------------
@@ -780,6 +784,7 @@ def pbi_fixer(
             margin="0 0 12px 0",
             border=f"1px solid {border_color}",
             border_radius="8px",
+            background_color="#fafafa",
         ),
     )
 
@@ -808,7 +813,7 @@ def pbi_fixer(
         value=_tab_options[0],
         layout=widgets.Layout(margin="0 0 12px 0"),
     )
-    tab_selector.style.button_width = "160px"
+    tab_selector.style.button_width = "130px"
 
     # -----------------------------
     # SECTION HEADING HELPER
@@ -1246,9 +1251,12 @@ def pbi_fixer(
     # ASSEMBLE & DISPLAY
     # -----------------------------
     version_footer = widgets.HTML(
-        value=f'<div style="text-align:right; font-size:10px; color:{gray_color}; '
+        value=f'<div style="text-align:right; font-size:11px; color:{gray_color}; '
         f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; '
-        f'margin-top:8px;">Version: {__version__}</div>'
+        f'margin-top:8px; padding-top:8px; border-top:1px solid {border_color};">'
+        f'v{__version__} \u2022 Alexander Korn \u2022 '
+        f'<a href="https://actionablereporting.com" target="_blank" '
+        f'style="color:{icon_accent}; text-decoration:none;">actionablereporting.com</a></div>'
     )
 
     # -- Fixer tab content (existing UI, minus inputs which are now shared) --
