@@ -421,13 +421,10 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     # -- expression panel --
     preview = widgets.Textarea(value="Select a measure to view its DAX expression.", layout=widgets.Layout(width="100%", height="240px", font_family="monospace"))
-    save_expr_btn = widgets.Button(description="Save Expression", button_style="warning", disabled=True, layout=widgets.Layout(width="140px"))
-    save_status = status_html()
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    save_row = widgets.HBox([save_expr_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px"))
-    preview_box = panel_box([preview_label, preview, save_row], flex="1")
+    preview_box = panel_box([preview_label, preview], flex="1")
 
     # -- editable properties --
     props_label = widgets.HTML(
@@ -447,12 +444,35 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     prop_description, prop_desc_row = _prop_input("Description", width="300px")
     prop_summarize_by, prop_summarize_row = _prop_input("Summarize By", disabled=True)
 
-    save_props_btn = widgets.Button(description="Save Properties", button_style="warning", disabled=True, layout=widgets.Layout(width="140px"))
-    props_save_status = status_html()
-    props_save_row = widgets.HBox([save_props_btn, props_save_status], layout=widgets.Layout(align_items="center", gap="8px"))
+    # Unified save button with dirty state
+    _is_dirty = [False]
+    save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="160px"))
+    save_status = status_html()
+    save_row = widgets.HBox([save_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
+
+    def _mark_dirty(*_):
+        if not _is_dirty[0]:
+            _is_dirty[0] = True
+            save_btn.description = "\u26a0\ufe0f Unsaved changes"
+            save_btn.button_style = "danger"
+            save_btn.disabled = False
+
+    def _mark_clean():
+        _is_dirty[0] = False
+        save_btn.description = "\u2713 No changes"
+        save_btn.button_style = "success"
+        save_btn.disabled = True
+        save_status.value = ""
+
+    # Observe editable fields for changes
+    preview.observe(_mark_dirty, names="value")
+    prop_name.observe(_mark_dirty, names="value")
+    prop_format_str.observe(_mark_dirty, names="value")
+    prop_display_folder.observe(_mark_dirty, names="value")
+    prop_description.observe(_mark_dirty, names="value")
 
     props_container = widgets.VBox(
-        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row, prop_summarize_row, prop_desc_row, props_save_row],
+        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row, prop_summarize_row, prop_desc_row],
         layout=widgets.Layout(gap="4px"),
     )
     props_placeholder = widgets.HTML(
@@ -471,8 +491,6 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         node_type = parts[0]
         props_placeholder.layout.display = "none"
         props_container.layout.display = ""
-        save_props_btn.disabled = False
-        props_save_status.value = ""
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
         prop_summarize_row.layout.display = "none"
@@ -648,8 +666,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         # Update properties/expression for last selected item
         preview.value = _get_preview_text(_model_data, key)
         _populate_props(key)
-        save_expr_btn.disabled = key.split(":")[0] not in ("measure", "calc_item")
-        save_status.value = ""
+        _mark_clean()  # new selection = no unsaved changes
 
     def on_expand_all(_):
         if _model_data:
@@ -669,20 +686,16 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         if _model_data:
             _refresh_tree()
 
-    def on_save_expr(_):
+    def on_save(_):
+        """Unified save — writes expression + properties in one TOM connection."""
         key = _current_key[0]
-        if not key:
+        if not key or not _is_dirty[0]:
             return
         parts = key.split(":", 2)
         node_type = parts[0]
-        new_expr = preview.value
-        if node_type not in ("measure", "calc_item"):
-            set_status(save_status, "Only measures and calc items can be saved.", "#ff9500")
-            return
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        # Extract dataset and table name from key (handles multi-model keys)
-        raw_table = parts[1]
+        raw_table = parts[1] if len(parts) > 1 else ""
         if "\x1f" in raw_table:
             ds, table_name = raw_table.split("\x1f", 1)
         else:
@@ -691,90 +704,62 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         if not ds:
             set_status(save_status, "No model loaded.", "#ff3b30")
             return
-        save_expr_btn.disabled = True
-        save_expr_btn.description = "Saving\u2026"
+        save_btn.disabled = True
+        save_btn.description = "Saving\u2026"
         set_status(save_status, "Writing via XMLA\u2026", GRAY_COLOR)
         try:
             from sempy_labs.tom import connect_semantic_model
             with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
                 if node_type == "measure":
-                    tm.model.Tables[table_name].Measures[parts[2]].Expression = new_expr
-                    t = _resolve_table(_model_data, raw_table)
-                    if t:
-                        t["measures"][parts[2]]["expression"] = new_expr
-                elif node_type == "calc_item":
-                    tm.model.Tables[table_name].CalculationGroup.CalculationItems[parts[2]].Expression = new_expr
-                    t = _resolve_table(_model_data, raw_table)
-                    if t:
-                        t["calc_items"][parts[2]]["expression"] = new_expr
-                tm.model.SaveChanges()
-            set_status(save_status, "\u2713 Saved.", "#34c759")
-        except Exception as e:
-            set_status(save_status, f"Error: {e}", "#ff3b30")
-        finally:
-            save_expr_btn.disabled = False
-            save_expr_btn.description = "Save Expression"
-
-    def on_save_props(_):
-        key = _current_key[0]
-        if not key:
-            return
-        parts = key.split(":", 2)
-        node_type = parts[0]
-        ws = workspace_input.value.strip() if workspace_input else None
-        ws = ws or None
-        # Extract dataset and table name from key
-        raw_table = parts[1] if len(parts) > 1 else ""
-        if "\x1f" in raw_table:
-            ds, table_name = raw_table.split("\x1f", 1)
-        else:
-            ds = report_input.value.strip() if report_input else ""
-            table_name = raw_table
-        if not ds:
-            set_status(props_save_status, "No model loaded.", "#ff3b30")
-            return
-        save_props_btn.disabled = True
-        save_props_btn.description = "Saving\u2026"
-        set_status(props_save_status, "Writing via XMLA\u2026", GRAY_COLOR)
-        try:
-            from sempy_labs.tom import connect_semantic_model
-            with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tm:
-                if node_type == "measure":
                     m_obj = tm.model.Tables[table_name].Measures[parts[2]]
+                    # Save expression
+                    new_expr = preview.value
+                    m_obj.Expression = new_expr
+                    # Save properties
                     m_obj.Name = prop_name.value
                     m_obj.FormatString = prop_format_str.value
                     m_obj.DisplayFolder = prop_display_folder.value
                     m_obj.Description = prop_description.value
+                    # Update local cache
                     t = _resolve_table(_model_data, raw_table)
                     if t:
                         old_name = parts[2]
                         entry = t["measures"].pop(old_name)
+                        entry["expression"] = new_expr
                         entry["format_string"] = prop_format_str.value
                         entry["display_folder"] = prop_display_folder.value
                         entry["description"] = prop_description.value
                         t["measures"][prop_name.value] = entry
+                elif node_type == "calc_item":
+                    new_expr = preview.value
+                    tm.model.Tables[table_name].CalculationGroup.CalculationItems[parts[2]].Expression = new_expr
+                    t = _resolve_table(_model_data, raw_table)
+                    if t:
+                        t["calc_items"][parts[2]]["expression"] = new_expr
                 elif node_type == "table":
                     tm.model.Tables[table_name].Description = prop_description.value
                     t = _resolve_table(_model_data, raw_table)
                     if t:
                         t["description"] = prop_description.value
                 tm.model.SaveChanges()
-            set_status(props_save_status, "\u2713 Saved.", "#34c759")
+            _mark_clean()
+            set_status(save_status, "\u2713 Saved.", "#34c759")
             if node_type == "measure" and prop_name.value != parts[2]:
                 _current_key[0] = f"measure:{raw_table}:{prop_name.value}"
                 _refresh_tree()
         except Exception as e:
-            set_status(props_save_status, f"Error: {e}", "#ff3b30")
+            set_status(save_status, f"Error: {e}", "#ff3b30")
         finally:
-            save_props_btn.disabled = False
-            save_props_btn.description = "Save Properties"
+            if _is_dirty[0]:
+                save_btn.description = "\u26a0\ufe0f Unsaved changes"
+                save_btn.button_style = "danger"
+                save_btn.disabled = False
 
     load_btn.on_click(on_load)
     tree.observe(on_select, names="value")
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
-    save_expr_btn.on_click(on_save_expr)
-    save_props_btn.on_click(on_save_props)
+    save_btn.on_click(on_save)
 
     def on_run_action(_):
         """Run the action selected in the dropdown."""
@@ -875,5 +860,5 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     scan_btn.on_click(on_scan)
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
