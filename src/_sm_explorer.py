@@ -110,13 +110,26 @@ def _load_model_data_fast(dataset, workspace):
                         continue
                 except Exception:
                     pass
+                partitions = []
                 try:
                     for p in table.Partitions:
                         if "Calculated" in str(p.SourceType):
                             t_info["type"] = "CalculatedTable"
-                        break
+                        src_type = str(p.SourceType) if hasattr(p, "SourceType") else ""
+                        expr = ""
+                        try:
+                            if hasattr(p, "Source") and hasattr(p.Source, "Expression"):
+                                expr = str(p.Source.Expression) if p.Source.Expression else ""
+                        except Exception:
+                            pass
+                        partitions.append({
+                            "name": str(p.Name),
+                            "source_type": src_type,
+                            "expression": expr,
+                        })
                 except Exception:
                     pass
+                t_info["partitions"] = partitions
                 for h in table.Hierarchies:
                     t_info["hierarchies"][h.Name] = {"levels": [str(lvl.Name) for lvl in h.Levels]}
 
@@ -138,6 +151,12 @@ def _load_model_data_fast(dataset, workspace):
             # Load perspectives
             for p in tm.model.Perspectives:
                 model_data["perspectives"].append(str(p.Name))
+
+            # Load model properties
+            model_data["model_properties"] = {
+                "compatibility_level": str(tm.model.Model.Database.CompatibilityLevel) if hasattr(tm.model.Model, "Database") else "",
+                "default_mode": str(tm.model.DefaultMode) if hasattr(tm.model, "DefaultMode") else "",
+            }
     except Exception:
         pass
 
@@ -169,13 +188,26 @@ def _load_model_data_tom(dataset, workspace):
             except Exception:
                 pass
             if not is_calc_group:
+                partitions = []
                 try:
                     for p in table.Partitions:
                         if "Calculated" in str(p.SourceType):
                             t_info["type"] = "CalculatedTable"
-                        break
+                        src_type = str(p.SourceType) if hasattr(p, "SourceType") else ""
+                        expr = ""
+                        try:
+                            if hasattr(p, "Source") and hasattr(p.Source, "Expression"):
+                                expr = str(p.Source.Expression) if p.Source.Expression else ""
+                        except Exception:
+                            pass
+                        partitions.append({
+                            "name": str(p.Name),
+                            "source_type": src_type,
+                            "expression": expr,
+                        })
                 except Exception:
                     pass
+                t_info["partitions"] = partitions
             for col in table.Columns:
                 t_info["columns"][col.Name] = {
                     "data_type": str(col.DataType) if hasattr(col, "DataType") else "",
@@ -203,6 +235,12 @@ def _load_model_data_tom(dataset, workspace):
                 except Exception:
                     pass
             model_data["tables"][t_name] = t_info
+
+        # Load model properties
+        model_data["model_properties"] = {
+            "compatibility_level": str(tm.model.Model.Database.CompatibilityLevel) if hasattr(tm.model.Model, "Database") else "",
+            "default_mode": str(tm.model.DefaultMode) if hasattr(tm.model, "DefaultMode") else "",
+        }
 
         # Load relationships
         for rel in tm.model.Relationships:
@@ -268,6 +306,9 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                     items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{full_key}:{hn}"))
                 for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
                     items.append((2, "calc_item", ci_name, f"calc_item:{full_key}:{ci_name}"))
+                # Partitions
+                for pt in t.get("partitions", []):
+                    items.append((2, "partition", f"{pt['name']} ({pt['source_type']})", f"partition:{full_key}:{pt['name']}"))
             # Relationships for this model
             m_rels = model_data.get("model_relationships", {}).get(m_name, [])
             if m_rels:
@@ -287,46 +328,61 @@ def _build_tree(model_data, expanded_tables, scan_results=None):
                 for pname in sorted(m_persps):
                     items.append((2, "calc_item", pname, f"persp:{m_name}:{pname}"))
     else:
-        # Single model: flat table list (original behavior)
-        for t_name in sorted(model_data["tables"]):
+        # Single model: show model node (always visible for refresh/properties)
+        ds_input = model_data.get("_dataset_name", "Model")
+        props = model_data.get("model_properties", {})
+        compat = props.get("compatibility_level", "")
+        mode = props.get("default_mode", "")
+        prop_str = f" ({mode}, CL {compat})" if compat else ""
+        t_count = len(model_data.get("tables", {}))
+        is_model_exp = ds_input in expanded_tables
+        marker = EXPANDED if is_model_exp else COLLAPSED
+        items.append((0, "calc_group", f"{marker} {ds_input}{prop_str}  [{t_count} tables]", f"model:{ds_input}"))
+        if not is_model_exp:
+            pass  # collapsed
+        else:
+          for t_name in sorted(model_data["tables"]):
             t = model_data["tables"][t_name]
             icon = "calc_group" if t["type"] == "CalculationGroup" else "table"
             is_expanded = t_name in expanded_tables
             marker = EXPANDED if is_expanded else COLLAPSED
             suffix = " (hidden)" if t["is_hidden"] else ""
             summary = _table_summary(t)
-            items.append((0, icon, f"{marker} {t_name}{suffix}  [{summary}]", f"table:{t_name}"))
+            items.append((1, icon, f"{marker} {t_name}{suffix}  [{summary}]", f"table:{t_name}"))
             if not is_expanded:
                 continue
             for mn in sorted(t["measures"]):
-                items.append((1, "measure", mn, f"measure:{t_name}:{mn}"))
+                items.append((2, "measure", mn, f"measure:{t_name}:{mn}"))
             for cn in sorted(t["columns"]):
                 c = t["columns"][cn]
                 hidden = " (hidden)" if c["is_hidden"] else ""
-                items.append((1, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{t_name}:{cn}"))
+                items.append((2, "column", f"{cn} [{c['data_type']}]{hidden}", f"column:{t_name}:{cn}"))
             for hn in sorted(t["hierarchies"]):
                 lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
-                items.append((1, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
+                items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
             for ci_name in sorted(t.get("calc_items", {}), key=lambda n: t["calc_items"][n]["ordinal"]):
-                items.append((1, "calc_item", ci_name, f"calc_item:{t_name}:{ci_name}"))
-        # Relationships (single model)
-        rels = model_data.get("relationships", [])
-        if rels:
+                items.append((2, "calc_item", ci_name, f"calc_item:{t_name}:{ci_name}"))
+            # Partitions
+            for pt in t.get("partitions", []):
+                items.append((2, "partition", f"{pt['name']} ({pt['source_type']})", f"partition:{t_name}:{pt['name']}"))
+          # Relationships (single model) — under model node
+          rels = model_data.get("relationships", [])
+          if rels:
             rel_key = "rels:_single"
             is_rels_exp = rel_key in expanded_tables
             r_marker = EXPANDED if is_rels_exp else COLLAPSED
-            items.append((0, "relationship", f"{r_marker} Relationships  [{len(rels)}]", rel_key))
+            items.append((1, "relationship", f"{r_marker} Relationships  [{len(rels)}]", rel_key))
             if is_rels_exp:
                 for i, rel in enumerate(rels):
                     active = "" if rel.get("is_active", True) else " (inactive)"
                     label = f"{rel['from_table']}[{rel['from_column']}] \u2194 {rel['to_table']}[{rel['to_column']}]{active}"
-                    items.append((1, "relationship", label, f"rel:_single:{i}"))
-        # Perspectives (single model)
-        persps = model_data.get("perspectives", [])
-        if persps:
-            items.append((0, "folder", f"Perspectives  [{len(persps)}]", "persps:_single"))
+                    items.append((2, "relationship", label, f"rel:_single:{i}"))
+          # Perspectives (single model) — under model node
+          persps = model_data.get("perspectives", [])
+          if persps:
+            items.append((1, "folder", f"Perspectives  [{len(persps)}]", "persps:_single"))
             for pname in sorted(persps):
-                items.append((1, "calc_item", pname, f"persp:_single:{pname}"))
+                items.append((2, "calc_item", pname, f"persp:_single:{pname}"))
     return build_tree_items(items)
 
 
@@ -341,7 +397,27 @@ def _resolve_table(model_data, table_key):
 def _get_preview_text(model_data, key):
     parts = key.split(":", 2)
     node_type = parts[0]
-    if node_type in ("model", "rels"):
+    if node_type in ("rels",):
+        return ""
+    if node_type == "model":
+        # Show model properties
+        props = model_data.get("model_properties", {})
+        if not props:
+            for m_data in model_data.get("models", {}).values():
+                break  # multi-model: can't show single model props here
+        lines = []
+        for k, v in props.items():
+            lines.append(f"{k}: {v}")
+        return "\n".join(lines) if lines else ""
+    if node_type == "partition":
+        # Show M script for partition
+        raw_table = parts[1] if len(parts) > 1 else ""
+        p_name = parts[2] if len(parts) > 2 else ""
+        t = _resolve_table(model_data, raw_table)
+        if t:
+            for pt in t.get("partitions", []):
+                if pt["name"] == p_name:
+                    return pt.get("expression", "")
         return ""
     if node_type == "rel":
         # Show relationship details
@@ -476,6 +552,73 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     save_status = status_html()
     save_row = widgets.HBox([save_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
 
+    # Refresh controls
+    refresh_type_dd = widgets.Dropdown(
+        options=["full", "dataOnly", "calculate", "automatic"],
+        value="automatic",
+        layout=widgets.Layout(width="130px"),
+    )
+    refresh_btn = widgets.Button(description="🔄 Refresh Model", layout=widgets.Layout(width="150px"))
+    refresh_status = status_html()
+
+    def on_refresh(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        key = _current_key[0] or ""
+        refresh_btn.disabled = True
+        refresh_btn.description = "Refreshing…"
+        try:
+            from sempy_labs import refresh_semantic_model
+            r_type = refresh_type_dd.value
+
+            # Determine what to refresh based on selection
+            if key.startswith("partition:"):
+                # Refresh single partition's table
+                parts = key.split(":", 2)
+                raw_table = parts[1] if len(parts) > 1 else ""
+                if "\x1f" in raw_table:
+                    ds, table_name = raw_table.split("\x1f", 1)
+                else:
+                    ds = ds_input
+                    table_name = raw_table
+                set_status(refresh_status, f"Refreshing table '{table_name}'…", GRAY_COLOR)
+                refresh_semantic_model(dataset=ds, refresh_type=r_type, workspace=ws, tables=[table_name])
+                set_status(refresh_status, f"✓ Table '{table_name}' refreshed.", "#34c759")
+            elif key.startswith("table:"):
+                raw_table = key.split(":", 1)[1]
+                if "\x1f" in raw_table:
+                    ds, table_name = raw_table.split("\x1f", 1)
+                else:
+                    ds = ds_input
+                    table_name = raw_table
+                set_status(refresh_status, f"Refreshing table '{table_name}'…", GRAY_COLOR)
+                refresh_semantic_model(dataset=ds, refresh_type=r_type, workspace=ws, tables=[table_name])
+                set_status(refresh_status, f"✓ Table '{table_name}' refreshed.", "#34c759")
+            else:
+                # Model-level refresh
+                if key.startswith("model:"):
+                    ds = key.split(":", 1)[1]
+                elif _model_data.get("_dataset_name"):
+                    ds = _model_data["_dataset_name"]
+                else:
+                    items_list = [x.strip() for x in ds_input.split(",") if x.strip()]
+                    ds = items_list[0] if items_list else ""
+                if not ds:
+                    set_status(refresh_status, "No model selected.", "#ff3b30")
+                    return
+                set_status(refresh_status, f"Refreshing '{ds}'…", GRAY_COLOR)
+                refresh_semantic_model(dataset=ds, refresh_type=r_type, workspace=ws)
+                set_status(refresh_status, f"✓ Model '{ds}' refreshed.", "#34c759")
+        except Exception as e:
+            set_status(refresh_status, f"Error: {e}", "#ff3b30")
+        finally:
+            refresh_btn.disabled = False
+            refresh_btn.description = "🔄 Refresh Model"
+
+    refresh_btn.on_click(on_refresh)
+    refresh_row = widgets.HBox([refresh_type_dd, refresh_btn, refresh_status], layout=widgets.Layout(align_items="center", gap="8px", margin="4px 0 0 0"))
+
     def _capture_current():
         """Store current field values as pending changes for the current key."""
         key = _current_key[0]
@@ -582,7 +725,32 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
-            save_props_btn.disabled = True
+        elif node_type == "partition":
+            p_name = parts[2] if len(parts) > 2 else ""
+            t = _resolve_table(_model_data, raw_table)
+            src_type = ""
+            if t:
+                for pt in t.get("partitions", []):
+                    if pt["name"] == p_name:
+                        src_type = pt.get("source_type", "")
+                        break
+            prop_name.value, prop_table.value = p_name, display_table
+            prop_obj_type.value = f"Partition ({src_type})" if src_type else "Partition"
+            prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
+            prop_format_row.layout.display = "none"
+            prop_folder_row.layout.display = "none"
+        elif node_type == "model":
+            m_name = parts[1] if len(parts) > 1 else ""
+            props_data = _model_data.get("model_properties", {})
+            prop_name.value = m_name
+            prop_table.value = ""
+            prop_obj_type.value = "Semantic Model"
+            prop_format_str.value = props_data.get("compatibility_level", "")
+            prop_display_folder.value = props_data.get("default_mode", "")
+            prop_description.value = ""
+            # Repurpose labels: Format String → Compat Level, Display Folder → Default Mode
+            prop_format_row.layout.display = ""
+            prop_folder_row.layout.display = ""
         else:
             props_container.layout.display = "none"
             props_placeholder.layout.display = ""
@@ -640,6 +808,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                         merged_data["tables"].update(data["tables"])
                         merged_data["relationships"] = data.get("relationships", [])
                         merged_data["perspectives"] = data.get("perspectives", [])
+                        merged_data["_dataset_name"] = ds
+                        merged_data["model_properties"] = data.get("model_properties", {})
                     loaded += 1
                 except Exception as e:
                     errors += 1
@@ -655,6 +825,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     for t_name in m_tables:
                         _expanded.add(f"{m_name}\x1f{t_name}")
             else:
+                ds_name = _model_data.get("_dataset_name", "Model")
+                _expanded.add(ds_name)
                 _expanded.update(_model_data.get("tables", {}).keys())
 
             _refresh_tree()
@@ -694,8 +866,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                 else:
                     _expanded.add(m_name)
                 _refresh_tree()
-                return
-            if key.startswith("table:"):
+                # Fall through to show model properties/expression
+            elif key.startswith("table:"):
                 t_name = key.split(":", 1)[1]
                 if t_name in _expanded:
                     _expanded.discard(t_name)
@@ -743,6 +915,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     for t_name in m_tables:
                         _expanded.add(f"{m_name}\x1f{t_name}")
             else:
+                ds_name = _model_data.get("_dataset_name", "Model")
+                _expanded.add(ds_name)
                 _expanded.update(_model_data.get("tables", {}).keys())
             _refresh_tree()
 
@@ -998,5 +1172,5 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     scan_btn.on_click(on_scan)
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row, scan_results_box], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row, refresh_row, scan_results_box], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
