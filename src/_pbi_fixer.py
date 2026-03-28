@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.76"
+__version__ = "1.2.77"
 
 import ipywidgets as widgets
 import io
@@ -742,60 +742,44 @@ def _bpa_tab(workspace_input=None, report_input=None):
             )]
             return
 
-        rows = []
-        # Header as HTML table
-        rows.append(widgets.HBox([
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Model</b>', layout=widgets.Layout(width="90px")),
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Rule</b>', layout=widgets.Layout(width="220px")),
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Type</b>', layout=widgets.Layout(width="70px")),
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Object</b>', layout=widgets.Layout(width="220px")),
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Sev</b>', layout=widgets.Layout(width="35px")),
-            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Fix</b>', layout=widgets.Layout(width="50px")),
-        ], layout=widgets.Layout(gap="4px", padding="4px 0", border_bottom=f"2px solid {BORDER_COLOR}")))
+        # Build a single HTML table for all findings
+        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
+        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
+        for hdr in ["#", "Model", "Rule", "Type", "Object", "Sev", "Fixable"]:
+            html += f'<th style="text-align:left; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{hdr}</th>'
+        html += '</tr>'
 
-        for ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name in _all_findings:
+        fixable_indices = []
+        for idx, (ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name) in enumerate(_all_findings):
             if rule_id == "ERROR":
-                rows.append(widgets.HTML(
-                    value=f'<div style="color:#ff3b30; font-size:11px; padding:3px 0;">\u274c {ds}: {rule_name}</div>'
-                ))
+                html += f'<tr><td colspan="7" style="color:#ff3b30; padding:3px 8px;">\u274c {ds}: {rule_name}</td></tr>'
                 continue
-
             sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
             has_fix = rule_id in _fix_map or (rule_id == _desc_fix_rule and obj_type == "Measure")
-
-            fix_btn = widgets.Button(
-                description="Fix" if has_fix else "\u2014",
-                button_style="warning" if has_fix else "",
-                disabled=not has_fix,
-                layout=widgets.Layout(width="50px", height="22px"),
-            )
             if has_fix:
-                def _make_fix(rule, dataset, table, obj, otype):
-                    def _handler(_):
-                        try:
-                            if rule in _fix_map:
-                                msg = _fix_map[rule](dataset, ws, table, obj)
-                            elif rule == _desc_fix_rule and otype == "Measure":
-                                msg = _fix_description_measure(dataset, ws, table, obj)
-                            else:
-                                msg = "No fix available"
-                            set_status(conn_status, f"\u2713 {msg}", "#34c759")
-                        except Exception as e:
-                            set_status(conn_status, f"Error: {e}", "#ff3b30")
-                    return _handler
-                fix_btn.on_click(_make_fix(rule_id, ds, table_name, obj_name, obj_type))
+                fixable_indices.append(idx)
+            fix_icon = f'<span style="color:#34c759;">\u2713</span>' if has_fix else '\u2014'
+            html += f'<tr>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{idx+1}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{ds}">{ds[:16]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT}; white-space:nowrap;" title="{rule_name}">{rule_name[:35]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{obj_type[:10]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{table_name}.{obj_name}">{obj_name[:35]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{sev_color}; font-weight:600;">{severity}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; text-align:center;">{fix_icon}</td>'
+            html += '</tr>'
+        html += '</table></div>'
 
-            row_w = widgets.HBox([
-                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333;" title="{ds}">{ds[:14]}</span>', layout=widgets.Layout(width="90px", overflow="hidden")),
-                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT};" title="{rule_name}">{rule_name[:32]}</span>', layout=widgets.Layout(width="220px", overflow="hidden")),
-                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#888;">{obj_type[:10]}</span>', layout=widgets.Layout(width="70px", overflow="hidden")),
-                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333;" title="{table_name}.{obj_name}">{obj_name[:32]}</span>', layout=widgets.Layout(width="220px", overflow="hidden")),
-                widgets.HTML(value=f'<span style="font-size:11px; color:{sev_color}; font-weight:600;">{severity}</span>', layout=widgets.Layout(width="35px")),
-                fix_btn,
-            ], layout=widgets.Layout(align_items="center", gap="4px", padding="1px 0", border_bottom="1px solid #f0f0f0"))
-            rows.append(row_w)
+        table_html = widgets.HTML(value=html)
 
-        results_box.children = rows
+        # Summary line
+        n_fixable = len(fixable_indices)
+        summary = widgets.HTML(
+            value=f'<div style="font-size:12px; font-family:{FONT_FAMILY}; color:#555; margin:8px 0 4px 0;">'
+            f'{len(_all_findings)} finding(s), <b>{n_fixable}</b> auto-fixable</div>'
+        )
+
+        results_box.children = [table_html, summary]
 
     def on_fix_all(_):
         """Fix all fixable violations."""
