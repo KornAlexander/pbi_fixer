@@ -52,6 +52,28 @@ def _load_report_data(report, workspace):
         pages_df = rw.list_pages()
         visuals_df = rw.list_visuals()
 
+        # Try to load visual-level measure/column usage (PBIR only)
+        visual_objects = {}
+        try:
+            vo_df = rw.list_visual_objects()
+            for _, row in vo_df.iterrows():
+                v_name = str(row.get("Visual Name", ""))
+                p_name = str(row.get("Page Name", ""))
+                key = f"{p_name}:{v_name}"
+                if key not in visual_objects:
+                    visual_objects[key] = []
+                visual_objects[key].append({
+                    "table": str(row.get("Table Name", "")),
+                    "object": str(row.get("Object Name", "")),
+                    "type": str(row.get("Object Type", "")),
+                    "display_name": str(row.get("Object Display Name", "")),
+                })
+        except Exception:
+            pass
+        report_data["visual_objects"] = visual_objects
+        pages_df = rw.list_pages()
+        visuals_df = rw.list_visuals()
+
         for _, row in pages_df.iterrows():
             p_name = str(row.get("Page Name", row.get("Page Display Name", "")))
             display_name = str(row.get("Page Display Name", p_name))
@@ -222,6 +244,18 @@ def _get_properties_html(report_data, key):
         rows += _prop_row("Position", f"x={v.get('x', 0)}, y={v.get('y', 0)}")
         rows += _prop_row("Size", f"{v.get('width', 0)} \u00d7 {v.get('height', 0)}")
         rows += _prop_row("Hidden", str(v.get("hidden", False)))
+
+        # Show used semantic model objects
+        p_name_raw = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
+        vo_key = f"{p_name_raw}:{v_name}"
+        objects = report_data.get("visual_objects", {}).get(vo_key, [])
+        if objects:
+            obj_lines = []
+            for obj in objects:
+                icon = "\U0001F4D0" if obj["type"] == "Measure" else "\U0001F4CF"
+                obj_lines.append(f'{icon} {obj["table"]}[{obj["object"]}] ({obj["type"]})')
+            rows += _prop_row("Used Objects", "<br>".join(obj_lines))
+
         return _props_table(rows)
 
     return ""
@@ -232,7 +266,7 @@ def _get_embed_html(report_data, key):
     return ""
 
 
-def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=None):
+def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=None, navigate_to_sm=None):
     """Build the Report Explorer tab widget."""
     _report_data = {}
     _key_map = {}
@@ -299,7 +333,9 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     )
     # Violations panel (shown below properties when scan results exist)
     violations_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
-    props_box = panel_box([props_label, props_html, violations_box], flex="0 0 auto", min_height="150px")
+    # Navigation panel for visual → SM object linking
+    nav_objects_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
+    props_box = panel_box([props_label, props_html, violations_box, nav_objects_box], flex="0 0 auto", min_height="150px")
 
     panels = create_three_panel_layout(tree, preview_box, props_box)
     tree_header = widgets.HTML(
@@ -510,6 +546,53 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         else:
             violations_box.children = []
             violations_box.layout.display = "none"
+
+        # Show navigation buttons for visual → SM object linking
+        if key.startswith("visual:") and navigate_to_sm is not None:
+            v_parts = key.split(":", 2)
+            p_key = v_parts[1] if len(v_parts) > 1 else ""
+            v_name = v_parts[2] if len(v_parts) > 2 else ""
+            p_name_raw = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
+            vo_key = f"{p_name_raw}:{v_name}"
+            objects = _report_data.get("visual_objects", {})
+            # Also check multi-report visual_objects
+            if not objects and _report_data.get("reports"):
+                for r_data in _report_data["reports"].values():
+                    objects.update(r_data.get("visual_objects", {}))
+            vo_list = objects.get(vo_key, [])
+            if vo_list:
+                nav_widgets = []
+                nav_widgets.append(widgets.HTML(
+                    value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; '
+                    f'text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px 0;">'
+                    f'\U0001F517 Navigate to Semantic Model</div>'
+                ))
+                seen = set()
+                for obj in vo_list:
+                    obj_id = f"{obj['table']}.{obj['object']}"
+                    if obj_id in seen:
+                        continue
+                    seen.add(obj_id)
+                    icon = "\U0001F4D0" if obj["type"] == "Measure" else "\U0001F4CF"
+                    nav_btn = widgets.Button(
+                        description=f"{icon} {obj['table']}[{obj['object']}]",
+                        layout=widgets.Layout(width="auto"),
+                    )
+                    def _make_nav(table, obj_name, obj_type):
+                        def _handler(_):
+                            navigate_to_sm(obj_name, table, obj_type)
+                        return _handler
+                    nav_btn.on_click(_make_nav(obj["table"], obj["object"], obj["type"]))
+                    nav_widgets.append(nav_btn)
+                nav_objects_box.children = nav_widgets
+                nav_objects_box.layout.display = ""
+            else:
+                nav_objects_box.children = []
+                nav_objects_box.layout.display = "none"
+        else:
+            nav_objects_box.children = []
+            nav_objects_box.layout.display = "none"
+
         # Page navigation via powerbiclient (if widget loaded)
         if _report_widget[0] is not None and key.startswith("page:"):
             p_raw = key.split(":", 1)[1]

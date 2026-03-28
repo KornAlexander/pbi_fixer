@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.43"
+__version__ = "1.2.44"
 
 import ipywidgets as widgets
 import io
@@ -1332,9 +1332,16 @@ def pbi_fixer(
         tab_panels.append(sm_content)
 
     if report_explorer_tab is not None:
+        def _navigate_to_sm(obj_name, table_name, obj_type):
+            """Switch to SM Explorer tab (callback from Report Explorer)."""
+            sm_tab_label = "\U0001F4CA Semantic Model"
+            if sm_tab_label in _tab_options:
+                tab_selector.value = sm_tab_label
+
         rpt_result = report_explorer_tab(
             workspace_input=workspace_input, report_input=report_input,
             fixer_callbacks=_rpt_fixer_cbs,
+            navigate_to_sm=_navigate_to_sm if sm_explorer_tab is not None else None,
         )
         if isinstance(rpt_result, tuple):
             rpt_content, rpt_load_fn = rpt_result
