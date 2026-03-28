@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.63"
+__version__ = "1.2.64"
 
 import ipywidgets as widgets
 import io
@@ -670,11 +670,12 @@ def _bpa_tab(workspace_input=None, report_input=None):
         rows.append(widgets.HTML(
             value=f'<div style="display:flex; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
             f'padding:4px 0; border-bottom:2px solid {BORDER_COLOR};">'
-            f'<span style="flex:0 0 90px;">Model</span>'
-            f'<span style="flex:0 0 130px;">Rule</span>'
-            f'<span style="flex:0 0 70px;">Type</span>'
-            f'<span style="flex:1;">Object</span>'
-            f'<span style="flex:0 0 60px;">Severity</span>'
+            f'<span style="flex:0 0 80px;">Model</span>'
+            f'<span style="flex:0 0 200px;">Rule</span>'
+            f'<span style="flex:0 0 60px;">Type</span>'
+            f'<span style="flex:0 0 200px;">Object</span>'
+            f'<span style="flex:0 0 30px;">Sev</span>'
+            f'<span style="flex:0 0 50px;">Fix</span>'
             f'</div>'
         ))
 
@@ -694,16 +695,21 @@ def _bpa_tab(workspace_input=None, report_input=None):
             info_html = widgets.HTML(
                 value=f'<div style="display:flex; align-items:center; font-size:11px; font-family:{FONT_FAMILY}; '
                 f'padding:2px 0; border-bottom:1px solid #f0f0f0;">'
-                f'<span style="flex:0 0 90px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{ds[:15]}</span>'
-                f'<span style="flex:0 0 130px; color:{ICON_ACCENT}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{rule_name}">{rule_name[:22]}</span>'
-                f'<span style="flex:0 0 70px; color:#888;">{obj_type}</span>'
-                f'<span style="flex:1; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title=\"{table_name}.{obj_name}\">{obj_name}</span>'
-                f'<span style="flex:0 0 60px; color:{sev_color};">{severity}</span>'
+                f'<span style="flex:0 0 80px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{ds}">{ds[:12]}</span>'
+                f'<span style="flex:0 0 200px; color:{ICON_ACCENT}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{rule_name}">{rule_name[:30]}</span>'
+                f'<span style="flex:0 0 60px; color:#888;">{obj_type[:8]}</span>'
+                f'<span style="flex:0 0 200px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{table_name}.{obj_name}">{obj_name[:30]}</span>'
+                f'<span style="flex:0 0 30px; color:{sev_color};">{severity}</span>'
                 f'</div>'
             )
 
+            fix_btn = widgets.Button(
+                description="Fix" if has_fix else "\u2014",
+                button_style="warning" if has_fix else "",
+                disabled=not has_fix,
+                layout=widgets.Layout(width="50px", height="22px"),
+            )
             if has_fix:
-                fix_btn = widgets.Button(description="Fix", button_style="warning", layout=widgets.Layout(width="50px", height="22px"))
                 def _make_fix(rule, dataset, table, obj, otype):
                     def _handler(_):
                         try:
@@ -718,10 +724,8 @@ def _bpa_tab(workspace_input=None, report_input=None):
                             set_status(conn_status, f"Error: {e}", "#ff3b30")
                     return _handler
                 fix_btn.on_click(_make_fix(rule_id, ds, table_name, obj_name, obj_type))
-                row_w = widgets.HBox([info_html, fix_btn], layout=widgets.Layout(align_items="center", gap="4px"))
-            else:
-                row_w = info_html
 
+            row_w = widgets.HBox([info_html, fix_btn], layout=widgets.Layout(align_items="center", gap="2px"))
             rows.append(row_w)
 
         results_box.children = rows
