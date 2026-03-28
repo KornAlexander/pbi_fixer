@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.69"
+__version__ = "1.2.70"
 
 import ipywidgets as widgets
 import io
@@ -736,21 +736,15 @@ def _bpa_tab(workspace_input=None, report_input=None):
             return
 
         rows = []
-        # Header
-        rows.append(widgets.HTML(
-            value=f'<div style="display:flex; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
-            f'padding:4px 0; border-bottom:2px solid {BORDER_COLOR};">'
-            f'<span style="flex:0 0 80px;">Model</span>'
-            f'<span style="flex:0 0 200px;">Rule</span>'
-            f'<span style="flex:0 0 60px;">Type</span>'
-            f'<span style="flex:0 0 200px;">Object</span>'
-            f'<span style="flex:0 0 30px;">Sev</span>'
-            f'<span style="flex:0 0 50px;">Fix</span>'
-            f'</div>'
-        ))
-
-        import io as _io2
-        from contextlib import redirect_stdout as _redirect2
+        # Header as HTML table
+        rows.append(widgets.HBox([
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Model</b>', layout=widgets.Layout(width="90px")),
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Rule</b>', layout=widgets.Layout(width="220px")),
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Type</b>', layout=widgets.Layout(width="70px")),
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Object</b>', layout=widgets.Layout(width="220px")),
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Sev</b>', layout=widgets.Layout(width="35px")),
+            widgets.HTML(value=f'<b style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">Fix</b>', layout=widgets.Layout(width="50px")),
+        ], layout=widgets.Layout(gap="4px", padding="4px 0", border_bottom=f"2px solid {BORDER_COLOR}")))
 
         for ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name in _all_findings:
             if rule_id == "ERROR":
@@ -761,17 +755,6 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
             sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
             has_fix = rule_id in _fix_map or (rule_id == _desc_fix_rule and obj_type == "Measure")
-
-            info_html = widgets.HTML(
-                value=f'<div style="display:flex; align-items:center; font-size:11px; font-family:{FONT_FAMILY}; '
-                f'padding:2px 0; border-bottom:1px solid #f0f0f0;">'
-                f'<span style="flex:0 0 80px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{ds}">{ds[:12]}</span>'
-                f'<span style="flex:0 0 200px; color:{ICON_ACCENT}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{rule_name}">{rule_name[:30]}</span>'
-                f'<span style="flex:0 0 60px; color:#888;">{obj_type[:8]}</span>'
-                f'<span style="flex:0 0 200px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{table_name}.{obj_name}">{obj_name[:30]}</span>'
-                f'<span style="flex:0 0 30px; color:{sev_color};">{severity}</span>'
-                f'</div>'
-            )
 
             fix_btn = widgets.Button(
                 description="Fix" if has_fix else "\u2014",
@@ -795,7 +778,14 @@ def _bpa_tab(workspace_input=None, report_input=None):
                     return _handler
                 fix_btn.on_click(_make_fix(rule_id, ds, table_name, obj_name, obj_type))
 
-            row_w = widgets.HBox([info_html, fix_btn], layout=widgets.Layout(align_items="center", gap="2px"))
+            row_w = widgets.HBox([
+                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333;" title="{ds}">{ds[:14]}</span>', layout=widgets.Layout(width="90px", overflow="hidden")),
+                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT};" title="{rule_name}">{rule_name[:32]}</span>', layout=widgets.Layout(width="220px", overflow="hidden")),
+                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#888;">{obj_type[:10]}</span>', layout=widgets.Layout(width="70px", overflow="hidden")),
+                widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333;" title="{table_name}.{obj_name}">{obj_name[:32]}</span>', layout=widgets.Layout(width="220px", overflow="hidden")),
+                widgets.HTML(value=f'<span style="font-size:11px; color:{sev_color}; font-weight:600;">{severity}</span>', layout=widgets.Layout(width="35px")),
+                fix_btn,
+            ], layout=widgets.Layout(align_items="center", gap="4px", padding="1px 0", border_bottom="1px solid #f0f0f0"))
             rows.append(row_w)
 
         results_box.children = rows
