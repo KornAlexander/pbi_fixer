@@ -577,9 +577,19 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
                     txt = txt[2:]
                 elif txt.startswith("\n"):
                     txt = txt[1:]
+                old_val = preview.value
                 _suppressing_observe[0] = True
                 preview.value = txt
                 _suppressing_observe[0] = False
+                # Mark as dirty if formatting actually changed the text
+                if txt != old_val:
+                    _capture_current()
+                    _tree_stale[0] = True
+                    n = len(_pending_changes)
+                    save_btn.description = f"\u26a0\ufe0f {n} unsaved change(s)"
+                    save_btn.button_style = "danger"
+                    save_btn.disabled = False
+                    discard_btn.layout.display = ""
         except Exception:
             pass
         btn.disabled = False
