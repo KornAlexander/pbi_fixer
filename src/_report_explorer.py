@@ -259,6 +259,26 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="100px"))
 
     fixer_callbacks = fixer_callbacks or {}
+
+    def _run_fixer_with_pbir_gate(fixer_fn, report, page_name, workspace, scan_only=False):
+        """Run a fixer function. If it fails with PBIR error, offer auto-conversion."""
+        try:
+            fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
+            return True
+        except Exception as e:
+            err_msg = str(e)
+            if "PBIR format" in err_msg or "ReportWrapper" in err_msg:
+                set_status(conn_status, f"⚠️ '{report}' is PBIRLegacy — converting to PBIR…", "#ff9500")
+                try:
+                    from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+                    fix_upgrade_to_pbir(report=report, workspace=workspace, scan_only=False)
+                    set_status(conn_status, f"✓ Converted '{report}' to PBIR. Retrying…", "#34c759")
+                    fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
+                    return True
+                except Exception as e2:
+                    raise e2
+            else:
+                raise
     fixer_dropdown = widgets.Dropdown(
         options=["Select action..."] + list(fixer_callbacks.keys()),
         value="Select action...",
@@ -538,7 +558,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                                 from contextlib import redirect_stdout as _redirect
                                 buf = _io.StringIO()
                                 with _redirect(buf):
-                                    fixer_callbacks[fn](report=rpt, page_name=page, workspace=ws, scan_only=False)
+                                    _run_fixer_with_pbir_gate(fixer_callbacks[fn], report=rpt, page_name=page, workspace=ws, scan_only=False)
                                 set_status(conn_status, f"\u2713 {fn} applied.", "#34c759")
                             except Exception as e:
                                 set_status(conn_status, f"Error: {e}", "#ff3b30")
@@ -693,7 +713,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             try:
                 buf = _io.StringIO()
                 with _redirect(buf):
-                    fixer_callbacks[action](report=rpt, page_name=page, workspace=ws, scan_only=False)
+                    _run_fixer_with_pbir_gate(fixer_callbacks[action], report=rpt, page_name=page, workspace=ws, scan_only=False)
                 captured = buf.getvalue().rstrip()
                 if captured:
                     all_output.append(captured)
