@@ -677,17 +677,19 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
             # Determine what to refresh based on selection
             if key.startswith("partition:"):
-                # Refresh single partition's table
+                # Refresh single partition
                 parts = key.split(":", 2)
                 raw_table = parts[1] if len(parts) > 1 else ""
+                p_name = parts[2] if len(parts) > 2 else ""
                 if "\x1f" in raw_table:
                     ds, table_name = raw_table.split("\x1f", 1)
                 else:
                     ds = ds_input
                     table_name = raw_table
-                set_status(refresh_status, f"Refreshing table '{table_name}'…", GRAY_COLOR)
-                refresh_semantic_model(dataset=ds, refresh_type=r_type, workspace=ws, tables=[table_name])
-                set_status(refresh_status, f"✓ Table '{table_name}' refreshed.", "#34c759")
+                partition_ref = f"'{table_name}'[{p_name}]"
+                set_status(refresh_status, f"Refreshing partition {partition_ref}…", GRAY_COLOR)
+                refresh_semantic_model(dataset=ds, refresh_type=r_type, workspace=ws, partitions=[partition_ref])
+                set_status(refresh_status, f"✓ Partition {partition_ref} refreshed.", "#34c759")
             elif key.startswith("table:"):
                 raw_table = key.split(":", 1)[1]
                 if "\x1f" in raw_table:
