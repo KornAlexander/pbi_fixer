@@ -42,17 +42,41 @@ def _list_workspace_reports(workspace):
 def _load_report_data(report, workspace):
     """Load report structure via connect_report."""
     from sempy_labs.report import connect_report
-    import math
 
     def _safe_int(val, default=0):
         if val is None:
             return default
         try:
-            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            import pandas as pd
+            if pd.isna(val):
                 return default
+        except (TypeError, ValueError):
+            pass
+        try:
             return int(val)
+        except (TypeError, ValueError, OverflowError):
+            return default
+
+    def _safe_bool(val, default=False):
+        try:
+            import pandas as pd
+            if pd.isna(val):
+                return default
+        except (TypeError, ValueError):
+            pass
+        try:
+            return bool(val)
         except (TypeError, ValueError):
             return default
+
+    def _safe_str(val, default=""):
+        try:
+            import pandas as pd
+            if pd.isna(val):
+                return default
+        except (TypeError, ValueError):
+            pass
+        return str(val) if val is not None else default
 
     report_data = {"pages": {}, "format": "", "report_id": "", "workspace_id": ""}
 
@@ -64,25 +88,25 @@ def _load_report_data(report, workspace):
         visuals_df = rw.list_visuals()
 
         for _, row in pages_df.iterrows():
-            p_name = str(row.get("Page Name", row.get("Page Display Name", "")))
-            display_name = str(row.get("Page Display Name", p_name))
+            p_name = _safe_str(row.get("Page Name", row.get("Page Display Name", "")))
+            display_name = _safe_str(row.get("Page Display Name", p_name))
             p_info = {
                 "display_name": display_name,
                 "width": _safe_int(row.get("Width")),
                 "height": _safe_int(row.get("Height")),
-                "hidden": bool(row.get("Hidden", False)),
+                "hidden": _safe_bool(row.get("Hidden")),
                 "visual_count": _safe_int(row.get("Visual Count")),
                 "visuals": {},
             }
             report_data["pages"][p_name] = p_info
 
         for _, row in visuals_df.iterrows():
-            p_name = str(row.get("Page Name", row.get("Page Display Name", "")))
+            p_name = _safe_str(row.get("Page Name", row.get("Page Display Name", "")))
             if p_name not in report_data["pages"]:
                 continue
-            v_name = str(row.get("Visual Name", ""))
-            v_type = str(row.get("Type", ""))
-            display_type = str(row.get("Display Type", v_type))
+            v_name = _safe_str(row.get("Visual Name"))
+            v_type = _safe_str(row.get("Type"))
+            display_type = _safe_str(row.get("Display Type", v_type))
             report_data["pages"][p_name]["visuals"][v_name] = {
                 "type": v_type,
                 "display_type": display_type,
@@ -90,8 +114,8 @@ def _load_report_data(report, workspace):
                 "y": _safe_int(row.get("Y")),
                 "width": _safe_int(row.get("Width")),
                 "height": _safe_int(row.get("Height")),
-                "hidden": bool(row.get("Hidden", False)),
-                "title": str(row.get("Title", "")) if row.get("Title") else "",
+                "hidden": _safe_bool(row.get("Hidden")),
+                "title": _safe_str(row.get("Title")),
             }
 
     return report_data
