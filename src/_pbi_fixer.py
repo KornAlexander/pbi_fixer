@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.82"
+__version__ = "1.2.83"
 
 import ipywidgets as widgets
 import io
@@ -666,9 +666,10 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
     load_btn = widgets.Button(description="Run BPA", button_style="primary", layout=widgets.Layout(width="120px"))
     fix_all_btn = widgets.Button(description="\u26a1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
+    show_full_btn = widgets.Button(description="\U0001F4CB Show Full BPA", layout=widgets.Layout(width="150px"))
     conn_status = status_html()
     nav_row = widgets.HBox(
-        [load_btn, fix_all_btn, conn_status],
+        [load_btn, fix_all_btn, show_full_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -810,7 +811,35 @@ def _bpa_tab(workspace_input=None, report_input=None):
     load_btn.on_click(on_load)
     fix_all_btn.on_click(on_fix_all)
 
-    widget = widgets.VBox([nav_row, header_label, results_box], layout=widgets.Layout(padding="12px", gap="4px"))
+    # Output area for the native BPA HTML (rendered below the widget)
+    bpa_output = widgets.Output()
+
+    def on_show_full(_):
+        """Run run_model_bpa normally and display the native HTML output below."""
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
+        if not items:
+            set_status(conn_status, "Enter a semantic model name.", "#ff3b30")
+            return
+        show_full_btn.disabled = True
+        show_full_btn.description = "Loading\u2026"
+        bpa_output.clear_output()
+        with bpa_output:
+            for ds in items:
+                try:
+                    from sempy_labs import run_model_bpa
+                    run_model_bpa(dataset=ds, workspace=ws)
+                except Exception as e:
+                    from IPython.display import display, HTML
+                    display(HTML(f'<div style="color:red;">Error for {ds}: {e}</div>'))
+        show_full_btn.disabled = False
+        show_full_btn.description = "\U0001F4CB Show Full BPA"
+
+    show_full_btn.on_click(on_show_full)
+
+    widget = widgets.VBox([nav_row, header_label, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 # ---------------------------------------------------------------------------
