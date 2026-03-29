@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.83"
+__version__ = "1.2.84"
 
 import ipywidgets as widgets
 import io
@@ -412,6 +412,17 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         dfs = _vp_data[m_name]
         df_key = _DF_KEY_MAP.get(tab_name, tab_name)
         df = dfs.get(df_key)
+        # Model Summary: render as vertical key-value table
+        if tab_name == "Model Summary" and df is not None and len(df) > 0:
+            r = df.iloc[0]
+            html = f'<table style="border-collapse:collapse; font-size:13px; font-family:{FONT_FAMILY}; width:100%;">'
+            for col in df.columns:
+                val = _fmt_val(r.get(col, ""), col)
+                html += f'<tr><td style="padding:6px 12px; font-weight:600; color:#555; border-bottom:1px solid #f0f0f0; white-space:nowrap; width:200px;">{col}</td>'
+                html += f'<td style="padding:6px 12px; border-bottom:1px solid #f0f0f0;">{val}</td></tr>'
+            html += '</table>'
+            df_html.value = html
+            return
         sort_by = "Total Size" if df is not None and "Total Size" in df.columns else None
         df_html.value = _df_to_html(df, highlight_col=highlight_col, highlight_val=highlight_val, sort_by=sort_by)
 
