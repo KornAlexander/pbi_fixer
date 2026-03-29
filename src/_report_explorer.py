@@ -384,6 +384,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     )
     _report_widget = [None]  # current active widget
     _widget_cache = {}  # report_id -> PBIReport widget (don't recreate)
+    _widget_ws = {}    # report_id -> workspace_id (for refresh)
     refresh_btn = widgets.Button(description="\U0001F504 Refresh", layout=widgets.Layout(width="100px"))
     # Use a VBox as the container — we swap its children to show the Report widget
     preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="500px"))
@@ -398,6 +399,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             rpt_widget = PBIReport(group_id=workspace_id, report_id=report_id)
             rpt_widget.layout = widgets.Layout(width="100%", height="400px")
             _widget_cache[report_id] = rpt_widget
+            _widget_ws[report_id] = workspace_id
             return rpt_widget
         except Exception:
             return None
@@ -413,11 +415,13 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         """Force re-create the current report widget."""
         if _report_widget[0] is None:
             return
-        # Find the report_id from cache
         for rid, w in list(_widget_cache.items()):
             if w is _report_widget[0]:
+                ws_id = _widget_ws.get(rid, "")
                 del _widget_cache[rid]
-                _show_widget(rid, w.group_id if hasattr(w, 'group_id') else "")
+                if rid in _widget_ws:
+                    del _widget_ws[rid]
+                _show_widget(rid, ws_id)
                 break
 
     refresh_btn.on_click(on_refresh)
