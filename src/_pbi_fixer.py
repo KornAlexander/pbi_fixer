@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.89"
+__version__ = "1.2.90"
 
 import ipywidgets as widgets
 import io
@@ -916,7 +916,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
     bpa_output = widgets.Output()
 
     def on_show_full(_):
-        """Run run_model_bpa normally and display the native HTML output below."""
+        """Run run_model_bpa and capture its HTML output into the Output widget."""
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds_input = report_input.value.strip() if report_input else ""
@@ -926,15 +926,62 @@ def _bpa_tab(workspace_input=None, report_input=None):
             return
         show_full_btn.disabled = True
         show_full_btn.description = "Loading\u2026"
-        bpa_output.clear_output()
-        with bpa_output:
+        bpa_output.clear_output(wait=True)
+
+        # Capture HTML by intercepting display calls
+        captured_html = []
+        import IPython.display as _ipd
+        import IPython.core.display_functions as _idf
+        _orig1 = _ipd.display
+        _orig2 = getattr(_idf, 'display', None)
+
+        def _capture(*args, **kwargs):
+            for a in args:
+                if hasattr(a, 'data') and isinstance(a.data, str):
+                    captured_html.append(a.data)
+                elif hasattr(a, '_repr_html_'):
+                    captured_html.append(a._repr_html_())
+
+        _ipd.display = _capture
+        if _orig2:
+            _idf.display = _capture
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        try:
             for ds in items:
                 try:
-                    from sempy_labs import run_model_bpa
-                    run_model_bpa(dataset=ds, workspace=ws)
+                    buf = _io.StringIO()
+                    # Also patch the display in _model_bpa module
+                    try:
+                        import sempy_labs._model_bpa as _bpa_mod
+                        _orig_bpa = getattr(_bpa_mod, 'display', None)
+                        _bpa_mod.display = _capture
+                    except Exception:
+                        _bpa_mod = None
+                        _orig_bpa = None
+                    try:
+                        with _redirect(buf):
+                            from sempy_labs import run_model_bpa
+                            run_model_bpa(dataset=ds, workspace=ws)
+                    finally:
+                        if _bpa_mod and _orig_bpa:
+                            _bpa_mod.display = _orig_bpa
                 except Exception as e:
-                    from IPython.display import display, HTML
-                    display(HTML(f'<div style="color:red;">Error for {ds}: {e}</div>'))
+                    captured_html.append(f'<div style="color:red;">Error for {ds}: {e}</div>')
+        finally:
+            _ipd.display = _orig1
+            if _orig2:
+                _idf.display = _orig2
+
+        # Render captured HTML inside the Output widget
+        with bpa_output:
+            from IPython.display import display as _real_display, HTML as _HTML
+            if captured_html:
+                _real_display(_HTML("\n".join(captured_html)))
+            else:
+                _real_display(_HTML('<div style="color:#888;">No output captured.</div>'))
+
         show_full_btn.disabled = False
         show_full_btn.description = "\U0001F4CB Show Full BPA"
 
