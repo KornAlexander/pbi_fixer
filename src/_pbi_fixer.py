@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.84"
+__version__ = "1.2.85"
 
 import ipywidgets as widgets
 import io
@@ -663,17 +663,37 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Hidden '{table}'[{obj}]"
 
-    # Map BPA rule IDs to fix functions
+    # Map BPA Rule Names to fix functions
     _fix_map = {
-        "AVOID_FLOATING_POINT_DATA_TYPES": _fix_floating_point,
-        "ISAVAILABLEINMDX_FALSE_NONATTRIBUTE_COLUMNS": _fix_isavailableinmdx,
-        "DATECOLUMN_FORMATSTRING": _fix_date_format,
-        "MONTHCOLUMN_FORMATSTRING": _fix_month_format,
-        "INTEGER_FORMATTING": _fix_integer_format,
-        "HIDE_FOREIGN_KEYS": _fix_hide_foreign_key,
+        "Do not use floating point data types": _fix_floating_point,
+        "Set IsAvailableInMdx to false on non-attribute columns": _fix_isavailableinmdx,
+        "Provide format string for 'Date' columns": _fix_date_format,
+        "Provide format string for 'Month' columns": _fix_month_format,
+        "Provide format string for measures": _fix_integer_format,
+        "Hide foreign keys": _fix_hide_foreign_key,
     }
-    # Special: description fix only for measures
-    _desc_fix_rule = "OBJECTS_WITH_NO_DESCRIPTION"
+    _desc_fix_rule = "Visible objects with no description"
+
+    def _parse_table_object(obj_name, obj_type):
+        """Parse table and object from BPA Object Name. Columns are 'Table'[Col], measures are just Name."""
+        import re
+        m = re.match(r"'([^']+)'\[([^\]]+)\]", obj_name)
+        if m:
+            return m.group(1), m.group(2)
+        # Measure or table — just the name
+        return "", obj_name
+
+    def _is_fixable(rule_name, obj_type):
+        return rule_name in _fix_map or (rule_name == _desc_fix_rule and obj_type == "Measure")
+
+    def _apply_fix(ds, ws, rule_name, obj_type, obj_name):
+        """Apply a single BPA fix. Returns message or raises."""
+        table_name, item_name = _parse_table_object(obj_name, obj_type)
+        if rule_name in _fix_map:
+            return _fix_map[rule_name](ds, ws, table_name, item_name)
+        if rule_name == _desc_fix_rule and obj_type == "Measure":
+            return _fix_description_measure(ds, ws, table_name, item_name)
+        return None
 
     load_btn = widgets.Button(description="Run BPA", button_style="primary", layout=widgets.Layout(width="120px"))
     fix_all_btn = widgets.Button(description="\u26a1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
@@ -681,6 +701,18 @@ def _bpa_tab(workspace_input=None, report_input=None):
     conn_status = status_html()
     nav_row = widgets.HBox(
         [load_btn, fix_all_btn, show_full_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    # Fix by rule dropdown
+    rule_dropdown = widgets.Dropdown(options=["(no findings)"], value="(no findings)", layout=widgets.Layout(width="320px"))
+    fix_rule_btn = widgets.Button(description="\u26a1 Fix Rule", button_style="warning", layout=widgets.Layout(width="100px"))
+    # Fix single row
+    row_input = widgets.IntText(value=1, layout=widgets.Layout(width="60px"))
+    fix_row_btn = widgets.Button(description="Fix Row", button_style="warning", layout=widgets.Layout(width="80px"))
+    row_label = widgets.HTML(value=f'<span style="font-size:11px; color:#555; font-family:{FONT_FAMILY};">Row #:</span>')
+    fix_row = widgets.HBox(
+        [rule_dropdown, fix_rule_btn, row_label, row_input, fix_row_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -696,7 +728,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan.</div>'
     )]
 
-    _all_findings = []  # [(ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name), ...]
+    _all_findings = []  # [(ds, rule_name, category, obj_name, obj_type, severity), ...]
 
     def on_load(_):
         nonlocal _all_findings
@@ -730,22 +762,34 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
                 if df is not None and len(df) > 0:
                     for _, row in df.iterrows():
-                        rule_id = str(row.get("Rule ID", row.get("ID", "")))
                         rule_name = str(row.get("Rule Name", ""))
                         category = str(row.get("Category", ""))
                         obj_name = str(row.get("Object Name", ""))
                         obj_type = str(row.get("Object Type", ""))
                         severity = str(row.get("Severity", ""))
-                        table_name = str(row.get("Table Name", ""))
-                        _all_findings.append((ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name))
+                        _all_findings.append((ds, rule_name, category, obj_name, obj_type, severity))
             except Exception as e:
-                _all_findings.append((ds, "ERROR", str(e), "Error", "", "", "3", ""))
+                _all_findings.append((ds, f"ERROR: {e}", "Error", "", "", "3"))
 
         _build_results(ws)
-        n = len([f for f in _all_findings if f[1] != "ERROR"])
+        _update_rule_dropdown()
+        n = len([f for f in _all_findings if not f[1].startswith("ERROR")])
         set_status(conn_status, f"\u2713 BPA: {n} finding(s) across {len(items)} model(s).", "#34c759" if n == 0 else "#ff9500")
         load_btn.disabled = False
         load_btn.description = "Run BPA"
+
+    def _update_rule_dropdown():
+        """Populate rule dropdown with fixable rules + counts."""
+        from collections import Counter
+        fixable = [(f[1], f[4]) for f in _all_findings if _is_fixable(f[1], f[4])]
+        counts = Counter(r for r, _ in fixable)
+        if counts:
+            opts = [f"{name} ({count})" for name, count in sorted(counts.items())]
+            rule_dropdown.options = opts
+            rule_dropdown.value = opts[0]
+        else:
+            rule_dropdown.options = ["(no fixable rules)"]
+            rule_dropdown.value = "(no fixable rules)"
 
     def _build_results(ws):
         if not _all_findings:
@@ -754,44 +798,38 @@ def _bpa_tab(workspace_input=None, report_input=None):
             )]
             return
 
-        # Build a single HTML table for all findings
         html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
         html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
         for hdr in ["#", "Model", "Rule", "Type", "Object", "Sev", "Fixable"]:
             html += f'<th style="text-align:left; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{hdr}</th>'
         html += '</tr>'
 
-        fixable_indices = []
-        for idx, (ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name) in enumerate(_all_findings):
-            if rule_id == "ERROR":
+        n_fixable = 0
+        for idx, (ds, rule_name, category, obj_name, obj_type, severity) in enumerate(_all_findings):
+            if rule_name.startswith("ERROR"):
                 html += f'<tr><td colspan="7" style="color:#ff3b30; padding:3px 8px;">\u274c {ds}: {rule_name}</td></tr>'
                 continue
             sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
-            has_fix = rule_id in _fix_map or (rule_id == _desc_fix_rule and obj_type == "Measure")
+            has_fix = _is_fixable(rule_name, obj_type)
             if has_fix:
-                fixable_indices.append(idx)
+                n_fixable += 1
             fix_icon = f'<span style="color:#34c759;">\u2713</span>' if has_fix else '\u2014'
             html += f'<tr>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{idx+1}</td>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{ds}">{ds[:16]}</td>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT}; white-space:nowrap;" title="{rule_name}">{rule_name[:35]}</td>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{obj_type[:10]}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{table_name}.{obj_name}">{obj_name[:35]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{obj_name}">{obj_name[:35]}</td>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{sev_color}; font-weight:600;">{severity}</td>'
             html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; text-align:center;">{fix_icon}</td>'
             html += '</tr>'
         html += '</table></div>'
 
-        table_html = widgets.HTML(value=html)
-
-        # Summary line
-        n_fixable = len(fixable_indices)
         summary = widgets.HTML(
             value=f'<div style="font-size:12px; font-family:{FONT_FAMILY}; color:#555; margin:8px 0 4px 0;">'
             f'{len(_all_findings)} finding(s), <b>{n_fixable}</b> auto-fixable</div>'
         )
-
-        results_box.children = [table_html, summary]
+        results_box.children = [widgets.HTML(value=html), summary]
 
     def on_fix_all(_):
         """Fix all fixable violations."""
@@ -803,15 +841,12 @@ def _bpa_tab(workspace_input=None, report_input=None):
         fix_all_btn.description = "Fixing\u2026"
         fixed = 0
         errors = 0
-        for ds, rule_id, rule_name, category, obj_name, obj_type, severity, table_name in _all_findings:
-            if rule_id == "ERROR":
+        for ds, rule_name, category, obj_name, obj_type, severity in _all_findings:
+            if rule_name.startswith("ERROR"):
                 continue
             try:
-                if rule_id in _fix_map:
-                    _fix_map[rule_id](ds, ws, table_name, obj_name)
-                    fixed += 1
-                elif rule_id == _desc_fix_rule and obj_type == "Measure":
-                    _fix_description_measure(ds, ws, table_name, obj_name)
+                result = _apply_fix(ds, ws, rule_name, obj_type, obj_name)
+                if result:
                     fixed += 1
             except Exception:
                 errors += 1
@@ -819,8 +854,59 @@ def _bpa_tab(workspace_input=None, report_input=None):
         fix_all_btn.disabled = False
         fix_all_btn.description = "\u26a1 Fix All"
 
+    def on_fix_rule(_):
+        """Fix all violations of the selected rule."""
+        selected = rule_dropdown.value
+        if not selected or selected.startswith("("):
+            return
+        # Extract rule name (strip count suffix)
+        import re
+        m = re.match(r"(.+)\s+\(\d+\)$", selected)
+        target_rule = m.group(1) if m else selected
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        fix_rule_btn.disabled = True
+        fix_rule_btn.description = "Fixing\u2026"
+        fixed = 0
+        errors = 0
+        for ds, rule_name, category, obj_name, obj_type, severity in _all_findings:
+            if rule_name != target_rule:
+                continue
+            try:
+                result = _apply_fix(ds, ws, rule_name, obj_type, obj_name)
+                if result:
+                    fixed += 1
+            except Exception:
+                errors += 1
+        set_status(conn_status, f"\u2713 '{target_rule}': fixed {fixed}, {errors} error(s).", "#34c759" if errors == 0 else "#ff9500")
+        fix_rule_btn.disabled = False
+        fix_rule_btn.description = "\u26a1 Fix Rule"
+
+    def on_fix_row(_):
+        """Fix a single violation by row number."""
+        idx = row_input.value - 1  # 1-based to 0-based
+        if idx < 0 or idx >= len(_all_findings):
+            set_status(conn_status, f"Row {idx+1} out of range (1-{len(_all_findings)}).", "#ff3b30")
+            return
+        ds, rule_name, category, obj_name, obj_type, severity = _all_findings[idx]
+        if rule_name.startswith("ERROR"):
+            set_status(conn_status, "Cannot fix error row.", "#ff3b30")
+            return
+        if not _is_fixable(rule_name, obj_type):
+            set_status(conn_status, f"Row {idx+1} has no auto-fix for '{rule_name}'.", "#ff9500")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        try:
+            msg = _apply_fix(ds, ws, rule_name, obj_type, obj_name)
+            set_status(conn_status, f"\u2713 Row {idx+1}: {msg}", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error row {idx+1}: {e}", "#ff3b30")
+
     load_btn.on_click(on_load)
     fix_all_btn.on_click(on_fix_all)
+    fix_rule_btn.on_click(on_fix_rule)
+    fix_row_btn.on_click(on_fix_row)
 
     # Output area for the native BPA HTML (rendered below the widget)
     bpa_output = widgets.Output()
@@ -850,7 +936,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
     show_full_btn.on_click(on_show_full)
 
-    widget = widgets.VBox([nav_row, header_label, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, fix_row, header_label, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 # ---------------------------------------------------------------------------
