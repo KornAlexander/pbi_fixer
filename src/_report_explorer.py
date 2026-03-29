@@ -378,6 +378,27 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Report Structure</div>'
     )
 
+    def _load_with_pbir_gate(rpt_name, ws):
+        """Try loading report, auto-convert to PBIR if needed."""
+        try:
+            return _load_report_data(report=rpt_name, workspace=ws)
+        except Exception as e:
+            err_msg = str(e)
+            if "PBIR format" in err_msg or "ReportWrapper" in err_msg:
+                set_status(conn_status, f"\u26a0\ufe0f '{rpt_name}' is PBIRLegacy \u2014 converting to PBIR\u2026", "#ff9500")
+                try:
+                    import sempy_labs.report as _rep
+                    _rep.upgrade_to_pbir(report=rpt_name, workspace=ws)
+                except Exception:
+                    try:
+                        from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+                        fix_upgrade_to_pbir(report=rpt_name, workspace=ws, scan_only=False)
+                    except Exception as e2:
+                        raise RuntimeError(f"PBIR conversion failed: {e2}") from e
+                set_status(conn_status, f"\u2713 Converted '{rpt_name}' to PBIR. Loading\u2026", "#34c759")
+                return _load_report_data(report=rpt_name, workspace=ws)
+            raise
+
     def on_load(_):
         nonlocal _report_data, _key_map
         _expanded.clear()
@@ -417,7 +438,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         try:
             if len(items) == 1:
                 # Single report: load into flat structure
-                _report_data = _load_report_data(report=items[0], workspace=ws)
+                _report_data = _load_with_pbir_gate(rpt_name=items[0], ws=ws)
                 loaded = 1
             else:
                 # Multi-report: load each into grouped structure
@@ -428,7 +449,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                         break
                     set_status(conn_status, f"Report {i+1}/{len(items)}: loading '{rpt}'\u2026", GRAY_COLOR)
                     try:
-                        data = _load_report_data(report=rpt, workspace=ws)
+                        data = _load_with_pbir_gate(rpt_name=rpt, ws=ws)
                         merged["reports"][rpt] = data
                         if not merged["report_id"]:
                             merged["report_id"] = data.get("report_id", "")
