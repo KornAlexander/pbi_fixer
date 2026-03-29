@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.86"
+__version__ = "1.2.87"
 
 import ipywidgets as widgets
 import io
@@ -939,6 +939,223 @@ def _bpa_tab(workspace_input=None, report_input=None):
     widget = widgets.VBox([nav_row, fix_row, header_label, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
+
+# ---------------------------------------------------------------------------
+# Delta Analyzer tab (inline)
+# ---------------------------------------------------------------------------
+def _delta_analyzer_tab(workspace_input=None, report_input=None):
+    """Build the Delta Analyzer tab with full DataFrame subtabs."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    _da_data = {}  # dict of DataFrames from delta_analyzer
+
+    table_input = widgets.Text(placeholder="Delta table name", layout=widgets.Layout(width="200px"))
+    lakehouse_input = widgets.Text(placeholder="Lakehouse (optional)", layout=widgets.Layout(width="180px"))
+    schema_input = widgets.Text(placeholder="Schema (optional)", layout=widgets.Layout(width="130px"))
+    col_stats_cb = widgets.Checkbox(value=True, description="Column stats", indent=False, layout=widgets.Layout(width="120px"))
+    cardinality_cb = widgets.Checkbox(value=False, description="Cardinality", indent=False, layout=widgets.Layout(width="110px"))
+    load_btn = widgets.Button(description="Analyze", button_style="primary", layout=widgets.Layout(width="100px"))
+    show_native_btn = widgets.Button(description="\U0001F4CB Show Native", layout=widgets.Layout(width="130px"))
+    conn_status = status_html()
+
+    input_row = widgets.HBox(
+        [table_input, lakehouse_input, schema_input, col_stats_cb, cardinality_cb],
+        layout=widgets.Layout(align_items="center", gap="6px", margin="0 0 4px 0"),
+    )
+    nav_row = widgets.HBox(
+        [load_btn, show_native_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    _DF_TABS = ["Summary", "Parquet Files", "Row Groups", "Column Chunks", "Columns"]
+    subtab_selector = widgets.ToggleButtons(
+        options=_DF_TABS,
+        value="Summary",
+        layout=widgets.Layout(width="100%"),
+        style={"button_width": "auto", "font_weight": "bold"},
+    )
+    df_html = widgets.HTML(
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Enter a delta table name and click Analyze.</div>',
+    )
+    df_container = widgets.VBox(
+        [df_html],
+        layout=widgets.Layout(
+            max_height="450px", overflow_y="auto", overflow_x="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+    native_output = widgets.Output()
+
+    def _fmt_bytes(n):
+        try:
+            if n is None or (isinstance(n, float) and n != n):
+                return "\u2014"
+            n = int(n)
+        except (TypeError, ValueError):
+            return "\u2014"
+        if n < 1024:
+            return f"{n} B"
+        if n < 1024 * 1024:
+            return f"{n / 1024:.1f} KB"
+        if n < 1024 * 1024 * 1024:
+            return f"{n / (1024 * 1024):.1f} MB"
+        return f"{n / (1024 * 1024 * 1024):.2f} GB"
+
+    def _fmt_val(val, col_name):
+        if val is None or (isinstance(val, float) and val != val):
+            return "\u2014"
+        if "Size" in col_name or "Bytes" in col_name:
+            return _fmt_bytes(val)
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and val == int(val):
+                try:
+                    return f"{int(val):,}"
+                except (TypeError, ValueError):
+                    return str(val)
+            if isinstance(val, float):
+                return f"{val:,.1f}"
+            return f"{val:,}"
+        return str(val)
+
+    def _df_to_html(df, sort_by=None):
+        if df is None or len(df) == 0:
+            return f'<div style="color:{GRAY_COLOR}; font-size:13px;">No data available.</div>'
+        if sort_by and sort_by in df.columns:
+            df = df.sort_values(sort_by, ascending=False)
+        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
+        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
+        for col in df.columns:
+            align = "right" if any(k in col for k in ("Size", "Count", "Bytes", "Rows", "%", "Cardinality", "Min", "Max", "Avg")) else "left"
+            html += f'<th style="text-align:{align}; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{col}</th>'
+        html += '</tr>'
+        for _, row in df.iterrows():
+            html += '<tr>'
+            for col in df.columns:
+                val = row.get(col, "")
+                align = "right" if any(k in col for k in ("Size", "Count", "Bytes", "Rows", "%", "Cardinality", "Min", "Max", "Avg")) else "left"
+                html += f'<td style="text-align:{align}; padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{_fmt_val(val, col)}</td>'
+            html += '</tr>'
+        html += '</table></div>'
+        return html
+
+    def _render_subtab(tab_name=None):
+        tab_name = tab_name or subtab_selector.value
+        df = _da_data.get(tab_name)
+        # Summary is single-row — render vertically
+        if tab_name == "Summary" and df is not None and len(df) > 0:
+            r = df.iloc[0]
+            html = f'<table style="border-collapse:collapse; font-size:13px; font-family:{FONT_FAMILY}; width:100%;">'
+            for col in df.columns:
+                val = _fmt_val(r.get(col, ""), col)
+                html += f'<tr><td style="padding:6px 12px; font-weight:600; color:#555; border-bottom:1px solid #f0f0f0; width:250px;">{col}</td>'
+                html += f'<td style="padding:6px 12px; border-bottom:1px solid #f0f0f0;">{val}</td></tr>'
+            html += '</table>'
+            df_html.value = html
+            return
+        sort_by = None
+        if df is not None:
+            for c in ["Compressed Size", "Total Size", "Size", "Uncompressed Size"]:
+                if c in df.columns:
+                    sort_by = c
+                    break
+        df_html.value = _df_to_html(df, sort_by=sort_by)
+
+    def on_subtab_change(change):
+        _render_subtab(change.get("new"))
+
+    subtab_selector.observe(on_subtab_change, names="value")
+
+    def on_load(_):
+        nonlocal _da_data
+        t_name = table_input.value.strip()
+        if not t_name:
+            set_status(conn_status, "Enter a delta table name.", "#ff3b30")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        lh = lakehouse_input.value.strip() or None
+        sch = schema_input.value.strip() or None
+        load_btn.disabled = True
+        load_btn.description = "Analyzing\u2026"
+        set_status(conn_status, f"Analyzing '{t_name}'\u2026", GRAY_COLOR)
+        try:
+            import io as _io
+            from contextlib import redirect_stdout as _redirect
+            import IPython.display as _ipd
+            _orig_display = _ipd.display
+            _ipd.display = lambda *a, **kw: None
+            try:
+                buf = _io.StringIO()
+                with _redirect(buf):
+                    from sempy_labs import delta_analyzer as _da_fn
+                    result = _da_fn(
+                        table_name=t_name,
+                        lakehouse=lh,
+                        workspace=ws,
+                        column_stats=col_stats_cb.value,
+                        skip_cardinality=not cardinality_cb.value,
+                        schema=sch,
+                        visualize=False,
+                    )
+            finally:
+                _ipd.display = _orig_display
+            _da_data = result
+            _render_subtab()
+            n_keys = len(result)
+            set_status(conn_status, f"\u2713 Delta Analyzer: {n_keys} views loaded for '{t_name}'.", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error: {e}", "#ff3b30")
+        finally:
+            load_btn.disabled = False
+            load_btn.description = "Analyze"
+
+    def on_show_native(_):
+        """Run delta_analyzer with visualize=True and show the native HTML output below."""
+        t_name = table_input.value.strip()
+        if not t_name:
+            set_status(conn_status, "Enter a delta table name.", "#ff3b30")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        lh = lakehouse_input.value.strip() or None
+        sch = schema_input.value.strip() or None
+        show_native_btn.disabled = True
+        show_native_btn.description = "Loading\u2026"
+        native_output.clear_output()
+        with native_output:
+            try:
+                from sempy_labs import delta_analyzer as _da_fn
+                _da_fn(
+                    table_name=t_name,
+                    lakehouse=lh,
+                    workspace=ws,
+                    column_stats=col_stats_cb.value,
+                    skip_cardinality=not cardinality_cb.value,
+                    schema=sch,
+                    visualize=True,
+                )
+            except Exception as e:
+                from IPython.display import display, HTML
+                display(HTML(f'<div style="color:red;">Error: {e}</div>'))
+        show_native_btn.disabled = False
+        show_native_btn.description = "\U0001F4CB Show Native"
+
+    load_btn.on_click(on_load)
+    show_native_btn.on_click(on_show_native)
+
+    header_label = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Delta Analyzer</div>'
+        f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; font-style:italic; margin-bottom:4px;">'
+        f'Analyzes delta table structure: parquet files, row groups, column chunks, and column statistics.</div>'
+    )
+
+    tab_widget = widgets.VBox([input_row, nav_row, header_label, subtab_selector, df_container, native_output], layout=widgets.Layout(padding="12px", gap="4px"))
+    return tab_widget
+
 # ---------------------------------------------------------------------------
 # Timeout constants
 # ---------------------------------------------------------------------------
@@ -1133,6 +1350,7 @@ def pbi_fixer(
         _tab_options.append("\U0001F441 Perspectives")
     _tab_options.append("\U0001F4BE Memory Analyzer")
     _tab_options.append("\U0001F4CB BPA")
+    _tab_options.append("\U0001F4D0 Delta Analyzer")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -1712,6 +1930,12 @@ def pbi_fixer(
         workspace_input=workspace_input, report_input=report_input
     )
     tab_panels.append(bpa_content)
+
+    # Delta Analyzer tab
+    da_content = _delta_analyzer_tab(
+        workspace_input=workspace_input, report_input=report_input
+    )
+    tab_panels.append(da_content)
 
     # About tab
     about_content = widgets.HTML(
