@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.87"
+__version__ = "1.2.88"
 
 import ipywidgets as widgets
 import io
@@ -941,6 +941,176 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
 
 # ---------------------------------------------------------------------------
+# Report BPA tab (inline)
+# ---------------------------------------------------------------------------
+def _report_bpa_tab(workspace_input=None, report_input=None):
+    """Build the Report BPA tab — runs run_report_bpa and shows results."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    load_btn = widgets.Button(description="Run Report BPA", button_style="primary", layout=widgets.Layout(width="140px"))
+    show_full_btn = widgets.Button(description="\U0001F4CB Show Native", layout=widgets.Layout(width="130px"))
+    conn_status = status_html()
+    nav_row = widgets.HBox(
+        [load_btn, show_full_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+    header_label = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Report Best Practice Analyzer</div>'
+        f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; font-style:italic; margin-bottom:4px;">'
+        f'\u2139\ufe0f Requires PBIR format. Auto-converts PBIRLegacy if needed.</div>'
+    )
+    results_box = widgets.VBox(layout=widgets.Layout(
+        max_height="400px", overflow_y="auto",
+        border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+        padding="8px", background_color=SECTION_BG,
+    ))
+    results_box.children = [widgets.HTML(
+        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run Report BPA to scan.</div>'
+    )]
+    native_output = widgets.Output()
+
+    _all_findings = []
+
+    def on_load(_):
+        nonlocal _all_findings
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        rpt_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in rpt_input.split(",") if x.strip()] if rpt_input else []
+        if not items:
+            set_status(conn_status, "Enter a report name.", "#ff3b30")
+            return
+        load_btn.disabled = True
+        load_btn.description = "Scanning\u2026"
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        import IPython.display as _ipd
+        _orig_display = _ipd.display
+
+        _all_findings = []
+
+        for i, rpt in enumerate(items):
+            set_status(conn_status, f"Report BPA {i+1}/{len(items)}: '{rpt}'\u2026", GRAY_COLOR)
+            try:
+                buf = _io.StringIO()
+                _ipd.display = lambda *a, **kw: None
+                try:
+                    with _redirect(buf):
+                        from sempy_labs.report import run_report_bpa
+                        df = run_report_bpa(report=rpt, workspace=ws, return_dataframe=True)
+                finally:
+                    _ipd.display = _orig_display
+                if df is not None and len(df) > 0:
+                    for _, row in df.iterrows():
+                        _all_findings.append((
+                            rpt,
+                            str(row.get("Rule Name", "")),
+                            str(row.get("Category", "")),
+                            str(row.get("Object Name", "")),
+                            str(row.get("Object Type", "")),
+                            str(row.get("Severity", "")),
+                        ))
+            except Exception as e:
+                err_msg = str(e)
+                if "PBIR format" in err_msg or "ReportWrapper" in err_msg:
+                    set_status(conn_status, f"\u26a0\ufe0f '{rpt}' is PBIRLegacy \u2014 converting\u2026", "#ff9500")
+                    try:
+                        import sempy_labs.report as _rep
+                        _rep.upgrade_to_pbir(report=rpt, workspace=ws)
+                        set_status(conn_status, f"\u2713 Converted. Retrying scan\u2026", "#34c759")
+                        buf = _io.StringIO()
+                        _ipd.display = lambda *a, **kw: None
+                        try:
+                            with _redirect(buf):
+                                from sempy_labs.report import run_report_bpa
+                                df = run_report_bpa(report=rpt, workspace=ws, return_dataframe=True)
+                        finally:
+                            _ipd.display = _orig_display
+                        if df is not None and len(df) > 0:
+                            for _, row in df.iterrows():
+                                _all_findings.append((
+                                    rpt,
+                                    str(row.get("Rule Name", "")),
+                                    str(row.get("Category", "")),
+                                    str(row.get("Object Name", "")),
+                                    str(row.get("Object Type", "")),
+                                    str(row.get("Severity", "")),
+                                ))
+                    except Exception as e2:
+                        _all_findings.append((rpt, f"ERROR: {e2}", "Error", "", "", "3"))
+                else:
+                    _all_findings.append((rpt, f"ERROR: {e}", "Error", "", "", "3"))
+
+        _build_results()
+        n = len([f for f in _all_findings if not f[1].startswith("ERROR")])
+        set_status(conn_status, f"\u2713 Report BPA: {n} finding(s) across {len(items)} report(s).", "#34c759" if n == 0 else "#ff9500")
+        load_btn.disabled = False
+        load_btn.description = "Run Report BPA"
+
+    def _build_results():
+        if not _all_findings:
+            results_box.children = [widgets.HTML(
+                value=f'<div style="color:#34c759; font-size:14px; font-weight:600;">\u2713 No violations found.</div>'
+            )]
+            return
+        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
+        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
+        for hdr in ["#", "Report", "Rule", "Type", "Object", "Sev"]:
+            html += f'<th style="text-align:left; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{hdr}</th>'
+        html += '</tr>'
+        for idx, (rpt, rule_name, category, obj_name, obj_type, severity) in enumerate(_all_findings):
+            if rule_name.startswith("ERROR"):
+                html += f'<tr><td colspan="6" style="color:#ff3b30; padding:3px 8px;">\u274c {rpt}: {rule_name}</td></tr>'
+                continue
+            sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
+            html += '<tr>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{idx+1}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{rpt}">{rpt[:16]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT}; white-space:nowrap;" title="{rule_name}">{rule_name[:40]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{obj_type[:12]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{obj_name}">{obj_name[:40]}</td>'
+            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{sev_color}; font-weight:600;">{severity}</td>'
+            html += '</tr>'
+        html += '</table></div>'
+        summary = widgets.HTML(
+            value=f'<div style="font-size:12px; font-family:{FONT_FAMILY}; color:#555; margin:8px 0 4px 0;">'
+            f'{len(_all_findings)} finding(s)</div>'
+        )
+        results_box.children = [widgets.HTML(value=html), summary]
+
+    def on_show_native(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        rpt_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in rpt_input.split(",") if x.strip()] if rpt_input else []
+        if not items:
+            set_status(conn_status, "Enter a report name.", "#ff3b30")
+            return
+        show_full_btn.disabled = True
+        show_full_btn.description = "Loading\u2026"
+        native_output.clear_output()
+        with native_output:
+            for rpt in items:
+                try:
+                    from sempy_labs.report import run_report_bpa
+                    run_report_bpa(report=rpt, workspace=ws)
+                except Exception as e:
+                    from IPython.display import display, HTML
+                    display(HTML(f'<div style="color:red;">Error for {rpt}: {e}</div>'))
+        show_full_btn.disabled = False
+        show_full_btn.description = "\U0001F4CB Show Native"
+
+    load_btn.on_click(on_load)
+    show_full_btn.on_click(on_show_native)
+
+    widget = widgets.VBox([nav_row, header_label, results_box, native_output], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
+
+
+# ---------------------------------------------------------------------------
 # Delta Analyzer tab (inline)
 # ---------------------------------------------------------------------------
 def _delta_analyzer_tab(workspace_input=None, report_input=None):
@@ -1350,6 +1520,7 @@ def pbi_fixer(
         _tab_options.append("\U0001F441 Perspectives")
     _tab_options.append("\U0001F4BE Memory Analyzer")
     _tab_options.append("\U0001F4CB BPA")
+    _tab_options.append("\U0001F4C4 Report BPA")
     _tab_options.append("\U0001F4D0 Delta Analyzer")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
@@ -1930,6 +2101,12 @@ def pbi_fixer(
         workspace_input=workspace_input, report_input=report_input
     )
     tab_panels.append(bpa_content)
+
+    # Report BPA tab
+    rpt_bpa_content = _report_bpa_tab(
+        workspace_input=workspace_input, report_input=report_input
+    )
+    tab_panels.append(rpt_bpa_content)
 
     # Delta Analyzer tab
     da_content = _delta_analyzer_tab(
