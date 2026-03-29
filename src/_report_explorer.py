@@ -261,24 +261,39 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     fixer_callbacks = fixer_callbacks or {}
 
     def _run_fixer_with_pbir_gate(fixer_fn, report, page_name, workspace, scan_only=False):
-        """Run a fixer function. If it fails with PBIR error, offer auto-conversion."""
+        """Run a fixer function. If it fails with PBIR error, attempt conversion then retry."""
         try:
             fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
             return True
         except Exception as e:
             err_msg = str(e)
-            if "PBIR format" in err_msg or "ReportWrapper" in err_msg:
-                set_status(conn_status, f"⚠️ '{report}' is PBIRLegacy — converting to PBIR…", "#ff9500")
+            if "PBIR format" not in err_msg and "ReportWrapper" not in err_msg:
+                raise
+            set_status(conn_status, f"\u26a0\ufe0f '{report}' is PBIRLegacy \u2014 attempting conversion\u2026", "#ff9500")
+            converted = False
+            try:
+                import sempy_labs.report as _rep
+                resolved_ws = workspace
+                if resolved_ws is None:
+                    from sempy_labs._helper_functions import resolve_workspace_name_and_id
+                    resolved_ws = resolve_workspace_name_and_id(None)[0]
+                _rep.upgrade_to_pbir(report=report, workspace=resolved_ws)
+                converted = True
+            except Exception:
+                pass
+            if not converted:
                 try:
                     from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
                     fix_upgrade_to_pbir(report=report, workspace=workspace, scan_only=False)
-                    set_status(conn_status, f"✓ Converted '{report}' to PBIR. Retrying…", "#34c759")
-                    fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
-                    return True
-                except Exception as e2:
-                    raise e2
-            else:
-                raise
+                    converted = True
+                except Exception:
+                    pass
+            if converted:
+                set_status(conn_status, f"Retrying fixer on '{report}'\u2026", GRAY_COLOR)
+                fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
+                return True
+            set_status(conn_status, f"\u26a0\ufe0f '{report}' could not be converted to PBIR. Convert manually in Power BI Desktop.", "#ff3b30")
+            return False
     fixer_dropdown = widgets.Dropdown(
         options=["Select action..."] + list(fixer_callbacks.keys()),
         value="Select action...",
@@ -379,25 +394,45 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     )
 
     def _load_with_pbir_gate(rpt_name, ws):
-        """Try loading report, auto-convert to PBIR if needed."""
+        """Try loading report, auto-convert to PBIR if needed, fall back to basic info."""
         try:
             return _load_report_data(report=rpt_name, workspace=ws)
         except Exception as e:
             err_msg = str(e)
-            if "PBIR format" in err_msg or "ReportWrapper" in err_msg:
-                set_status(conn_status, f"\u26a0\ufe0f '{rpt_name}' is PBIRLegacy \u2014 converting to PBIR\u2026", "#ff9500")
+            if "PBIR format" not in err_msg and "ReportWrapper" not in err_msg:
+                raise
+            # Report is PBIRLegacy — try conversion
+            set_status(conn_status, f"\u26a0\ufe0f '{rpt_name}' is PBIRLegacy \u2014 attempting conversion\u2026", "#ff9500")
+            converted = False
+            # Method 1: upstream upgrade_to_pbir (needs resolved workspace)
+            try:
+                import sempy_labs.report as _rep
+                resolved_ws = ws
+                if resolved_ws is None:
+                    from sempy_labs._helper_functions import resolve_workspace_name_and_id
+                    resolved_ws = resolve_workspace_name_and_id(None)[0]
+                _rep.upgrade_to_pbir(report=rpt_name, workspace=resolved_ws)
+                converted = True
+            except Exception:
+                pass
+            # Method 2: REST round-trip
+            if not converted:
                 try:
-                    import sempy_labs.report as _rep
-                    _rep.upgrade_to_pbir(report=rpt_name, workspace=ws)
+                    from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+                    fix_upgrade_to_pbir(report=rpt_name, workspace=ws, scan_only=False)
+                    converted = True
                 except Exception:
-                    try:
-                        from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
-                        fix_upgrade_to_pbir(report=rpt_name, workspace=ws, scan_only=False)
-                    except Exception as e2:
-                        raise RuntimeError(f"PBIR conversion failed: {e2}") from e
-                set_status(conn_status, f"\u2713 Converted '{rpt_name}' to PBIR. Loading\u2026", "#34c759")
-                return _load_report_data(report=rpt_name, workspace=ws)
-            raise
+                    pass
+            # Try loading again after conversion
+            if converted:
+                try:
+                    set_status(conn_status, f"Retrying load for '{rpt_name}'\u2026", GRAY_COLOR)
+                    return _load_report_data(report=rpt_name, workspace=ws)
+                except Exception:
+                    pass
+            # Fall back: return basic stub with format info but no pages/visuals
+            set_status(conn_status, f"\u26a0\ufe0f '{rpt_name}' is PBIRLegacy \u2014 loaded in limited mode (no pages/visuals). Convert to PBIR in Power BI Desktop.", "#ff9500")
+            return {"pages": {}, "format": "PBIRLegacy", "report_id": "", "workspace_id": ""}
 
     def on_load(_):
         nonlocal _report_data, _key_map
