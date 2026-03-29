@@ -42,6 +42,17 @@ def _list_workspace_reports(workspace):
 def _load_report_data(report, workspace):
     """Load report structure via connect_report."""
     from sempy_labs.report import connect_report
+    import math
+
+    def _safe_int(val, default=0):
+        if val is None:
+            return default
+        try:
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                return default
+            return int(val)
+        except (TypeError, ValueError):
+            return default
 
     report_data = {"pages": {}, "format": "", "report_id": "", "workspace_id": ""}
 
@@ -57,10 +68,10 @@ def _load_report_data(report, workspace):
             display_name = str(row.get("Page Display Name", p_name))
             p_info = {
                 "display_name": display_name,
-                "width": int(row.get("Width", 0)) if row.get("Width") else 0,
-                "height": int(row.get("Height", 0)) if row.get("Height") else 0,
+                "width": _safe_int(row.get("Width")),
+                "height": _safe_int(row.get("Height")),
                 "hidden": bool(row.get("Hidden", False)),
-                "visual_count": int(row.get("Visual Count", 0)) if row.get("Visual Count") else 0,
+                "visual_count": _safe_int(row.get("Visual Count")),
                 "visuals": {},
             }
             report_data["pages"][p_name] = p_info
@@ -75,10 +86,10 @@ def _load_report_data(report, workspace):
             report_data["pages"][p_name]["visuals"][v_name] = {
                 "type": v_type,
                 "display_type": display_type,
-                "x": int(row.get("X", 0)) if row.get("X") else 0,
-                "y": int(row.get("Y", 0)) if row.get("Y") else 0,
-                "width": int(row.get("Width", 0)) if row.get("Width") else 0,
-                "height": int(row.get("Height", 0)) if row.get("Height") else 0,
+                "x": _safe_int(row.get("X")),
+                "y": _safe_int(row.get("Y")),
+                "width": _safe_int(row.get("Width")),
+                "height": _safe_int(row.get("Height")),
                 "hidden": bool(row.get("Hidden", False)),
                 "title": str(row.get("Title", "")) if row.get("Title") else "",
             }
