@@ -362,7 +362,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="400px", height="450px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="400px", font_family="monospace"))
 
     def _refresh_tree():
         nonlocal _key_map
@@ -387,8 +387,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _widget_ws = {}    # report_id -> workspace_id (for refresh)
     refresh_btn = widgets.Button(description="\U0001F504 Refresh", layout=widgets.Layout(width="100px"))
     # Use a VBox as the container — we swap its children to show the Report widget
-    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="500px"))
-    preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="380px")
+    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="350px"))
+    preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="300px")
 
     def _get_or_create_widget(report_id, workspace_id):
         """Get cached widget or create new one. Returns widget or None."""
@@ -437,9 +437,13 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     violations_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
     # Navigation panel for visual → SM object linking
     nav_objects_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
-    props_box = panel_box([props_label, props_html, violations_box, nav_objects_box], flex="0 0 auto", min_height="150px")
+    props_box = panel_box([props_label, props_html, violations_box, nav_objects_box], flex="0 0 220px", min_height="150px")
 
-    panels = create_three_panel_layout(tree, preview_box, props_box)
+    # Three-column layout: Tree | Props | Preview
+    panels = widgets.HBox(
+        [tree, props_box, preview_box],
+        layout=widgets.Layout(width="100%", gap="8px"),
+    )
     tree_header = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Report Structure</div>'
     )
