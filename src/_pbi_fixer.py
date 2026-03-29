@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.88"
+__version__ = "1.2.89"
 
 import ipywidgets as widgets
 import io
@@ -663,16 +663,18 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Hidden '{table}'[{obj}]"
 
-    # Map BPA Rule Names to fix functions
-    _fix_map = {
+    # Map BPA Rule Names to fix functions (lowercase keys for fuzzy matching)
+    _fix_map_raw = {
         "Do not use floating point data types": _fix_floating_point,
+        "Do not use floating point data type": _fix_floating_point,
         "Set IsAvailableInMdx to false on non-attribute columns": _fix_isavailableinmdx,
         "Provide format string for 'Date' columns": _fix_date_format,
         "Provide format string for 'Month' columns": _fix_month_format,
         "Provide format string for measures": _fix_integer_format,
         "Hide foreign keys": _fix_hide_foreign_key,
     }
-    _desc_fix_rule = "Visible objects with no description"
+    _fix_map = {k.lower().strip(): v for k, v in _fix_map_raw.items()}
+    _desc_fix_rule = "visible objects with no description"
 
     def _parse_table_object(obj_name, obj_type):
         """Parse table and object from BPA Object Name. Columns are 'Table'[Col], measures are just Name."""
@@ -684,14 +686,16 @@ def _bpa_tab(workspace_input=None, report_input=None):
         return "", obj_name
 
     def _is_fixable(rule_name, obj_type):
-        return rule_name in _fix_map or (rule_name == _desc_fix_rule and obj_type == "Measure")
+        key = rule_name.lower().strip()
+        return key in _fix_map or (key == _desc_fix_rule and obj_type == "Measure")
 
     def _apply_fix(ds, ws, rule_name, obj_type, obj_name):
         """Apply a single BPA fix. Returns message or raises."""
         table_name, item_name = _parse_table_object(obj_name, obj_type)
-        if rule_name in _fix_map:
-            return _fix_map[rule_name](ds, ws, table_name, item_name)
-        if rule_name == _desc_fix_rule and obj_type == "Measure":
+        key = rule_name.lower().strip()
+        if key in _fix_map:
+            return _fix_map[key](ds, ws, table_name, item_name)
+        if key == _desc_fix_rule and obj_type == "Measure":
             return _fix_description_measure(ds, ws, table_name, item_name)
         return None
 
