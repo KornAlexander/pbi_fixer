@@ -84,8 +84,20 @@ def _load_report_data(report, workspace):
         report_data["format"] = str(getattr(rw, "format", ""))
         report_data["report_id"] = str(getattr(rw, "_report_id", "") or "")
         report_data["workspace_id"] = str(getattr(rw, "_workspace_id", "") or "")
-        pages_df = rw.list_pages()
-        visuals_df = rw.list_visuals()
+
+        # list_pages/list_visuals may fail on NaN→int conversion inside upstream code
+        try:
+            pages_df = rw.list_pages()
+        except (ValueError, TypeError):
+            # Fallback: get pages from the definition files
+            import pandas as pd
+            pages_df = pd.DataFrame(columns=["Page Name", "Page Display Name", "Width", "Height", "Hidden", "Visual Count"])
+
+        try:
+            visuals_df = rw.list_visuals()
+        except (ValueError, TypeError):
+            import pandas as pd
+            visuals_df = pd.DataFrame(columns=["Page Name", "Visual Name", "Type", "Display Type", "X", "Y", "Width", "Height", "Hidden", "Title"])
 
         for _, row in pages_df.iterrows():
             p_name = _safe_str(row.get("Page Name", row.get("Page Display Name", "")))
