@@ -699,10 +699,10 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     props_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Properties</div>'
     )
-    def _prop_input(label_text, width="200px", disabled=False):
-        lbl = widgets.HTML(value=f'<span style="font-size:12px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; min-width:110px; display:inline-block;">{label_text}</span>')
+    def _prop_input(label_text, width="100%", disabled=False):
+        lbl = widgets.HTML(value=f'<span style="font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
         inp = widgets.Text(layout=widgets.Layout(width=width), disabled=disabled)
-        row = widgets.HBox([lbl, inp], layout=widgets.Layout(align_items="center", gap="4px"))
+        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px"))
         return inp, row
 
     prop_name, prop_name_row = _prop_input("Name")
@@ -710,7 +710,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     prop_obj_type, prop_type_row = _prop_input("Object Type", disabled=True)
     prop_format_str, prop_format_row = _prop_input("Format String")
     prop_display_folder, prop_folder_row = _prop_input("Display Folder")
-    prop_description, prop_desc_row = _prop_input("Description", width="300px")
+    prop_description, prop_desc_row = _prop_input("Description")
     prop_summarize_by, prop_summarize_row = _prop_input("Summarize By", disabled=True)
 
     # Unified save button with dirty state + pending changes buffer
