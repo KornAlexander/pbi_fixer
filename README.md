@@ -1,8 +1,8 @@
-# Power BI Report Fixer
+# Power BI Fixer
 
 **One line of Python to assess, standardize, and fix any Power BI report.**
 
-The Power BI Report Fixer is a free, open-source, notebook-native tool built on [Semantic Link Labs](https://github.com/microsoft/semantic-link-labs) that combines 11 fixers for both the report layer and the semantic model into a single interactive UI. No installs. No downloads. No license costs. Just one line of Python in a Microsoft Fabric Notebook.
+The Power BI Fixer is a free, open-source, notebook-native tool built on [Semantic Link Labs](https://github.com/microsoft/semantic-link-labs) that combines **34+ fixers** for both the report layer and the semantic model into a single interactive UI with 10 tabs. No installs. No downloads. No license costs. Just one line of Python in a Microsoft Fabric Notebook.
 
 ---
 
@@ -13,7 +13,7 @@ The Power BI Report Fixer is a free, open-source, notebook-native tool built on 
 In a **Microsoft Fabric Notebook** cell, run:
 
 ```python
-%pip install git+https://github.com/KornAlexander/semantic-link-labs.git
+%pip install git+https://github.com/KornAlexander/semantic-link-labs.git@feature/pbi-fixer-ui
 ```
 
 ### Step 2: Import and Launch
@@ -34,17 +34,34 @@ That's it. An interactive widget UI will appear directly in the notebook output.
 # Specify workspace and report directly
 pbi_fixer(workspace="Your Workspace Name", report="My Report")
 
-# Target a specific page
-pbi_fixer(workspace="Your Workspace Name", report="My Report", page_name="Overview")
+# Load multiple reports/models (comma-separated)
+pbi_fixer(workspace="Your Workspace Name", report="Report A, Report B")
+
+# Leave report blank to load ALL items in the workspace
+pbi_fixer(workspace="Your Workspace Name")
 ```
+
+---
+
+## UI Tabs
+
+| Tab | Icon | Description |
+|-----|------|-------------|
+| Semantic Model | 📊 | Tree view of tables/columns/measures, DAX editing, table data preview, properties, actions dropdown |
+| Report | 📄 | Tree view of pages/visuals, live preview, properties, scan & fix actions |
+| Fixer | ⚡ | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes (hidden by default) |
+| Perspectives | 👁 | Perspective editor with tri-state checkboxes |
+| Memory Analyzer | 💾 | Vertipaq stats: models → tables → columns by size, model dropdown for multi-model |
+| BPA | 📋 | Best Practice Analyzer with category tabs, severity badges, auto-fix buttons |
+| Report BPA | 📄 | Report-level BPA with auto PBIRLegacy conversion |
+| Delta Analyzer | 📐 | Delta table analysis: summary, parquet files, row groups, column chunks |
+| About | ℹ️ | Author info, links, tech credits |
 
 ---
 
 ## What It Does
 
-The `pbi_fixer()` function launches an interactive widget UI that combines **11 fixers** across two categories:
-
-### Report Fixers (Visual Layer — PBIR Format)
+### Report Fixers (7 — Visual Layer, PBIR Format)
 
 | Fixer | What It Does |
 |-------|-------------|
@@ -53,17 +70,76 @@ The `pbi_fixer()` function launches an interactive widget UI that combines **11 
 | **Fix Column Charts** | Same clean-up as bar charts, applied to column charts |
 | **Fix Page Size** | Upgrades default 720×1280 pages to 1080×1920 (Full HD) |
 | **Hide Visual Filters** | Sets `isHiddenInViewMode` on all visual-level filters |
+| **Upgrade to PBIR** | Converts PBIRLegacy reports to PBIR via REST round-trip |
+| **Migrate Slicer to Slicerbar** | Migrates slicers to the new slicerbar format (optional) |
 
-### Semantic Model Fixers (XMLA Endpoint)
+### Semantic Model Fixers — Additive (8 — XMLA Endpoint)
 
 | Fixer | What It Does |
 |-------|-------------|
-| **Discourage Implicit Measures** | Enables `DiscourageImplicitMeasures` (recommended and required for calculation groups) |
-| **Add Calendar Table** | Generates a calculated calendar table with date-intelligence columns, hierarchies, and display folders — only if no date table is marked |
+| **Discourage Implicit Measures** | Enables `DiscourageImplicitMeasures` (recommended & required for calc groups) |
+| **Add Calendar Table** | Generates a calculated calendar table with hierarchies and display folders |
 | **Add Measure Table** | Adds an empty calculated table to centralize measures |
-| **Add Last Refresh Table** | Adds a table with an M partition and a measure showing the last refresh timestamp |
-| **Add Units Calculation Group** | Creates Thousand and Million items, skipping percentage/ratio measures |
-| **Add Time Intelligence Calculation Group** | Generates AC, Y-1/Y-2/Y-3, YTD, and absolute/relative/achievement variances |
+| **Add Last Refresh Table** | Adds a table with M partition + measure showing last refresh timestamp |
+| **Add Units Calc Group** | Creates Thousand & Million items, skipping percentage/ratio measures |
+| **Add Time Intelligence Calc Group** | Generates AC, Y-1/Y-2/Y-3, YTD, absolute/relative/achievement variances |
+| **Auto-Create Measures from Columns** | Creates measures from columns with SummarizeBy set |
+| **Add PY Measures (Y-1)** | Creates PY, ΔPY, ΔPY% measures for all or selected measures |
+
+### BPA Auto-Fixers (19 — Fix Best Practice Violations)
+
+These fix specific violations found by `run_model_bpa()`. Available as per-row fix buttons in the BPA tab and as bulk actions in the SM Explorer dropdown.
+
+| Fixer | What It Does |
+|-------|-------------|
+| **Fix Floating Point Types** | Changes Double columns to Decimal |
+| **Fix IsAvailableInMDX (False)** | Sets `IsAvailableInMDX = False` on non-attribute columns |
+| **Fix IsAvailableInMDX (True)** | Sets `IsAvailableInMDX = True` on key/hierarchy columns |
+| **Fix Measure Descriptions** | Sets measure description to its DAX expression |
+| **Fix Date Column Format** | Sets 'Date' columns to `mm/dd/yyyy` |
+| **Fix Month Column Format** | Sets 'Month' columns to `MMMM yyyy` |
+| **Fix Measure Format** | Sets unformatted measures to `#,0` |
+| **Hide Foreign Keys** | Hides columns used as foreign keys in relationships |
+| **Fix DIVIDE Function** | Replaces `/` operator with `DIVIDE()` in measure expressions |
+| **Fix Avoid Adding 0** | Removes `0+` prefix from measure expressions |
+| **Fix Do Not Summarize** | Sets `SummarizeBy = None` on numeric data columns |
+| **Mark Primary Keys** | Sets `IsKey = True` on relationship To-side columns |
+| **Trim Object Names** | Removes leading/trailing whitespace from object names |
+| **Capitalize Object Names** | Capitalizes the first letter of object names |
+| **Fix Percentage Format** | Sets percentage measures to `#,0.0%` format |
+| **Fix Whole Number Format** | Sets unformatted measures to `#,0` |
+| **Fix Flag Column Format** | Sets Yes/No format on integer flag columns |
+| **Fix Sort Month Column** | Sets SortByColumn on month name columns |
+| **Fix Data Category** | Sets DataCategory based on column naming conventions |
+
+### Inline Actions (3)
+
+| Action | What It Does |
+|--------|-------------|
+| **Format All DAX** | Formats all DAX expressions via daxformatter.com API |
+| **Clone Report** | Clones a report (appends `_copy`) |
+| **Clone Model** | Clones a semantic model via getDefinition + create_semantic_model_from_bim |
+
+---
+
+## Additional Features
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-item loading** | Load all or comma-separated reports/models in a workspace |
+| **Combobox item selector** | Dropdown with 📋 List Items to browse workspace contents |
+| **Clone buttons** | Clone Both / Clone Report / Clone Model buttons with name mismatch warning |
+| **Download buttons** | Download .pbix / .pbip to lakehouse |
+| **Stop Load** | ⏹ Stop button to cancel long-running load operations |
+| **PBIR format gate** | Auto-detects PBIRLegacy, offers conversion before fixing |
+| **Scan mode** | Detect violations without modifying anything |
+| **God Button** | ⚡ Fix Everything — selects all fixers and runs |
+| **Table data preview** | Top 10/100/All rows preview when selecting a table in SM Explorer |
+| **BPA category tabs** | Native-style tabbed BPA results with severity summaries |
+| **Memory Analyzer** | Vertipaq stats with model dropdown, tree view, subtab DataFrames |
+| **Visual → SM navigation** | Click a visual to see its measures, then jump to the SM Explorer |
+| **Dirty state tracking** | Unsaved changes indicator with save/discard for SM properties |
+| **Partition refresh** | Refresh model/table/partition from the SM Explorer |
 
 ---
 
@@ -90,20 +166,47 @@ The `pbi_fixer()` function launches an interactive widget UI that combines **11 
 
 ```
 src/
-├── _pbi_fixer.py                              # Main orchestrator & interactive UI (ipywidgets)
+├── _pbi_fixer.py                              # Main orchestrator, inline tabs (Memory, BPA, Report BPA, Delta, About)
+├── _ui_components.py                          # Shared theme, icons, tree-building, layout helpers
+├── _sm_explorer.py                            # Semantic Model Explorer tab
+├── _report_explorer.py                        # Report Explorer tab
+├── _perspective_editor.py                     # Perspective Editor tab
 ├── report/
 │   ├── _Fix_PieChart.py                       # Replace pie charts with bar charts
 │   ├── _Fix_BarChart.py                       # Clean up bar chart formatting
 │   ├── _Fix_ColumnChart.py                    # Clean up column chart formatting
 │   ├── _Fix_PageSize.py                       # Upgrade default page size to Full HD
-│   └── _Fix_HideVisualFilters.py              # Hide visual-level filters from end users
+│   ├── _Fix_HideVisualFilters.py              # Hide visual-level filters
+│   ├── _Fix_UpgradeToPbir.py                  # Convert PBIRLegacy → PBIR
+│   └── _Fix_MigrateSlicerToSlicerbar.py       # Migrate slicers to slicerbar
 └── semantic_model/
     ├── _Fix_DiscourageImplicitMeasures.py     # Set DiscourageImplicitMeasures = True
-    ├── _Add_CalculatedTable_Calendar.py       # Add a full calculated calendar table
-    ├── _Add_CalculatedTable_MeasureTable.py   # Add an empty measure table
-    ├── _Add_Table_LastRefresh.py              # Add a Last Refresh table with M partition
-    ├── _Add_CalcGroup_Units.py                # Add a Units calculation group
-    └── _Add_CalcGroup_TimeIntelligence.py     # Add a Time Intelligence calculation group
+    ├── _Add_CalculatedTable_Calendar.py       # Add calculated calendar table
+    ├── _Add_CalculatedTable_MeasureTable.py   # Add empty measure table
+    ├── _Add_Table_LastRefresh.py              # Add Last Refresh table with M partition
+    ├── _Add_CalcGroup_Units.py                # Add Units calculation group
+    ├── _Add_CalcGroup_TimeIntelligence.py     # Add Time Intelligence calculation group
+    ├── _Add_MeasuresFromColumns.py            # Auto-create measures from SummarizeBy columns
+    ├── _Add_PYMeasures.py                     # Add PY time intelligence measures
+    ├── _Fix_FloatingPointDataType.py          # BPA: Double → Decimal
+    ├── _Fix_IsAvailableInMdx.py               # BPA: IsAvailableInMDX → False
+    ├── _Fix_IsAvailableInMdxTrue.py           # BPA: IsAvailableInMDX → True
+    ├── _Fix_MeasureDescriptions.py            # BPA: Set description to DAX expression
+    ├── _Fix_DateColumnFormat.py               # BPA: Date columns → mm/dd/yyyy
+    ├── _Fix_MonthColumnFormat.py              # BPA: Month columns → MMMM yyyy
+    ├── _Fix_MeasureFormat.py                  # BPA: Unformatted measures → #,0
+    ├── _Fix_HideForeignKeys.py                # BPA: Hide FK columns
+    ├── _Fix_UseDivideFunction.py              # BPA: Replace / with DIVIDE()
+    ├── _Fix_AvoidAdding0.py                   # BPA: Remove 0+ prefix
+    ├── _Fix_DoNotSummarize.py                 # BPA: SummarizeBy → None
+    ├── _Fix_MarkPrimaryKeys.py                # BPA: IsKey → True on PK columns
+    ├── _Fix_TrimObjectNames.py                # BPA: Trim whitespace from names
+    ├── _Fix_CapitalizeObjectNames.py          # BPA: Capitalize first letter
+    ├── _Fix_PercentageFormat.py               # BPA: Percentage measures → #,0.0%
+    ├── _Fix_WholeNumberFormat.py              # BPA: Whole number measures → #,0
+    ├── _Fix_FlagColumnFormat.py               # BPA: Flag columns → Yes/No
+    ├── _Fix_SortMonthColumn.py                # BPA: Sort month name by number
+    └── _Fix_DataCategory.py                   # BPA: Set DataCategory by naming convention
 ```
 
 ---
