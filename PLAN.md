@@ -381,7 +381,20 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 15 — Stop Load Button (Planned)
+### Phase 15 — Clone Buttons & Name Mismatch Check (Planned)
+
+Move clone functionality from the action dropdowns to dedicated **top-level buttons** next to the download buttons, and add name mismatch detection:
+
+* **Three clone buttons** in the `download_row` (alongside ⬇ Download .pbix / ⬇ Download .pbip):
+  + **📋 Clone Both** — clones the semantic model first (via `getDefinition` → `create_semantic_model_from_bim`), then clones the report (via `clone_report`) and rebinds it to the newly cloned model. Appends `_copy` suffix (or user-specified suffix via a text input popup).
+  + **📋 Clone Report** — clones only the report (keeps it connected to the original semantic model).
+  + **📋 Clone Model** — clones only the semantic model (no report).
+* **Name mismatch check**: Before cloning, compare the report name and the semantic model name. If they differ (which is common — e.g. report "Sales Dashboard" backed by model "Sales Model"), show a warning: `"⚠️ Report 'Sales Dashboard' uses model 'Sales Model'. Clone both will create 'Sales Dashboard_copy' + 'Sales Model_copy'."` This prevents confusion about what was cloned.
+* **Status feedback**: Show progress ("Cloning model…" → "Cloning report…" → "✓ Done") in the existing `download_status` HTML widget.
+* **Remove from action dropdowns**: Remove the "📋 Clone Report" entry from Report Explorer and "📋 Clone Model" from SM Explorer dropdowns — the top-level buttons replace them. _(Or keep both for convenience — dropdown entries call the same functions.)_
+* **Current state (Phase 13)**: Clone callbacks exist as `_clone_report()` and `_clone_semantic_model()` in `_pbi_fixer.py`, wired into the Report Explorer and SM Explorer action dropdowns respectively. They always append `_copy` and don't check for name mismatches.
+
+### Phase 16 — Stop Load Button (Planned)
 
 Add a **"⏹ Stop" button** to both SM Explorer and Report Explorer that allows cancelling a long-running load operation mid-flight:
 
@@ -391,7 +404,7 @@ Add a **"⏹ Stop" button** to both SM Explorer and Report Explorer that allows 
 * The stop button is hidden/disabled again when no load is running.
 * Applies to both `on_load` in `_sm_explorer.py` and `_report_explorer.py`.
 
-### Phase 16 — Native BPA & Memory Analyzer Integration (Planned)
+### Phase 17 — Native BPA & Memory Analyzer Integration (Planned)
 
 Replace the custom inline BPA and Memory Analyzer tab implementations with the **original upstream HTML renderers** from Semantic Link Labs, integrated as copied source code within the PBI Fixer codebase. The goal is to use the rich, tabbed HTML visualizations from `run_model_bpa()` and `vertipaq_analyzer()` directly, rather than maintaining a separate simplified version.
 
@@ -428,7 +441,7 @@ The upstream `run_model_bpa()` and `vertipaq_analyzer()` each operate on a **sin
 * **Maintain fix button wiring** — the fix buttons must still reference the `_fix_map` and `_apply_fix` functions from the BPA tab. Augment the native HTML with fix button columns or overlay ipywidgets buttons alongside the HTML output.
 * **`IPython.display` vs `ipywidgets.HTML`** — the upstream functions use `display(HTML(...))` which renders directly in notebook output. For the PBI Fixer, capture the HTML string (not the display call) and inject it into an `ipywidgets.HTML` widget inside the tab panel. Use the `return_dataframe=True` path for BPA and the dict return for vertipaq_analyzer to get data, then apply the copied formatting logic to produce the HTML string.
 
-### Phase 17 — Additional BPA Fix Scripts (Planned)
+### Phase 18 — Additional BPA Fix Scripts (Planned)
 
 Expand the auto-fix coverage from the current 7 BPA fixers to cover all rules where a safe, deterministic fix is possible. The upstream SLL `_model_bpa_rules.py` defines **60 rules total**. Of these, the following are already auto-fixable (Phases 9+14):
 
@@ -466,7 +479,7 @@ Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_
 * Avoid using calculated columns (#2), Reduce calculated tables (#15) — require rewriting data pipeline. Flag only.
 * Rules involving RLS logic, DirectQuery tuning, star schema design — architectural decisions. Flag only.
 
-### Phase 18 — Advanced Features (Planned)
+### Phase 19 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -480,7 +493,7 @@ Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_
 * **Extended SM Explorer properties**: add more properties to the SM Explorer properties panel. For **columns**: show encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category. For **tables**: show mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag. For **measures**: show is-hidden, lineage tag, KPI properties (if any). For **relationships**: show cross-filter direction, security filtering, is-active, rely-on-referential-integrity. All additional properties should be read from the TOM `_model_data` cache (extend `_load_model_data_fast` / `_load_model_data_tom` to capture them).
 * **Editable Report Explorer properties**: make Report Explorer visual/page properties editable via `connect_report`. For **pages**: allow editing display name, width, height, background color, hidden flag. For **visuals**: allow editing position (x, y), size (width, height), title text, hidden flag. Show editable `widgets.Text` / `widgets.IntText` fields in the properties panel (same pattern as SM Explorer's editable properties). Add a Save button with dirty-state tracking. Writes go through `connect_report` in read-write mode to update the PBIR page/visual definitions.
 
-### Phase 19 — Report Visual Layout & Theming (Planned)
+### Phase 20 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -543,7 +556,7 @@ Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 20 — Workspace Report Format Overview (Planned)
+### Phase 21 — Workspace Report Format Overview (Planned)
 
 Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
 
@@ -553,7 +566,7 @@ Add a **report format overview** panel or subtab (e.g. in the Report tab or as a
 * Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
 * This provides a quick workspace-level health check before loading individual reports.
 
-### Phase 21 — Model Diagram Tab (Planned)
+### Phase 22 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -573,7 +586,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 22 — AI Assistant (Planned)
+### Phase 23 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
