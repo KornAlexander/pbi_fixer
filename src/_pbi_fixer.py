@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.120"
+__version__ = "1.2.121"
 
 import ipywidgets as widgets
 import io
@@ -406,6 +406,68 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
 
+    # Native HTML display for vertipaq
+    vp_native_html = widgets.HTML(value="")
+    vp_show_native_btn = widgets.Button(description="\U0001F4CB Show Native", layout=widgets.Layout(width="120px"))
+
+    def _capture_vp_native_html(ds, ws):
+        """Capture the native vertipaq_analyzer HTML output."""
+        captured = []
+        import IPython.display as _ipd
+        import IPython.core.display_functions as _idf
+        _orig1 = _ipd.display
+        _orig2 = getattr(_idf, 'display', None)
+        def _cap(*args, **kwargs):
+            for a in args:
+                if hasattr(a, 'data') and isinstance(a.data, str):
+                    captured.append(a.data)
+                elif hasattr(a, '_repr_html_'):
+                    captured.append(a._repr_html_())
+        _ipd.display = _cap
+        if _orig2:
+            _idf.display = _cap
+        try:
+            import sempy_labs._vertipaq as _vp_mod
+            _orig_vp = getattr(_vp_mod, 'display', None)
+            _vp_mod.display = _cap
+        except Exception:
+            _vp_mod = None
+            _orig_vp = None
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        try:
+            buf = _io.StringIO()
+            with _redirect(buf):
+                from sempy_labs import vertipaq_analyzer
+                vertipaq_analyzer(dataset=ds, workspace=ws)
+        finally:
+            _ipd.display = _orig1
+            if _orig2:
+                _idf.display = _orig2
+            if _vp_mod and _orig_vp:
+                _vp_mod.display = _orig_vp
+        return "\n".join(captured) if captured else ""
+
+    def on_show_vp_native(_):
+        """Show native vertipaq HTML for the current model."""
+        m = _current_model[0]
+        if not m:
+            set_status(conn_status, "No model loaded.", "#ff3b30")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        vp_show_native_btn.disabled = True
+        vp_show_native_btn.description = "Loading\u2026"
+        try:
+            html = _capture_vp_native_html(m, ws)
+            vp_native_html.value = html if html else "<div>No native output captured.</div>"
+        except Exception as e:
+            vp_native_html.value = f'<div style="color:#ff3b30;">Error: {e}</div>'
+        vp_show_native_btn.disabled = False
+        vp_show_native_btn.description = "\U0001F4CB Show Native"
+
+    vp_show_native_btn.on_click(on_show_vp_native)
+
     tree_header = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Tables &amp; Columns by Size</div>'
     )
@@ -426,8 +488,20 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
 
     right_panel = widgets.VBox([model_dropdown, subtab_selector, df_container, detail_label, detail_container], layout=widgets.Layout(flex="1", gap="4px"))
     panels = widgets.HBox([tree, right_panel], layout=widgets.Layout(width="100%", gap="8px"))
+    vp_native_container = widgets.VBox(
+        [vp_native_html],
+        layout=widgets.Layout(
+            max_height="500px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+    nav_row_full = widgets.HBox(
+        [load_btn, expand_btn, collapse_btn, vp_show_native_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
 
-    widget = widgets.VBox([nav_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row_full, tree_header, panels, vp_native_container], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 
@@ -677,7 +751,48 @@ def _bpa_tab(workspace_input=None, report_input=None):
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan.</div>'
     )]
 
+    # Native HTML display area (shows upstream's styled BPA output)
+    native_html_box = widgets.HTML(value="")
+
     _all_findings = []  # [(ds, rule_name, category, obj_name, obj_type, severity), ...]
+
+    def _capture_native_bpa_html(ds, ws):
+        """Run BPA and capture the native HTML output string."""
+        captured = []
+        import IPython.display as _ipd
+        import IPython.core.display_functions as _idf
+        _orig1 = _ipd.display
+        _orig2 = getattr(_idf, 'display', None)
+        def _cap(*args, **kwargs):
+            for a in args:
+                if hasattr(a, 'data') and isinstance(a.data, str):
+                    captured.append(a.data)
+                elif hasattr(a, '_repr_html_'):
+                    captured.append(a._repr_html_())
+        _ipd.display = _cap
+        if _orig2:
+            _idf.display = _cap
+        try:
+            import sempy_labs._model_bpa as _bpa_mod
+            _orig_bpa = getattr(_bpa_mod, 'display', None)
+            _bpa_mod.display = _cap
+        except Exception:
+            _bpa_mod = None
+            _orig_bpa = None
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        try:
+            buf = _io.StringIO()
+            with _redirect(buf):
+                from sempy_labs import run_model_bpa
+                run_model_bpa(dataset=ds, workspace=ws)
+        finally:
+            _ipd.display = _orig1
+            if _orig2:
+                _idf.display = _orig2
+            if _bpa_mod and _orig_bpa:
+                _bpa_mod.display = _orig_bpa
+        return "\n".join(captured) if captured else ""
 
     def on_load(_):
         nonlocal _all_findings
@@ -696,10 +811,17 @@ def _bpa_tab(workspace_input=None, report_input=None):
         _orig_display = _ipd.display
 
         _all_findings = []
+        all_native_html = []
 
         for i, ds in enumerate(items):
             set_status(conn_status, f"BPA {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
+                # Capture native HTML
+                native = _capture_native_bpa_html(ds, ws)
+                if native:
+                    all_native_html.append(f'<h4 style="color:{ICON_ACCENT}; margin:8px 0 4px;">{ds}</h4>' + native if len(items) > 1 else native)
+
+                # Also get DataFrame for fix buttons
                 buf = _io.StringIO()
                 _ipd.display = lambda *a, **kw: None
                 try:
@@ -720,9 +842,19 @@ def _bpa_tab(workspace_input=None, report_input=None):
             except Exception as e:
                 _all_findings.append((ds, f"ERROR: {e}", "Error", "", "", "3"))
 
-        _build_results(ws)
+        # Show native HTML
+        if all_native_html:
+            native_html_box.value = "\n".join(all_native_html)
+        else:
+            native_html_box.value = ""
+
         _update_rule_dropdown()
         n = len([f for f in _all_findings if not f[1].startswith("ERROR")])
+        n_fixable = sum(1 for f in _all_findings if _is_fixable(f[1], f[4]))
+        results_box.children = [widgets.HTML(
+            value=f'<div style="font-size:12px; font-family:{FONT_FAMILY}; color:#555; margin:8px 0 4px 0;">'
+            f'{n} finding(s), <b>{n_fixable}</b> auto-fixable</div>'
+        )]
         set_status(conn_status, f"\u2713 BPA: {n} finding(s) across {len(items)} model(s).", "#34c759" if n == 0 else "#ff9500")
         load_btn.disabled = False
         load_btn.description = "Run BPA"
@@ -979,7 +1111,15 @@ def _bpa_tab(workspace_input=None, report_input=None):
 
     show_full_btn.on_click(on_show_full)
 
-    widget = widgets.VBox([nav_row, fix_row, header_label, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
+    native_html_container = widgets.VBox(
+        [native_html_box],
+        layout=widgets.Layout(
+            max_height="500px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+    widget = widgets.VBox([nav_row, fix_row, header_label, native_html_container, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 
