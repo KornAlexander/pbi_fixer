@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.105"
+__version__ = "1.2.106"
 
 import ipywidgets as widgets
 import io
@@ -1443,9 +1443,11 @@ def pbi_fixer(
         placeholder="Leave empty for notebook workspace",
         layout=widgets.Layout(width="400px"),
     )
-    report_input = widgets.Text(
+    report_input = widgets.Combobox(
         value=str(report) if report else "",
-        placeholder="Comma-separated names or IDs (blank = all)",
+        placeholder="Type, select, or comma-separate (blank = all)",
+        options=[],
+        ensure_option=False,
         layout=widgets.Layout(width="400px"),
     )
     page_input = widgets.Text(
@@ -1454,14 +1456,78 @@ def pbi_fixer(
         layout=widgets.Layout(width="300px"),
     )
 
+    list_items_btn = widgets.Button(
+        description="\U0001F4CB List Items",
+        layout=widgets.Layout(width="110px"),
+    )
+    list_items_status = widgets.HTML(value="")
+
+    def _on_list_items(_):
+        """Fetch all reports + datasets in the workspace and populate the Combobox options."""
+        ws = workspace_input.value.strip() or None
+        list_items_btn.disabled = True
+        list_items_btn.description = "Listing\u2026"
+        list_items_status.value = ""
+        try:
+            from sempy_labs._helper_functions import resolve_workspace_name_and_id, _base_api
+            _, ws_id = resolve_workspace_name_and_id(ws)
+
+            # Fetch reports
+            rpt_url = f"/v1.0/myorg/groups/{ws_id}/reports"
+            rpt_resp = _base_api(request=rpt_url, client="fabric_sp")
+            rpt_names = [r.get("name") for r in rpt_resp.json().get("value", []) if r.get("name")]
+
+            # Fetch datasets
+            ds_url = f"/v1.0/myorg/groups/{ws_id}/datasets"
+            ds_resp = _base_api(request=ds_url, client="fabric_sp")
+            ds_names = [d.get("name") for d in ds_resp.json().get("value", []) if d.get("name")]
+
+            # Deduplicate: if a name appears in both, show once; otherwise prefix with icon
+            shared = set(n.lower() for n in rpt_names) & set(n.lower() for n in ds_names)
+            combined = []
+            seen_lower = set()
+            for name in sorted(set(rpt_names + ds_names), key=str.lower):
+                nl = name.lower()
+                if nl in seen_lower:
+                    continue
+                seen_lower.add(nl)
+                if nl in shared:
+                    combined.append(name)
+                elif name in rpt_names:
+                    combined.append(f"\U0001F4C4 {name}")
+                else:
+                    combined.append(f"\U0001F4CA {name}")
+
+            report_input.options = combined
+            list_items_status.value = (
+                f'<span style="font-size:12px; color:#34c759;">'
+                f'{len(rpt_names)} report(s), {len(ds_names)} model(s)</span>'
+            )
+        except Exception as e:
+            list_items_status.value = (
+                f'<span style="font-size:12px; color:#ff3b30;">Error: {str(e)[:60]}</span>'
+            )
+        finally:
+            list_items_btn.disabled = False
+            list_items_btn.description = "\U0001F4CB List Items"
+
+    list_items_btn.on_click(_on_list_items)
+
+    def _strip_item_prefix(name):
+        """Strip icon prefixes (📄 / 📊) from dropdown selections."""
+        for prefix in ("\U0001F4C4 ", "\U0001F4CA "):
+            if name.startswith(prefix):
+                return name[len(prefix):]
+        return name
+
     shared_inputs_box = widgets.VBox(
         [
             widgets.HBox(
-                [_input_label("Workspace"), workspace_input],
+                [_input_label("Workspace"), workspace_input, list_items_btn, list_items_status],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
             widgets.HBox(
-                [_input_label("Report"), report_input],
+                [_input_label("Report / SM"), report_input],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
         ],
@@ -1791,7 +1857,7 @@ def pbi_fixer(
         mode = mode_toggle.value
 
         # Parse comma-separated items
-        items = [x.strip() for x in report_val.split(",") if x.strip()] if report_val else []
+        items = [_strip_item_prefix(x.strip()) for x in report_val.split(",") if x.strip()] if report_val else []
 
         if not items:
             show_status("Please enter at least one report / SM name or ID.", "#ff3b30")
