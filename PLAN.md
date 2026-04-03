@@ -2,7 +2,7 @@
 
 ## Vision
 
-Evolve the PBI Fixer from a single-purpose fixer tool into a comprehensive Power BI development environment running natively in Fabric Notebooks. The UI follows a three-panel layout (object tree on the left, preview top-right, properties bottom-right) with the ability to switch between **Semantic Model**, **Report**, **Fixer**, and **Perspectives** views.
+Evolve the PBI Fixer from a single-purpose fixer tool into a comprehensive Power BI development environment running natively in Fabric Notebooks. The UI follows a three-panel layout (object tree on the left, preview top-right, properties bottom-right) with the ability to switch between **Semantic Model**, **Report**, **Fixer**, and **Perspectives** views — plus dedicated analysis tabs for Vertipaq/Memory, BPA, Report BPA, and Delta Analyzer.
 
 The tool connects to an entire workspace of semantic models and reports (displayed as a unified tree), with optional comma-separated filtering. A PBIR format check runs automatically on load — non-PBIR reports are flagged and can be converted in-place before any fixers run.
 
@@ -16,7 +16,9 @@ The tool connects to an entire workspace of semantic models and reports (display
 │ │ Workspace [_______________]  Report/SM [_,_,_]  │      │
 │ │                              [Load]             │      │
 │ └─────────────────────────────────────────────────┘      │
-│  [📊 Semantic Model]  [📄 Report]  [⚡ Fixer]  [🔍 ...]  │
+│  [⬇ Download .pbix]  [⬇ Download .pbip]                 │
+│  [📊 SM] [📄 Report] [⚡ Fixer] [👁 Persp] [💾 Mem]      │
+│  [📋 BPA] [📄 Report BPA] [📐 Delta Analyzer] [ℹ️ About] │
 ├────────────────┬─────────────────────────────────────────┤
 │                │  Top-Right: Preview                     │
 │  Left Panel:   │  (DAX expression / visual / embed)      │
@@ -35,7 +37,8 @@ The tool connects to an entire workspace of semantic models and reports (display
 
 ```
 src/
-  _pbi_fixer.py          # Tab wrapper + Fixer UI + PBIR check gate
+  _pbi_fixer.py          # Tab wrapper + Fixer UI + PBIR check gate + inline tabs
+                         #   (Vertipaq, BPA, Report BPA, Delta Analyzer, About)
   _ui_components.py      # Shared theme, icons, tree-building, layout helpers
   _sm_explorer.py        # Semantic Model Explorer tab
   _report_explorer.py    # Report Explorer tab
@@ -58,6 +61,8 @@ src/
     _Add_Table_LastRefresh.py
     _Add_CalcGroup_Units.py
     _Add_CalcGroup_TimeIntelligence.py
+    _Add_MeasuresFromColumns.py
+    _Add_PYMeasures.py
 ```
 
 ---
@@ -65,19 +70,25 @@ src/
 ## Connection & Loading
 
 ### Single Workspace, Multiple Items
-- **Workspace input**: single text field — one workspace name or ID. No comma separation for workspaces.
-- **Report / SM input**: supports **comma-separated** names or IDs (e.g. `"Sales Report, Finance Report"` or `"abc-123, def-456"`).
-  - If left **blank** → load **all** reports and semantic models in the workspace.
-  - If specific names/IDs given → load only those items.
-- **Load button**: triggers connecting to the workspace and fetching metadata for all matching items.
+
+* **Workspace input**: single text field — one workspace name or ID. No comma separation for workspaces. When a workspace is entered (or changed), the UI fetches the list of all reports and semantic models in that workspace via the Fabric REST API in the background.
+* **Report / SM input**: a **combo widget** that supports both **dropdown selection** and **free text** entry:
+  + **Dropdown mode**: after a workspace is entered, the dropdown is populated with a deduplicated list of all report and semantic model names in the workspace. Items are listed as `"📄 Report Name"` and `"📊 Model Name"` to distinguish types. If a report and semantic model share the same display name, show the name only once (not duplicated) — the tool loads both the report and its underlying model regardless.
+  + **Free text mode**: the user can also type or paste names/IDs directly, including **comma-separated** values (e.g. `"Sales Report, Finance Report"` or `"abc-123, def-456"`). Free text takes precedence over dropdown selection.
+  + If left **blank** → load **all** reports and semantic models in the workspace.
+  + Implementation: use `widgets.Combobox` (ipywidgets) which supports both a dropdown list and free text input. Populate `options` after workspace is set. For the REST call, use `GET /v1.0/myorg/groups/{ws}/reports` and `GET /v1.0/myorg/groups/{ws}/datasets` to build the combined list. Deduplicate by display name (case-insensitive), keeping both item types internally for loading.
+* **Load button**: triggers connecting to the workspace and fetching metadata for all matching items.
 
 ### Timeout
-- Hard timeout of **5 minutes** (300s) for the full load operation.
-- If loading all items in a large workspace, iterate items sequentially and abort with a partial result + warning if the 5-minute wall clock limit is reached.
-- Individual item connections (TOM / connect_report) should have a per-item timeout of **60s**.
+
+* Hard timeout of **5 minutes** (300s) for the full load operation (`_TOTAL_TIMEOUT = 300`).
+* If loading all items in a large workspace, iterate items sequentially and abort with a partial result + warning if the 5-minute wall clock limit is reached.
+* Individual item connections (TOM / connect\_report) should have a per-item timeout of **60s**.
 
 ### Unified Object Tree
+
 After loading, the left panel shows a single tree with all loaded items:
+
 ```
 📊 Sales Model
   ├─ 📁 Tables
@@ -97,137 +108,363 @@ After loading, the left panel shows a single tree with all loaded items:
 ```
 
 ### PBIR Format Gate
-- On load, check every report's format via the Fabric REST API (`GET /v1.0/myorg/groups/{ws}/reports`).
-- Reports in **PBIR** format: shown normally.
-- Reports in **PBIRLegacy** format: shown with a ⚠️ warning badge in the tree. A banner appears at the top of the Report tab: _"N report(s) are in PBIRLegacy format. Convert to PBIR to enable fixers."_ with a **Convert All** button.
-- Reports in other formats (RDL, etc.): shown greyed out, not actionable.
-- **All report fixers require PBIR**. If a user attempts to run a fixer on a PBIRLegacy report, the UI should offer to convert first rather than silently failing.
+
+* On load, check every report's format via `_check_report_format()` which calls the Fabric REST API (`GET /v1.0/myorg/groups/{ws}/reports`).
+* Reports in **PBIR** format: shown normally.
+* Reports in **PBIRLegacy** format: shown with a ⚠️ warning badge in the tree. Fixer tab skips them unless "Upgrade to PBIR" is selected. Report BPA auto-converts PBIRLegacy if needed.
+* Reports in other formats (RDL, etc.): shown greyed out, not actionable.
+* **All report fixers require PBIR**. If a user attempts to run a fixer on a PBIRLegacy report without selecting "Upgrade to PBIR", the UI logs a warning and skips.
 
 ### Convert to PBIR
+
 Two conversion approaches exist in Semantic Link Labs:
-1. **`_Fix_UpgradeToPbir.fix_upgrade_to_pbir()`** — REST round-trip (`getDefinition` → `updateDefinition`). Preferred for single reports within the Fixer UI. Already follows the fixer interface (`report`, `page_name`, `workspace`, `scan_only`).
+
+1. **`_Fix_UpgradeToPbir.fix_upgrade_to_pbir()`** — REST round-trip (`getDefinition` → `updateDefinition`). Used in the Fixer tab and Report Explorer actions dropdown.
 2. **`report._upgrade_to_pbir.upgrade_to_pbir()`** — Batch upgrade via embed + save. Supports `List[str|UUID]` for reports and workspaces. Better for bulk operations. Already merged in upstream SLL.
 
-The UI should:
-- Use approach 1 (`fix_upgrade_to_pbir`) for individual report conversion triggered from the tree context menu or the "Convert" button next to a single report.
-- Use approach 2 (`upgrade_to_pbir`) for the "Convert All" bulk button, passing the list of PBIRLegacy report IDs.
-- After conversion, re-check format and update the tree badge accordingly.
+---
+
+## Tab Layout (v1.2.99)
+
+| Tab | Icon | Source | Description |
+| --- | --- | --- | --- |
+| Semantic Model | 📊 | `_sm_explorer.py` | Tree + DAX preview + properties + scan + actions dropdown |
+| Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + scan + actions dropdown + visual→SM navigation |
+| Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
+| Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
+| Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats: models → tables → columns, size/cardinality/encoding |
+| BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with auto-fix for 7 rule types |
+| Report BPA | 📄 | `_pbi_fixer.py` (`_report_bpa_tab`) | Report BPA via `run_report_bpa()`, auto-converts PBIRLegacy |
+| Delta Analyzer | 📐 | `_pbi_fixer.py` (`_delta_analyzer_tab`) | Delta table analysis: summary, parquet files, row groups, column chunks |
+| About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits |
+
+* **Fixer tab** is hidden by default (`show_fixer_tab=False`); all fixers are accessible via actions dropdowns in SM and Report tabs.
+* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Memory Analyzer → BPA → Report BPA → Delta Analyzer → About.
+
+---
+
+## Fixer Inventory
+
+### Report Fixers (separate files with `scan_only` support)
+
+All report fixers have their own file in `report/`, accept `(report, page_name, workspace, scan_only)`, and work both standalone and inside the UI.
+
+| Fixer | File | Standalone Function | scan\_only | In Fixer Tab | In Report Explorer Actions |
+| --- | --- | --- | --- | --- | --- |
+| Upgrade to PBIR | `_Fix_UpgradeToPbir.py` | `fix_upgrade_to_pbir()` | ✅ | ✅ | ✅ "Convert to PBIR" |
+| Fix Pie Charts | `_Fix_PieChart.py` | `fix_piecharts()` | ✅ | ✅ | ✅ |
+| Fix Bar Charts | `_Fix_BarChart.py` | `fix_barcharts()` | ✅ | ✅ | ✅ |
+| Fix Column Charts | `_Fix_ColumnChart.py` | `fix_columncharts()` | ✅ | ✅ | ✅ |
+| Fix Page Size | `_Fix_PageSize.py` | `fix_page_size()` | ✅ | ✅ | ✅ |
+| Hide Visual Filters | `_Fix_HideVisualFilters.py` | `fix_hide_visual_filters()` | ✅ | ✅ | ✅ |
+| Migrate Slicer to Slicerbar | `_Fix_MigrateSlicerToSlicerbar.py` | `fix_migrate_slicer_to_slicerbar()` | ✅ | ❌ | ❌ |
+
+### Semantic Model Fixers (separate files with `scan_only` support)
+
+All SM fixers have their own file in `semantic_model/`, accept `(report/dataset, workspace, scan_only)`, and work both standalone and inside the UI.
+
+| Fixer | File | Standalone Function | scan\_only | In Fixer Tab | In SM Explorer Actions |
+| --- | --- | --- | --- | --- | --- |
+| Discourage Implicit Measures | `_Fix_DiscourageImplicitMeasures.py` | `fix_discourage_implicit_measures()` | ✅ | ✅ | ✅ |
+| Set DataSource Version V3 | `_Fix_DefaultDataSourceVersion.py` | `fix_default_datasource_version()` | ✅ | ❌ (commented out) | ❌ |
+| Add Calendar Table | `_Add_CalculatedTable_Calendar.py` | `add_calculated_calendar()` | ✅ | ✅ | ✅ |
+| Add Measure Table | `_Add_CalculatedTable_MeasureTable.py` | `add_measure_table()` | ✅ | ✅ | ✅ |
+| Add Last Refresh Table | `_Add_Table_LastRefresh.py` | `add_last_refresh_table()` | ✅ | ✅ | ✅ |
+| Add Units Calc Group | `_Add_CalcGroup_Units.py` | `add_calc_group_units()` | ✅ | ✅ | ✅ |
+| Add Time Intelligence | `_Add_CalcGroup_TimeIntelligence.py` | `add_calc_group_time_intelligence()` | ✅ | ✅ | ✅ |
+| Auto-Create Measures from Columns | `_Add_MeasuresFromColumns.py` | `add_measures_from_columns()` | ✅ | ❌ | ✅ |
+| Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
+| Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
+
+### BPA Auto-Fixers (inline in `_bpa_tab`, no separate files)
+
+These are small inline fix functions in `_pbi_fixer.py` that auto-fix specific Model BPA violations. They do **not** have separate fixer files or `scan_only` support — they operate on individual BPA findings via Fix/Fix All buttons in the BPA tab.
+
+| BPA Rule | Fix Action | Has Separate File |
+| --- | --- | --- |
+| Do not use floating point data types | Change column DataType from Double to Decimal | ❌ |
+| Set IsAvailableInMdx to false | Set `IsAvailableInMDX = False` on column | ❌ |
+| Visible objects with no description (Measures) | Set measure description to its DAX expression | ❌ |
+| Provide format string for 'Date' columns | Set format to `mm/dd/yyyy` | ❌ |
+| Provide format string for 'Month' columns | Set format to `MMMM yyyy` | ❌ |
+| Provide format string for measures | Set format to `#,0` | ❌ |
+| Hide foreign keys | Set `IsHidden = True` on column | ❌ |
+
+### Not Yet Wired Into UI
+
+These fixers have separate files with full `scan_only` support but are **not yet connected** to any UI (Fixer tab or Explorer actions):
+
+| Fixer | File | What's Needed |
+| --- | --- | --- |
+| Migrate Slicer to Slicerbar | `report/_Fix_MigrateSlicerToSlicerbar.py` | Add to Fixer tab checkbox + Report Explorer actions dropdown |
+| Set DataSource Version V3 | `semantic_model/_Fix_DefaultDataSourceVersion.py` | Uncomment in Fixer tab (requires Large SM storage format) |
 
 ---
 
 ## Implementation Phases
 
 ### Phase 1 — Foundation (v1.1.0) ✅
-- [x] `_ui_components.py` — shared theme constants, icon dict, `build_tree_items()`, `create_three_panel_layout()`, connection bar helpers
-- [x] `_sm_explorer.py` — Semantic Model Explorer with tree + DAX preview + properties placeholder
-- [x] `_report_explorer.py` — Report Explorer with tree + preview/properties placeholders
-- [x] `_pbi_fixer.py` — Tab wrapper (Fixer | Semantic Model | Report)
-- [x] `PLAN.md` — this file
+
+* `_ui_components.py` — shared theme constants, icon dict, `build_tree_items()`, `create_three_panel_layout()`, connection bar helpers
+* `_sm_explorer.py` — Semantic Model Explorer with tree + DAX preview + properties placeholder
+* `_report_explorer.py` — Report Explorer with tree + preview/properties placeholders
+* `_pbi_fixer.py` — Tab wrapper (Fixer | Semantic Model | Report)
+* `PLAN.md` — this file
 
 ### Phase 2 — Semantic Model Properties & Editing (v1.2.x) ✅
-- [x] Properties panel in SM Explorer: data type, format string, description, display folder, is_hidden
-- [x] Editable DAX for measures and calc items with Save Expression button
-- [x] Editable properties (write back via XMLA) with save button and confirmation
-- [x] Collapsible trees with expand/collapse all
-- [x] Perspective Editor tab (based on upstream m-kovalsky/perspective_editor)
+
+* Properties panel in SM Explorer: data type, format string, description, display folder, is\_hidden
+* Editable DAX for measures and calc items with Save Expression button
+* Editable properties (write back via XMLA) with save button and confirmation
+* Collapsible trees with expand/collapse all
+* Perspective Editor tab (based on upstream m-kovalsky/perspective\_editor)
 
 ### Phase 3 — Report Preview & Properties (v1.2.x) ✅
-- [x] Report preview via `powerbiclient.Report` widget (live embedded report)
-- [x] Properties panel: visual position, size, type, filter config
-- [x] Page navigation in preview when selecting page in tree
-- [x] Fixer actions dropdown in Report Explorer (runs fixers on selected page)
+
+* Report preview via `powerbiclient.Report` widget (live embedded report)
+* Properties panel: visual position, size, type, filter config
+* Page navigation in preview when selecting page in tree
+* Fixer actions dropdown in Report Explorer (runs fixers on selected page)
 
 ### Phase 4 — Multi-Item Connection & PBIR Gate (v1.2.8–1.2.24) ✅
-- [x] Shared Load button next to input field — triggers SM + Report loading at once
-- [x] Comma-separated report/SM input (e.g. `"Bad Report, Slicerbar Testing"`)
-- [x] Blank input = load all semantic models / reports in the workspace via REST API
-- [x] Multi-model tree grouping (expand/collapse per model)
-- [x] Multi-report tree grouping (expand/collapse per report)
-- [x] Per-item progress status during loading (`Model 1/9: loading 'X'…`)
-- [x] 5-minute hard timeout on full load
-- [x] PBIR format check via REST API, skips non-PBIR reports for fixers
-- [x] "Upgrade to PBIR" checkbox in Fixer (runs first in chain)
-- [x] "Convert to PBIR" in Report Explorer actions dropdown
-- [ ] PBIRLegacy warning badges in tree + banner with "Convert All" button
-- [ ] After conversion, re-check and update tree badges
+
+* Shared Load button next to input field — triggers SM + Report loading at once
+* Comma-separated report/SM input (e.g. `"Bad Report, Slicerbar Testing"`)
+* Blank input = load all semantic models / reports in the workspace via REST API
+* Multi-model tree grouping (expand/collapse per model)
+* Multi-report tree grouping (expand/collapse per report)
+* Per-item progress status during loading (`Model 1/9: loading 'X'…`)
+* 5-minute hard timeout on full load
+* PBIR format check via `_check_report_format()`, skips non-PBIR reports for fixers
+* "Upgrade to PBIR" checkbox in Fixer (runs first in chain)
+* "Convert to PBIR" in Report Explorer actions dropdown
+* PBIRLegacy warning badges in tree + banner with "Convert All" button
+* After conversion, re-check and update tree badges
 
 ### Phase 5 — Fixer Tab Redesign (v1.2.8–1.2.24) ✅
-- [x] **"God Button"** (⚡ Fix Everything) — selects all fixers + confirms XMLA, runs
-- [x] Report fixers in Report Explorer actions dropdown (Fix Pie Charts, Fix Bar Charts, etc.)
-- [x] SM fixers in SM Explorer actions dropdown (Discourage Implicit Measures, Calendar, etc.)
-- [x] Fixer tab hidden by default (`show_fixer_tab=False`); pass `True` to restore
-- [x] Tab order: SM → Report → Fixer → Perspectives
-- [x] All fixer scripts continue to work standalone via `print()` + `redirect_stdout`
-- [x] New SM actions: "Auto-Create Measures from Columns", "Add PY Measures (Y-1)" — inline fallback in `_pbi_fixer.py`
+
+* **"God Button"** (⚡ Fix Everything) — selects all fixers + confirms XMLA, runs
+* Report fixers in Report Explorer actions dropdown (Fix Pie Charts, Fix Bar Charts, etc.)
+* SM fixers in SM Explorer actions dropdown (Discourage Implicit Measures, Calendar, etc.)
+* Fixer tab hidden by default (`show_fixer_tab=False`); pass `True` to restore
+* Tab order: SM → Report → Fixer → Perspectives → ...
+* All fixer scripts continue to work standalone via `print()` + `redirect_stdout`
+* New SM actions: "Auto-Create Measures from Columns", "Add PY Measures (Y-1)" — inline fallback in `_pbi_fixer.py`
+* "Format All DAX" action in SM Explorer (calls `tom.format_dax()`)
 
 ### Phase 6 — UI Polish (v1.2.14–1.2.42) ✅
-- [x] Full-width layout (`width=100%`, no max-width cap)
-- [x] Wider tree panels (400px) and input fields (400px)
-- [x] Multi-select via `SelectMultiple` (Ctrl+click / Shift+click)
-- [x] Single-click expand/collapse coexists with multi-select (len==1 triggers toggle)
-- [x] Duplicate display strings deduplicated with zero-width spaces
-- [x] Properties panel strips model prefix from table names
-- [x] Inline status per tab (progress, errors, completion)
-- [x] Fixer stdout captured via `redirect_stdout` (no notebook scroll)
-- [x] Split toolbar into two rows: nav (Load/Expand/Collapse) + actions (Scan/dropdown/Run)
-- [x] Select-then-run pattern: dropdown selects action, ⚡ Run button executes
-- [x] SummarizeBy property shown for columns in SM Explorer properties
-- [x] Save Expression/Properties correctly extracts model name from multi-model keys
-- [x] Auto-expand all items after load
-- [x] Unified save button with dirty state tracking (green ✓/red ⚠️)
-- [x] Branded header with accent color + wrench icon + bottom border
-- [x] Version footer with author + actionablereporting.com link
-- [x] Tab button width optimized (130px for 8 tabs)
-- [x] Input box with light grey background for visual separation
-- [x] ℹ️ About tab with author info, website, source repos, tech credits
-- [x] Perspectives tab icon changed to 👁 (eye) to distinguish from 🔍 Scan
+
+* Full-width layout (`width=100%`, no max-width cap)
+* Wider tree panels (400px) and input fields (400px)
+* Multi-select via `SelectMultiple` (Ctrl+click / Shift+click)
+* Single-click expand/collapse coexists with multi-select (len==1 triggers toggle)
+* Duplicate display strings deduplicated with zero-width spaces
+* Properties panel strips model prefix from table names
+* Inline status per tab (progress, errors, completion)
+* Fixer stdout captured via `redirect_stdout` (no notebook scroll)
+* Split toolbar into two rows: nav (Load/Expand/Collapse) + actions (Scan/dropdown/Run)
+* Select-then-run pattern: dropdown selects action, ⚡ Run button executes
+* SummarizeBy property shown for columns in SM Explorer properties
+* Save Expression/Properties correctly extracts model name from multi-model keys
+* Auto-expand all items after load
+* Unified save button with dirty state tracking (green ✓/red ⚠️)
+* Branded header with accent color + wrench icon + bottom border
+* Version footer with author + actionablereporting.com link
+* Tab button width optimized (130px for 8 tabs)
+* Input box with light grey background for visual separation
+* ℹ️ About tab with author info, website, source repos, tech credits
+* Perspectives tab icon changed to 👁 (eye) to distinguish from 🔍 Scan
 
 ### Phase 7 — Scan Mode & Violation Counts (v1.2.26–1.2.43) ✅
-- [x] **Scan button** (`[🔍 Scan]`) on both SM Explorer and Report Explorer toolbars
-- [x] Report Explorer: fast local scan using loaded visual type data (no API calls)
+
+* **Scan button** (`[🔍 Scan]`) on both SM Explorer and Report Explorer toolbars
+* Report Explorer: fast local scan using loaded visual type data (no API calls)
   — checks for pie charts, bar charts, column charts, hidden filters
-- [x] SM Explorer: scan runs all SM fixers in `scan_only=True` mode
-- [x] Tree items annotated with `⚠️N` violation badges after scan
-- [x] Scan results stored in `_scan_results` + `_scan_details` dicts
-- [x] Summary status: `"🔍 Scan complete: 14 finding(s) across 2 report(s)."`
-- [x] Properties panel shows violation details for selected flagged visual
-- [x] One-click "Fix this" buttons per violation (runs specific fixer on that page)
-- [ ] Re-scan after fix to update counts automatically
-- [ ] More granular page-level attribution for report scan
+* SM Explorer: scan runs all SM fixers in `scan_only=True` mode
+* Tree items annotated with `⚠️N` violation badges after scan
+* Scan results stored in `_scan_results` + `_scan_details` dicts
+* Summary status: `"🔍 Scan complete: 14 finding(s) across 2 report(s)."`
+* Properties panel shows violation details for selected flagged visual
+* One-click "Fix this" buttons per violation (runs specific fixer on that page)
+* Re-scan after fix to update counts automatically
+* More granular page-level attribution for report scan
 
 ### Phase 8 — VertipaqAnalyzer & Memory Integration (v1.2.36–1.2.38) ✅
-- [x] **📈 Vertipaq tab** — dedicated tab with on-demand loading
-  - Tree: models → tables (sorted by size) → columns (sorted by size)
-  - Each node shows size (KB/MB/GB), row count, cardinality, encoding, % DB
-  - Properties panel shows full stats for selected table/column
-  - Single-click expand/collapse, multi-select compatible
-- [x] **💾 Memory tab** — visual dashboard of memory usage
-  - Top 10 tables by size with colored bar indicators (red >30%, orange >10%, green <10%)
-  - Top 10 column hotspots (largest columns with cardinality + encoding)
-  - Relationship summary with missing rows highlight
-- [x] Both tabs use `vertipaq_analyzer()` from semantic-link-labs
-- [x] Both inline in `_pbi_fixer.py` (no external file dependency)
-- [x] Relationships shown in SM Explorer tree (expand/collapse per model)
-- [x] Perspectives listed in SM Explorer tree (read-only, names only)
-- [x] Visual → SM measure navigation (list_visual_objects + clickable buttons)
-- [ ] `read_stats_from_data=True` toggle for Direct Lake models
-- [ ] Cache Vertipaq results across tab switches
 
-### Phase 9 — Remaining & Advanced Features
-- [ ] Re-scan after fix to auto-update violation counts
-- [ ] Report BPA integration — highlight issues directly on tree nodes
-- [ ] Model BPA integration — surface best-practice findings alongside the tree
-- [ ] Relationship visualization (simple text-based or HTML diagram)
-- [ ] Measure dependency tree (leverage existing `anytree` patterns in Semantic Link Labs)
-- [ ] Search/filter input above the tree for large models (100+ tables)
-- [ ] PBIRLegacy warning badges in tree + "Convert All" button
-- [ ] After PBIR conversion, re-check and update tree badges
+* **💾 Memory Analyzer tab** (renamed from "Vertipaq") — dedicated tab with on-demand loading
+  + Tree: models → tables (sorted by size) → columns (sorted by size)
+  + Each node shows size (KB/MB/GB), row count, cardinality, encoding, % DB
+  + Properties panel shows full stats for selected table/column
+  + Single-click expand/collapse, multi-select compatible
+  + Subtab selector: Model Summary | Tables | Partitions | Columns | Relationships | Hierarchies
+  + Full DataFrame HTML rendering per subtab with row highlighting
+* Both inline in `_pbi_fixer.py` (no external file dependency)
+* Relationships shown in SM Explorer tree (expand/collapse per model)
+* Perspectives listed in SM Explorer tree (read-only, names only)
+* Visual → SM measure navigation (list\_visual\_objects + clickable buttons)
+* Cache Vertipaq results across tab switches
+
+### Phase 9 — BPA Integration & Auto-Fixers (v1.2.44–1.2.99) ✅
+
+* **📋 BPA tab** — runs `run_model_bpa()` on loaded semantic models
+  + Results table with Rule Name, Category, Object Name, Object Type, Severity
+  + Auto-fix buttons per row for 7 fixable rule types (see Fixer Inventory above)
+  + "Fix All" button per rule — bulk-fixes all violations of a single rule
+  + "Fix Rule" dropdown — select a rule and fix all its violations
+  + "Show Native" button — renders full BPA DataFrame in native output
+* **📄 Report BPA tab** — runs `run_report_bpa()` on loaded reports
+  + Results table with Report, Rule Name, Category, Object, Severity
+  + Auto-converts PBIRLegacy reports before running BPA
+  + "Show Native" button for full DataFrame output
+
+### Phase 10 — Delta Analyzer & Download (v1.2.44–1.2.99) ✅
+
+* **📐 Delta Analyzer tab** — analyses delta tables in the lakehouse
+  + Inputs: table name, lakehouse (optional), schema (optional), column stats toggle, cardinality toggle
+  + Subtabs: Summary | Parquet Files | Row Groups | Column Chunks | Columns
+  + Full DataFrame HTML rendering per subtab
+  + "Show Native" button for full DataFrame output
+* **Download buttons** — between input box and tabs
+  + ⬇ Download .pbix — saves report as .pbix file
+  + ⬇ Download .pbip — saves report as .pbip file (with optional thick\_report support)
+
+---
+
+## Remaining Work
+
+### Phase 11 — Wire Missing Fixers Into UI
+
+* **Migrate Slicer to Slicerbar**: file exists (`report/_Fix_MigrateSlicerToSlicerbar.py`) with full `scan_only` support. Need to:
+  + Add checkbox + row in Fixer tab
+  + Add to Report Explorer actions dropdown
+  + Wire into `report_fixers` list in `on_run()`
+* **Set DataSource Version V3**: file exists (`semantic_model/_Fix_DefaultDataSourceVersion.py`) with full `scan_only` support. Currently commented out because it requires Large SM storage format. Need to:
+  + Uncomment when Large SM storage format is broadly available
+  + Or add with a warning/prerequisite check
+
+### Phase 12 — Extract BPA Fixers to Standalone Files
+
+The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
+
+| Inline Fixer | Proposed File | Proposed Function |
+| --- | --- | --- |
+| Fix floating point | `semantic_model/_Fix_FloatingPointDataType.py` | `fix_floating_point_datatype()` |
+| Fix IsAvailableInMDX | `semantic_model/_Fix_IsAvailableInMdx.py` | `fix_isavailable_in_mdx()` |
+| Fix measure descriptions | `semantic_model/_Fix_MeasureDescriptions.py` | `fix_measure_descriptions()` |
+| Fix date format | `semantic_model/_Fix_DateColumnFormat.py` | `fix_date_column_format()` |
+| Fix month format | `semantic_model/_Fix_MonthColumnFormat.py` | `fix_month_column_format()` |
+| Fix measure format (#,0) | `semantic_model/_Fix_MeasureFormat.py` | `fix_measure_format()` |
+| Hide foreign keys | `semantic_model/_Fix_HideForeignKeys.py` | `fix_hide_foreign_keys()` |
+
+Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
+
+### Phase 13 — Advanced Features (Planned)
+
+* **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
+* `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
+* Measure dependency tree (leverage existing `anytree` patterns in Semantic Link Labs)
+* Relationship visualization (simple text-based or HTML diagram)
+* Search/filter input above the tree for large models (100+ tables)
+* Keyboard shortcuts for common actions (Scan, Fix, Expand All, Collapse All)
+* Export scan results to DataFrame / CSV for external reporting
+* Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
+* **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
+
+### Phase 14 — Report Visual Layout & Theming (Planned)
+
+* **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
+  + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
+  + Flag charts whose width × height is **less than 1% of the total page area** (e.g. < 10,800 px² on a 1920×1080 page) as "too small" — likely accidental residuals or broken visuals. Offer to delete or resize them.
+  + For alignment: group visuals by approximate row (y-position within a tolerance band, e.g. ±5px) and column (x-position ±5px). Within each row, snap all visuals to the same y/height. Within each column, snap to the same x/width. This gives a grid-snap effect without requiring a rigid layout.
+  + Expose as a fixer file (`report/_Fix_VisualAlignment.py`) with `scan_only` support: scan mode reports misalignments and tiny visuals, fix mode applies corrections.
+  + Add to Report Explorer actions dropdown and optionally to the Fixer tab.
+
+* **Design Theme Editor**: a new tab or sub-panel in the Report Explorer that allows editing the report's JSON theme. Features:
+  + Load the current theme from the report definition (PBIR `theme.json` / `CL*.json`).
+  + Visual editor for core theme properties: primary/secondary/tertiary colors, background color, foreground/text color, table accent, hyperlink color.
+  + Font family and size overrides per visual type.
+  + Preview swatches showing the selected palette.
+  + Save back to the report definition via `connect_report` / `updateDefinition`.
+
+* **Background Editor**: within the Report Explorer or Theme Editor, allow setting/changing page backgrounds:
+  + Solid color picker (hex input or color swatch grid).
+  + Transparency slider (0–100%).
+  + Apply to current page or all pages.
+  + Modify the page `background` property in the PBIR page definition.
+
+* **Logo Uploader**: add a logo/image to report pages:
+  + Input via **URL** (preferred — avoids file upload complexity in Fabric Notebooks). Paste an image URL, preview it inline, then insert as an Image visual at a specified position (e.g. top-left corner with configurable offset and size).
+  + Optionally support file path for images already in the lakehouse/OneLake.
+  + Apply to current page or all pages (bulk insert).
+  + Uses `connect_report` to add an Image visual to the page definition.
+
+* **Standard Design Themes from Microsoft**: include a dropdown of built-in Microsoft theme presets that can be applied to a report in one click. Source the theme JSONs from Microsoft's official theme gallery (e.g. the themes available in Power BI Desktop under View → Themes → Theme gallery). Store a curated set of theme JSON files (or URLs) and apply via `updateDefinition` on the report's theme file.
+
+* **Enhanced Fix Page Size** (`_Fix_PageSize.py` update): extend the existing page size fixer beyond just changing the page dimensions from 720×1280 to 1080×1920. The enhanced version should also:
+  + **Proportionally resize all visuals** on the page when the page size changes (scale x, y, width, height by the same ratio as the page dimension change).
+  + **Proportionally scale font sizes** in visual title, axis labels, data labels, and legend text (scale by the height ratio, rounded to the nearest 0.5pt).
+  + Add a `resize_visuals=True` parameter (default True) to control whether visual resizing is applied alongside the page size change.
+  + Add a `resize_fonts=True` parameter (default True) to control font scaling.
+  + Maintain scan\_only compatibility: in scan mode, report what would be resized without applying changes.
+
+* **Fix Variance Charts (Inline)** in Report Explorer: an IBCS-style variance chart fixer that transforms standard bar/column charts into proper variance visualizations. Proposed as `report/_Fix_VarianceChart.py` with `scan_only` support, plus wired into the Report Explorer actions dropdown. Approach:
+  + **Detection**: scan visuals for bar/column charts whose measure names or DAX expressions contain variance indicators (e.g. `"Δ"`, `"Var"`, `"Variance"`, `"Diff"`, `"abs"`, `"rel"`, `"%"` combined with comparison keywords). Also detect charts that have exactly two data series where one is likely an actual vs. comparison pair (AC vs PY, AC vs BU/FC).
+  + **Conditional formatting for sign**: set data color conditional formatting so that positive values are green (or IBCS-compliant solid black for absolute variances) and negative values are red. Apply via the visual's `objects` → `dataPoint` → `fill` rules in the PBIR definition, using a conditional formatting rule based on the field value (`>= 0` → positive color, `< 0` → negative color).
+  + **Axis and label cleanup**: apply the same cleanup as the existing bar/column fixers (remove axis titles, remove gridlines, add data labels) to keep variance charts consistent with the IBCS formatting standard.
+  + **Integrated variance waterfall detection**: optionally detect waterfall chart visuals and apply the same positive/negative color coding to the waterfall breakdown bars.
+  + Expose in Report Explorer actions dropdown as "Fix Variance Charts" alongside the existing chart fixers.
+
+* **Design Preview Before Fix** — a general pattern for all chart fixers (variance, bar, column, pie replacement, alignment). Instead of applying a fix immediately, offer the user a choice of **design presets** rendered as visual previews before committing. Implementation:
+  + When a fixer is triggered from the Report Explorer actions dropdown, show a **preview panel** (in the properties/bottom-right area) with 2–4 design options rendered as thumbnail previews.
+  + Each preview is a small HTML/SVG mockup illustrating the proposed visual style. The user clicks one to select, then confirms with an "Apply" button. "Cancel" discards without changes.
+  + **Variance chart presets**:
+    - **IBCS Standard**: solid black bars for absolute variance, no fill for relative; red for negative, green for positive. No axis titles, data labels on bars.
+    - **IBCS Strict**: same as Standard but with hatched/patterned fills for previous year (PY) values and outline-only bars for budget/forecast (BU/FC) comparisons.
+    - **Traffic Light**: green/yellow/red coloring based on threshold bands (e.g. >5% green, -5%–5% yellow, <-5% red). User can configure thresholds.
+    - **Monochrome**: dark grey for positive, light grey for negative. Suitable for print or minimalist dashboards.
+  + **Bar/Column chart presets**:
+    - **IBCS Clean**: no axis titles, no gridlines, data labels on bars, single accent color.
+    - **IBCS Grouped**: same cleanup but with category-based color assignment from the theme palette.
+    - **Minimal**: remove all chrome (titles, legends, gridlines, axis lines), data labels only.
+  + **Pie chart replacement presets** (shown when Fix Pie Charts is triggered):
+    - **Clustered Bar** (current default): horizontal bars sorted by value.
+    - **Stacked Bar 100%**: shows proportions as a single stacked bar.
+    - **Treemap**: area-based proportional visualization.
+  + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
+  + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
+
+### Phase 15 — Cloning & AI Assistant (Planned)
+
+* **Create a copy of Report + Semantic Model**: add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
+  + Clones the semantic model via `clone_semantic_model()` or `create_semantic_model_from_bim()` using the current model's BIM/TMDL definition.
+  + Clones the report via `getDefinition` → modify the report name and dataset binding → `createItem` with the new definition pointing to the cloned model.
+  + Optionally allows cloning to a **different workspace** (target workspace dropdown).
+  + Shows progress and confirms both items were created successfully.
+  + Useful for creating dev/test copies, versioning before applying fixers, or templating.
+
+* **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
+  + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
+  + Have context awareness — automatically pass the currently loaded model/report metadata (table names, measure expressions, relationships) as context to the AI.
+  + Support quick actions from AI suggestions (e.g. AI suggests hiding a column → one-click button to apply via XMLA).
+  + Research Michael Kovalsky's existing AI window implementation in SLL to determine the correct integration points and API surface.
+
+---
+
+Testing is currently **manual and notebook-based**. Each fixer and UI component is validated as follows:
+
+* **Standalone fixer testing**: Every fixer script works independently via direct call in a Fabric Notebook (e.g. `fix_piecharts(report="Test Report", workspace="Dev Workspace", scan_only=True)`). This ensures fixers remain usable outside the UI.
+* **Scan-then-fix cycle**: Run `Scan` → verify violation counts → run fixer → re-scan → confirm counts drop to zero.
+* **Multi-item loading**: Test with blank input (all items), single item, and comma-separated lists against a workspace containing both PBIR and PBIRLegacy reports.
+* **PBIR gate**: Verify that PBIRLegacy reports are skipped (or auto-converted) and that fixers refuse to run until conversion is complete.
+* **Regression check**: After any code change, re-run the full load + scan + fix cycle on the test workspace.
+
+> **Future**: Consider adding automated integration tests using a dedicated test workspace with known report/model configurations, and unit tests for pure logic in `_ui_components.py` (tree building, deduplication, key parsing).
 
 ---
 
 ## UI Consistency — Box Styling
 
-Currently some boxes use `#fafafa` background (light grey) while others inherit darker greys or have no background. **All section boxes** across all tabs must use the same style:
+All section boxes across all tabs must use the same style:
 
 ```python
 # Canonical section box style (defined in _ui_components.py)
@@ -245,17 +482,14 @@ layout = widgets.Layout(
 )
 ```
 
-Audit all boxes across `_pbi_fixer.py`, `_sm_explorer.py`, `_report_explorer.py`, `_perspective_editor.py`, and `_ui_components.py` and ensure:
-- Same `background_color`, `border`, `border_radius`, `padding`, and `gap` values
-- Same width where applicable (full-width within their parent container)
-- If a box intentionally needs a different style (e.g. XMLA warning = `#ffc107` border), document the exception
+Exceptions: XMLA warning box uses `#ffc107` border.
 
 ---
 
 ## Design Decisions
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
+| --- | --- | --- |
 | Tree widget | `widgets.SelectMultiple` | Supports Ctrl/Shift multi-select; expand/collapse separated to buttons only (no tree rebuild on click) |
 | Duplicate items | Zero-width spaces (`\u200b`) | Multiple "Bar chart" entries get unique strings while looking identical |
 | Data loading | Pre-fetch all metadata into Python dict, then close connection | Avoids long-lived connections, enables offline browsing, simpler state management |
@@ -270,20 +504,28 @@ Audit all boxes across `_pbi_fixer.py`, `_sm_explorer.py`, `_report_explorer.py`
 | God button | "⚡ Fix Everything" runs all checked fixers | Most common action; reduces clicks for the typical workflow |
 | Fixer tab hidden | `show_fixer_tab=False` by default | All fixers accessible via Actions dropdowns in Report/SM tabs |
 | Scan mode | Integrated toggle per tab, not a separate tab | Violations visible where objects are; no context switching needed |
+| BPA fixers inline | 7 small fix functions inside `_bpa_tab()` | Simple one-liner fixes; separate files would be overkill until they need `scan_only` or reuse |
+| Analysis tabs inline | Vertipaq, BPA, Report BPA, Delta Analyzer in `_pbi_fixer.py` | No external file dependency; these tabs are read-only analysis, not reusable modules |
 
 ---
 
 ## API Dependencies
 
 | Feature | Semantic Link Labs API | Notes |
-|---------|----------------------|-------|
+| --- | --- | --- |
 | SM tree | `connect_semantic_model(readonly=True)` → `tm.model.Tables`, `.Columns`, `.Measures`, `.Hierarchies` | TOM object model via .NET interop |
 | DAX preview | `measure.Expression`, `calc_item.Expression` | Pre-fetched during Load |
+| DAX formatting | `tom.format_dax()` | Calls DAX Formatter API via SLL |
 | Report tree | `connect_report(readonly=True)` → `rw.list_pages()`, `rw.list_visuals()` | Returns DataFrames |
-| Report format | `GET /v1.0/myorg/groups/{ws}/reports` → `.format` field | REST API, no TOM needed |
+| Report format | `_check_report_format()` → REST API `.format` field | Uses Fabric REST client |
 | PBIR upgrade (single) | `fix_upgrade_to_pbir(report, workspace=ws)` | REST round-trip: getDefinition → updateDefinition |
 | PBIR upgrade (bulk) | `upgrade_to_pbir(report=[...], workspace=ws)` | Embed + save approach, already in upstream SLL |
-| Vertipaq stats | `vertipaq_analyzer(dataset, workspace)` | Returns `dict[str, pd.DataFrame]` with Model/Tables/Columns/Partitions/Relationships |
+| Vertipaq stats | `vertipaq_analyzer(dataset, workspace)` | Returns `dict[str, pd.DataFrame]` with Model/Tables/Columns/Partitions/Relationships/Hierarchies |
+| Model BPA | `run_model_bpa(dataset, workspace, return_dataframe=True)` | Returns DataFrame of findings |
+| Report BPA | `run_report_bpa(report, workspace, return_dataframe=True)` | Returns DataFrame of findings |
+| Delta Analyzer | `delta_analyzer(table, lakehouse, workspace, ...)` | Returns dict of DataFrames |
+| Download .pbix | `save_as_pbip(report, path, ...)` or REST download | Saves to notebook files |
+| Download .pbip | `save_as_pbip(report, path, thick_report=...)` | Saves PBIP folder structure |
 | Fixers | `fix_piecharts()`, `fix_barcharts()`, etc. | Existing fixer functions, unchanged |
 
 ---
@@ -293,7 +535,7 @@ Audit all boxes across `_pbi_fixer.py`, `_sm_explorer.py`, `_report_explorer.py`
 ### Already pushed to fork (`KornAlexander/semantic-link-labs`) — separate feature branches
 
 | File | Branch | Status |
-|------|--------|--------|
+| --- | --- | --- |
 | `report/_Fix_PieChart.py` | `feature/fix-piecharts` | ✅ Pushed |
 | `report/_Fix_BarChart.py` | `feature/fix-chart-formatting` | ✅ Pushed |
 | `report/_Fix_ColumnChart.py` | `feature/fix-chart-formatting` | ✅ Pushed |
@@ -309,38 +551,35 @@ Audit all boxes across `_pbi_fixer.py`, `_sm_explorer.py`, `_report_explorer.py`
 ### On `feature/pbi-fixer-ui` branch (all UI files together)
 
 | File | Status |
-|------|--------|
-| `_pbi_fixer.py` | ✅ Pushed (v1.2.44) |
+| --- | --- |
+| `_pbi_fixer.py` | ✅ Pushed (v1.2.99) |
 | `_ui_components.py` | ✅ Pushed |
 | `_sm_explorer.py` | ✅ Pushed |
 | `_report_explorer.py` | ✅ Pushed |
 | `_perspective_editor.py` | ✅ Pushed |
 | `semantic_model/_Add_MeasuresFromColumns.py` | ✅ Pushed (also inline fallback in `_pbi_fixer.py`) |
 | `semantic_model/_Add_PYMeasures.py` | ✅ Pushed (also inline fallback in `_pbi_fixer.py`) |
+| `report/_Fix_MigrateSlicerToSlicerbar.py` | ✅ Pushed (file exists, **not yet wired into UI**) |
 
 ### NOT yet pushed / still need PRs to upstream `microsoft/semantic-link-labs`
 
 | File | Notes |
-|------|-------|
-| `report/_Fix_UpgradeToPbir.py` | New file — REST round-trip PBIR upgrade fixer. On `feature/pbi-fixer-ui` branch but needs own PR. |
-| `report/_Fix_MigrateSlicerToSlicerbar.py` | New file — slicer migration fixer. On `feature/pbi-fixer-ui` branch but needs own PR. |
-| `semantic_model/_Fix_DefaultDataSourceVersion.py` | New file — sets DefaultPowerBIDataSourceVersion. On `feature/pbi-fixer-ui` branch but needs own PR. Currently removed from UI (requires Large SM storage format). |
-| `report/_upgrade_to_pbir.py` | **Already in upstream SLL** (not a new file) — batch upgrade via embed+save. No PR needed. |
-| `report/_generate_embed_token.py` | **Already in upstream SLL** — embed token helper. No PR needed. |
-
-### Summary of what still needs individual PRs
-
-1. `_Fix_UpgradeToPbir.py` → needs `feature/fix-upgrade-to-pbir` branch + PR
-2. `_Fix_MigrateSlicerToSlicerbar.py` → needs `feature/fix-migrate-slicer` branch + PR
-3. `_Fix_DefaultDataSourceVersion.py` → needs `feature/fix-default-datasource-version` branch + PR (low priority, requires Large SM storage format)
+| --- | --- |
+| `report/_Fix_UpgradeToPbir.py` | Needs `feature/fix-upgrade-to-pbir` branch + PR. |
+| `report/_Fix_MigrateSlicerToSlicerbar.py` | Needs `feature/fix-migrate-slicer` branch + PR. |
+| `semantic_model/_Fix_DefaultDataSourceVersion.py` | Needs `feature/fix-default-datasource-version` branch + PR. **Low priority** — requires Large SM storage format. |
+| `report/_upgrade_to_pbir.py` | **Already in upstream SLL** — no PR needed. |
+| `report/_generate_embed_token.py` | **Already in upstream SLL** — no PR needed. |
 
 ---
 
 ## Contributing
 
 To add a new fixer:
+
 1. Create `_Fix_YourFixer.py` in `report/` or `semantic_model/`
 2. Add a lazy import in `_pbi_fixer.py`
 3. Add a checkbox row and wire it into the `report_fixers` or `sm_fixers` list
-4. The fixer will automatically appear in the Fixer tab UI
-5. The fixer **must** also work standalone: `fix_your_fixer(report="X", workspace="Y", scan_only=False)`
+4. Add the fixer to the appropriate Explorer actions dropdown (`_rpt_fixer_cbs` or `_sm_fixer_cbs`)
+5. The fixer will automatically appear in the Fixer tab UI and/or the Explorer actions
+6. The fixer **must** also work standalone: `fix_your_fixer(report="X", workspace="Y", scan_only=False)`

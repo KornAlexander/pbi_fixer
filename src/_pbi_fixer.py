@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.98"
+__version__ = "1.2.99"
 
 import ipywidgets as widgets
 import io
@@ -1557,6 +1557,58 @@ def pbi_fixer(
     )
 
     # -----------------------------
+    # DOWNLOAD BUTTONS
+    # -----------------------------
+    download_pbix_btn = widgets.Button(description="\u2B07 Download .pbix", layout=widgets.Layout(width="140px"))
+    download_pbip_btn = widgets.Button(description="\u2B07 Download .pbip", layout=widgets.Layout(width="140px"))
+    download_status = widgets.HTML(value="")
+
+    def _on_download_pbix(_):
+        rpt = report_input.value.strip()
+        ws = workspace_input.value.strip() or None
+        if not rpt:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Enter a report name.</span>'
+            return
+        rpt = rpt.split(",")[0].strip()
+        download_pbix_btn.disabled = True
+        download_pbix_btn.description = "Downloading\u2026"
+        download_status.value = f'<span style="color:#999; font-size:12px;">Downloading .pbix\u2026</span>'
+        try:
+            from sempy_labs.report import download_report
+            download_report(report=rpt, workspace=ws)
+            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 .pbix saved to lakehouse Files.</span>'
+        except Exception as e:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+        download_pbix_btn.disabled = False
+        download_pbix_btn.description = "\u2B07 Download .pbix"
+
+    def _on_download_pbip(_):
+        rpt = report_input.value.strip()
+        ws = workspace_input.value.strip() or None
+        if not rpt:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Enter a report name.</span>'
+            return
+        rpt = rpt.split(",")[0].strip()
+        download_pbip_btn.disabled = True
+        download_pbip_btn.description = "Downloading\u2026"
+        download_status.value = f'<span style="color:#999; font-size:12px;">Saving .pbip\u2026</span>'
+        try:
+            from sempy_labs.report import save_report_as_pbip
+            save_report_as_pbip(report=rpt, workspace=ws)
+            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 .pbip saved to lakehouse Files.</span>'
+        except Exception as e:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+        download_pbip_btn.disabled = False
+        download_pbip_btn.description = "\u2B07 Download .pbip"
+
+    download_pbix_btn.on_click(_on_download_pbix)
+    download_pbip_btn.on_click(_on_download_pbip)
+    download_row = widgets.HBox(
+        [download_pbix_btn, download_pbip_btn, download_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    # -----------------------------
     # TAB SELECTOR (ToggleButtons — more reliable than widgets.Tab in Fabric)
     # -----------------------------
     _fixer_visible = show_fixer_tab
@@ -2218,7 +2270,7 @@ def pbi_fixer(
     _switch_tab()  # set initial visibility
 
     container = widgets.VBox(
-        [header, shared_inputs_box, tab_selector] + tab_panels + [version_footer],
+        [header, shared_inputs_box, download_row, tab_selector] + tab_panels + [version_footer],
         layout=widgets.Layout(
             width="100%",
             padding="20px",
