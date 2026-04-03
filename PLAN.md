@@ -190,14 +190,14 @@ These are small inline fix functions in `_pbi_fixer.py` that auto-fix specific M
 | Provide format string for measures | Set format to `#,0` | ❌ |
 | Hide foreign keys | Set `IsHidden = True` on column | ❌ |
 
-### Not Yet Wired Into UI
+### Optional / Not Now
 
-These fixers have separate files with full `scan_only` support but are **not yet connected** to any UI (Fixer tab or Explorer actions):
+These fixers have separate files with full `scan_only` support but are **deprioritized** — will not be wired into the UI in the near term:
 
-| Fixer | File | What's Needed |
+| Fixer | File | Reason |
 | --- | --- | --- |
-| Migrate Slicer to Slicerbar | `report/_Fix_MigrateSlicerToSlicerbar.py` | Add to Fixer tab checkbox + Report Explorer actions dropdown |
-| Set DataSource Version V3 | `semantic_model/_Fix_DefaultDataSourceVersion.py` | Uncomment in Fixer tab (requires Large SM storage format) |
+| Migrate Slicer to Slicerbar | `report/_Fix_MigrateSlicerToSlicerbar.py` | Low demand; slicerbar adoption still limited |
+| Set DataSource Version V3 | `semantic_model/_Fix_DefaultDataSourceVersion.py` | Requires Large SM storage format; not broadly available |
 
 ---
 
@@ -332,17 +332,7 @@ These fixers have separate files with full `scan_only` support but are **not yet
 
 ## Remaining Work
 
-### Phase 11 — Wire Missing Fixers Into UI
-
-* **Migrate Slicer to Slicerbar**: file exists (`report/_Fix_MigrateSlicerToSlicerbar.py`) with full `scan_only` support. Need to:
-  + Add checkbox + row in Fixer tab
-  + Add to Report Explorer actions dropdown
-  + Wire into `report_fixers` list in `on_run()`
-* **Set DataSource Version V3**: file exists (`semantic_model/_Fix_DefaultDataSourceVersion.py`) with full `scan_only` support. Currently commented out because it requires Large SM storage format. Need to:
-  + Uncomment when Large SM storage format is broadly available
-  + Or add with a warning/prerequisite check
-
-### Phase 12 — Extract BPA Fixers to Standalone Files
+### Phase 11 — Extract BPA Fixers to Standalone Files
 
 The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
 
@@ -358,7 +348,7 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 13 — Advanced Features (Planned)
+### Phase 12 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -370,7 +360,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
 * **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
 
-### Phase 14 — Report Visual Layout & Theming (Planned)
+### Phase 13 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -433,7 +423,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 15 — Cloning & AI Assistant (Planned)
+### Phase 14 — Cloning & AI Assistant (Planned)
 
 * **Create a copy of Report + Semantic Model**: add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
   + Clones the semantic model via `clone_semantic_model()` or `create_semantic_model_from_bim()` using the current model's BIM/TMDL definition.
@@ -566,8 +556,8 @@ Exceptions: XMLA warning box uses `#ffc107` border.
 | File | Notes |
 | --- | --- |
 | `report/_Fix_UpgradeToPbir.py` | Needs `feature/fix-upgrade-to-pbir` branch + PR. |
-| `report/_Fix_MigrateSlicerToSlicerbar.py` | Needs `feature/fix-migrate-slicer` branch + PR. |
-| `semantic_model/_Fix_DefaultDataSourceVersion.py` | Needs `feature/fix-default-datasource-version` branch + PR. **Low priority** — requires Large SM storage format. |
+| `report/_Fix_MigrateSlicerToSlicerbar.py` | **Deprioritized** — file exists, not wired into UI. PR deferred. |
+| `semantic_model/_Fix_DefaultDataSourceVersion.py` | **Deprioritized** — requires Large SM storage format. PR deferred. |
 | `report/_upgrade_to_pbir.py` | **Already in upstream SLL** — no PR needed. |
 | `report/_generate_embed_token.py` | **Already in upstream SLL** — no PR needed. |
 
