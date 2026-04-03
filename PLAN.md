@@ -380,7 +380,36 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 15 — Advanced Features (Planned)
+### Phase 15 — Native BPA & Memory Analyzer Integration (Planned)
+
+Replace the custom inline BPA and Memory Analyzer tab implementations with the **original upstream HTML renderers** from Semantic Link Labs, integrated as copied source code within the PBI Fixer codebase. The goal is to use the rich, tabbed HTML visualizations from `run_model_bpa()` and `vertipaq_analyzer()` directly, rather than maintaining a separate simplified version.
+
+#### Approach
+
+* **Copy, don't rewrite**: Take the HTML rendering logic from `_model_bpa.py` (the styled tab UI with tooltips, severity summaries, clickable rules, URL links) and `_vertipaq.py` (the vertipaq_map, formatted HTML tables with data type icons, size formatting) and embed them as local copies inside the PBI Fixer source tree (e.g. `_bpa_native.py`, `_vertipaq_native.py`). This avoids drift from upstream while allowing amendments.
+* **Preserve amendments**: Layer the PBI Fixer-specific additions on top of the native output:
+  + **BPA tab**: Keep the auto-fix buttons (Fix All, Fix Rule, Fix Row), the fixable-rule dropdown, the row-level fix buttons, and the "Show Full BPA" button. Render the native BPA HTML (with its category tabs, severity badges, tooltips, rule URLs) as the primary results view. Append fix controls below or beside each row where a fixer is available.
+  + **Memory Analyzer tab**: Keep the tree view (models → tables → columns with size/cardinality), properties panel, and subtab selector. Use the native `vertipaq_analyzer()` dict of DataFrames as the data source (already done), but render each subtab using the upstream's formatted HTML rendering (with data type icons, number formatting, % DB column) instead of the current raw `.to_html()`. Keep the Load button, Expand/Collapse, and caching behavior.
+  + **Report BPA tab**: Use `run_report_bpa()` output as-is, keeping the "Show Native" button and PBIRLegacy auto-conversion logic.
+* **Delta Analyzer**: no change — already uses its own rendering; upstream has no equivalent.
+
+#### Source Files to Copy
+
+| Upstream Source | Local Copy | What to Extract |
+| --- | --- | --- |
+| `_model_bpa.py` | `_bpa_native.py` | HTML rendering: `styles`, `tab_html`, `content_html`, `script` generation + the `vertipaq_map`-style formatting for the results table |
+| `_model_bpa_rules.py` | (import directly) | BPA rule definitions — no copy needed, import from `sempy_labs` |
+| `_vertipaq.py` | `_vertipaq_native.py` | HTML rendering: `vertipaq_map` with data type icons + format strings, table/column/partition/relationship formatting, the `_format_size()` helper |
+| `_icons.py` | (import directly) | Icon constants (`data_type_string`, `int_format`, etc.) — import from `sempy_labs._icons` |
+
+#### Key Constraints
+
+* **Do not fork the data-fetching logic** — continue calling `run_model_bpa(return_dataframe=True)` and `vertipaq_analyzer()` as the data sources. Only copy the *rendering/HTML generation* code.
+* **Keep inline fallbacks** — if the copied native renderers fail (e.g. missing icons module in a non-SLL environment), fall back to the current simplified HTML tables.
+* **Maintain fix button wiring** — the fix buttons must still reference the `_fix_map` and `_apply_fix` functions from the BPA tab. Augment the native HTML with fix button columns or overlay ipywidgets buttons alongside the HTML output.
+* **`IPython.display` vs `ipywidgets.HTML`** — the upstream functions use `display(HTML(...))` which renders directly in notebook output. For the PBI Fixer, capture the HTML string (not the display call) and inject it into an `ipywidgets.HTML` widget inside the tab panel. Use the `return_dataframe=True` path for BPA and the dict return for vertipaq_analyzer to get data, then apply the copied formatting logic to produce the HTML string.
+
+### Phase 16 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -392,7 +421,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
 * **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
 
-### Phase 16 — Report Visual Layout & Theming (Planned)
+### Phase 17 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -455,7 +484,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 17 — Workspace Report Format Overview (Planned)
+### Phase 18 — Workspace Report Format Overview (Planned)
 
 Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
 
@@ -465,7 +494,7 @@ Add a **report format overview** panel or subtab (e.g. in the Report tab or as a
 * Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
 * This provides a quick workspace-level health check before loading individual reports.
 
-### Phase 18 — Model Diagram Tab (Planned)
+### Phase 19 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -485,7 +514,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 19 — AI Assistant (Planned)
+### Phase 20 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
