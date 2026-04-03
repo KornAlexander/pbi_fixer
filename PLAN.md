@@ -479,84 +479,111 @@ Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_
 * Avoid using calculated columns (#2), Reduce calculated tables (#15) — require rewriting data pipeline. Flag only.
 * Rules involving RLS logic, DirectQuery tuning, star schema design — architectural decisions. Flag only.
 
-### Phase 19 — Advanced Features (Planned)
+### Phase 19 — Table Data Preview (Planned)
 
-* **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
-* `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
-* Measure dependency tree (leverage existing `anytree` patterns in Semantic Link Labs)
-* Relationship visualization (simple text-based or HTML diagram)
-* Search/filter input above the tree for large models (100+ tables)
-* Keyboard shortcuts for common actions (Scan, Fix, Expand All, Collapse All)
-* Export scan results to DataFrame / CSV for external reporting
-* Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
-* **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
-* **Extended SM Explorer properties**: add more properties to the SM Explorer properties panel. For **columns**: show encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category. For **tables**: show mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag. For **measures**: show is-hidden, lineage tag, KPI properties (if any). For **relationships**: show cross-filter direction, security filtering, is-active, rely-on-referential-integrity. All additional properties should be read from the TOM `_model_data` cache (extend `_load_model_data_fast` / `_load_model_data_tom` to capture them).
-* **Editable Report Explorer properties**: make Report Explorer visual/page properties editable via `connect_report`. For **pages**: allow editing display name, width, height, background color, hidden flag. For **visuals**: allow editing position (x, y), size (width, height), title text, hidden flag. Show editable `widgets.Text` / `widgets.IntText` fields in the properties panel (same pattern as SM Explorer's editable properties). Add a Save button with dirty-state tracking. Writes go through `connect_report` in read-write mode to update the PBIR page/visual definitions.
+Add a **table data preview** in SM Explorer: when a table node is selected in the tree, show the top N rows as an HTML table in the preview panel.
 
-### Phase 20 — Report Visual Layout & Theming (Planned)
+* Add a row-count dropdown (Top 10 / Top 100 / All) next to the preview panel header.
+* Use `fabric.evaluate_dax()` with a `TOPN()` query against the semantic model to fetch the data.
+* Render as a styled HTML table (reuse `_df_to_html` pattern from Memory Analyzer).
+* The preview appears in the Expression/preview panel when a table node is selected (instead of showing "Select a measure").
+* For measures and columns, keep the existing DAX expression view.
 
-* **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
-  + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
-  + Flag charts whose width × height is **less than 1% of the total page area** (e.g. < 10,800 px² on a 1920×1080 page) as "too small" — likely accidental residuals or broken visuals. Offer to delete or resize them.
-  + For alignment: group visuals by approximate row (y-position within a tolerance band, e.g. ±5px) and column (x-position ±5px). Within each row, snap all visuals to the same y/height. Within each column, snap to the same x/width. This gives a grid-snap effect without requiring a rigid layout.
-  + Expose as a fixer file (`report/_Fix_VisualAlignment.py`) with `scan_only` support: scan mode reports misalignments and tiny visuals, fix mode applies corrections.
-  + Add to Report Explorer actions dropdown and optionally to the Fixer tab.
+### Phase 20 — Extended SM Explorer Properties (Planned)
 
-* **Design Theme Editor**: a new tab or sub-panel in the Report Explorer that allows editing the report's JSON theme. Features:
-  + Load the current theme from the report definition (PBIR `theme.json` / `CL*.json`).
-  + Visual editor for core theme properties: primary/secondary/tertiary colors, background color, foreground/text color, table accent, hyperlink color.
-  + Font family and size overrides per visual type.
-  + Preview swatches showing the selected palette.
-  + Save back to the report definition via `connect_report` / `updateDefinition`.
+Add more properties to the SM Explorer properties panel:
 
-* **Background Editor**: within the Report Explorer or Theme Editor, allow setting/changing page backgrounds:
-  + Solid color picker (hex input or color swatch grid).
-  + Transparency slider (0–100%).
-  + Apply to current page or all pages.
-  + Modify the page `background` property in the PBIR page definition.
+* **Columns**: encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category.
+* **Tables**: mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag.
+* **Measures**: is-hidden, lineage tag, KPI properties (if any).
+* **Relationships**: cross-filter direction, security filtering, is-active, rely-on-referential-integrity.
+* All additional properties read from the TOM `_model_data` cache (extend `_load_model_data_fast` / `_load_model_data_tom`).
 
-* **Logo Uploader**: add a logo/image to report pages:
-  + Input via **URL** (preferred — avoids file upload complexity in Fabric Notebooks). Paste an image URL, preview it inline, then insert as an Image visual at a specified position (e.g. top-left corner with configurable offset and size).
-  + Optionally support file path for images already in the lakehouse/OneLake.
-  + Apply to current page or all pages (bulk insert).
-  + Uses `connect_report` to add an Image visual to the page definition.
+### Phase 21 — Editable Report Explorer Properties (Planned)
 
-* **Standard Design Themes from Microsoft**: include a dropdown of built-in Microsoft theme presets that can be applied to a report in one click. Source the theme JSONs from Microsoft's official theme gallery (e.g. the themes available in Power BI Desktop under View → Themes → Theme gallery). Store a curated set of theme JSON files (or URLs) and apply via `updateDefinition` on the report's theme file.
+Make Report Explorer visual/page properties editable via `connect_report`:
 
-* **Enhanced Fix Page Size** (`_Fix_PageSize.py` update): extend the existing page size fixer beyond just changing the page dimensions from 720×1280 to 1080×1920. The enhanced version should also:
-  + **Proportionally resize all visuals** on the page when the page size changes (scale x, y, width, height by the same ratio as the page dimension change).
-  + **Proportionally scale font sizes** in visual title, axis labels, data labels, and legend text (scale by the height ratio, rounded to the nearest 0.5pt).
-  + Add a `resize_visuals=True` parameter (default True) to control whether visual resizing is applied alongside the page size change.
-  + Add a `resize_fonts=True` parameter (default True) to control font scaling.
-  + Maintain scan\_only compatibility: in scan mode, report what would be resized without applying changes.
+* **Pages**: allow editing display name, width, height, background color, hidden flag.
+* **Visuals**: allow editing position (x, y), size (width, height), title text, hidden flag.
+* Show editable `widgets.Text` / `widgets.IntText` fields in the properties panel (same pattern as SM Explorer).
+* Add a Save button with dirty-state tracking. Writes go through `connect_report` in read-write mode.
 
-* **Fix Variance Charts (Inline)** in Report Explorer: an IBCS-style variance chart fixer that transforms standard bar/column charts into proper variance visualizations. Proposed as `report/_Fix_VarianceChart.py` with `scan_only` support, plus wired into the Report Explorer actions dropdown. Approach:
-  + **Detection**: scan visuals for bar/column charts whose measure names or DAX expressions contain variance indicators (e.g. `"Δ"`, `"Var"`, `"Variance"`, `"Diff"`, `"abs"`, `"rel"`, `"%"` combined with comparison keywords). Also detect charts that have exactly two data series where one is likely an actual vs. comparison pair (AC vs PY, AC vs BU/FC).
-  + **Conditional formatting for sign**: set data color conditional formatting so that positive values are green (or IBCS-compliant solid black for absolute variances) and negative values are red. Apply via the visual's `objects` → `dataPoint` → `fill` rules in the PBIR definition, using a conditional formatting rule based on the field value (`>= 0` → positive color, `< 0` → negative color).
-  + **Axis and label cleanup**: apply the same cleanup as the existing bar/column fixers (remove axis titles, remove gridlines, add data labels) to keep variance charts consistent with the IBCS formatting standard.
-  + **Integrated variance waterfall detection**: optionally detect waterfall chart visuals and apply the same positive/negative color coding to the waterfall breakdown bars.
-  + Expose in Report Explorer actions dropdown as "Fix Variance Charts" alongside the existing chart fixers.
+### Phase 22 — Read Stats from Data Toggle (Planned)
 
-* **Design Preview Before Fix** — a general pattern for all chart fixers (variance, bar, column, pie replacement, alignment). Instead of applying a fix immediately, offer the user a choice of **design presets** rendered as visual previews before committing. Implementation:
-  + When a fixer is triggered from the Report Explorer actions dropdown, show a **preview panel** (in the properties/bottom-right area) with 2–4 design options rendered as thumbnail previews.
-  + Each preview is a small HTML/SVG mockup illustrating the proposed visual style. The user clicks one to select, then confirms with an "Apply" button. "Cancel" discards without changes.
-  + **Variance chart presets**:
-    - **IBCS Standard**: solid black bars for absolute variance, no fill for relative; red for negative, green for positive. No axis titles, data labels on bars.
-    - **IBCS Strict**: same as Standard but with hatched/patterned fills for previous year (PY) values and outline-only bars for budget/forecast (BU/FC) comparisons.
-    - **Traffic Light**: green/yellow/red coloring based on threshold bands (e.g. >5% green, -5%–5% yellow, <-5% red). User can configure thresholds.
-    - **Monochrome**: dark grey for positive, light grey for negative. Suitable for print or minimalist dashboards.
-  + **Bar/Column chart presets**:
-    - **IBCS Clean**: no axis titles, no gridlines, data labels on bars, single accent color.
-    - **IBCS Grouped**: same cleanup but with category-based color assignment from the theme palette.
-    - **Minimal**: remove all chrome (titles, legends, gridlines, axis lines), data labels only.
-  + **Pie chart replacement presets** (shown when Fix Pie Charts is triggered):
-    - **Clustered Bar** (current default): horizontal bars sorted by value.
-    - **Stacked Bar 100%**: shows proportions as a single stacked bar.
-    - **Treemap**: area-based proportional visualization.
-  + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
-  + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
+* `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer.
+* Add a checkbox in the Memory Analyzer nav row; when checked, calls `vertipaq_analyzer(read_stats_from_data=True)`.
 
-### Phase 21 — Workspace Report Format Overview (Planned)
+### Phase 23 — Measure Dependency Tree (Planned)
+
+* Measure dependency tree visualization leveraging existing `anytree` patterns in Semantic Link Labs.
+* Show which measures reference which other measures/columns as a tree or DAG.
+
+### Phase 24 — Search & Filter Tree (Planned)
+
+* Search/filter input above the tree for large models (100+ tables).
+* Filter tree items by name in real time as the user types.
+
+### Phase 25 — Export Scan Results (Planned)
+
+* Export scan results to DataFrame / CSV for external reporting.
+* Add an "Export" button next to the Scan button.
+
+### Phase 26 — Batch Fixer Presets (Planned)
+
+* Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
+* Preset dropdown in the Fixer tab or as a top-level action.
+
+### Phase 27 — Incremental Refresh Setup (Planned)
+
+* **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action to configure an incremental refresh policy. UI form: date column picker, lookback window, incremental rows count. Uses SLL's `add_incremental_refresh_policy()` / `update_incremental_refresh_policy()`.
+
+### Phase 28 — Fix Visual Alignment & Size (Planned)
+
+* A new fixer (`report/_Fix_VisualAlignment.py`) that detects and corrects misaligned or undersized chart visuals on a page.
+* Scan chart-type visuals, flag tiny charts (<1% page area), snap to grid by row/column alignment.
+* `scan_only` support. Wired into Report Explorer actions dropdown.
+
+### Phase 29 — Design Theme Editor (Planned)
+
+* A new tab or sub-panel in Report Explorer for editing the report's JSON theme.
+* Visual editor for colors (primary/secondary/tertiary, background, foreground, accent).
+* Font family and size overrides. Preview swatches.
+* Save back via `connect_report` / `updateDefinition`.
+
+### Phase 30 — Background Editor (Planned)
+
+* Set/change page backgrounds: solid color picker (hex input), transparency slider (0–100%).
+* Apply to current page or all pages. Modifies PBIR page `background` property.
+
+### Phase 31 — Logo Uploader (Planned)
+
+* Add a logo/image to report pages via URL input.
+* Preview inline, insert as Image visual at configurable position/size.
+* Apply to current page or all pages. Uses `connect_report`.
+
+### Phase 32 — Standard Design Themes (Planned)
+
+* Dropdown of built-in Microsoft theme presets applied in one click.
+* Source from Microsoft's official theme gallery. Apply via `updateDefinition`.
+
+### Phase 33 — Enhanced Fix Page Size (Planned)
+
+* Extend `_Fix_PageSize.py`: proportionally resize all visuals + scale font sizes when page size changes.
+* `resize_visuals=True` and `resize_fonts=True` parameters. `scan_only` compatible.
+
+### Phase 34 — Fix Variance Charts (Planned)
+
+* IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`).
+* Detect bar/column charts with variance indicators. Apply positive/negative color formatting.
+* Axis/label cleanup. Waterfall chart support. Wired into Report Explorer actions.
+
+### Phase 35 — Design Preview Before Fix (Planned)
+
+* General pattern: show 2–4 design preset previews (HTML/SVG mockups) before applying a fix.
+* User selects preset, confirms with "Apply". Framework in `_ui_components.py`.
+* Presets for variance charts (IBCS Standard/Strict/Traffic Light/Monochrome), bar/column, pie replacement.
+
+### Phase 36 — Workspace Report Format Overview (Planned)
 
 Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
 
@@ -566,7 +593,7 @@ Add a **report format overview** panel or subtab (e.g. in the Report tab or as a
 * Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
 * This provides a quick workspace-level health check before loading individual reports.
 
-### Phase 22 — Model Diagram Tab (Planned)
+### Phase 37 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -586,7 +613,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 23 — AI Assistant (Planned)
+### Phase 38 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
