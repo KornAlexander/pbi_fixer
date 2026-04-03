@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.116"
+__version__ = "1.2.117"
 
 import ipywidgets as widgets
 import io
@@ -2545,7 +2545,7 @@ def pbi_fixer(
         _clone_rpt(report=rpt, cloned_report=cloned_name, workspace=ws)
         print(f"\u2713 Report cloned as '{cloned_name}'.")
 
-    _rpt_fixer_cbs["\U0001F4CB Clone Report"] = lambda **kw: _clone_report(**kw)
+    # Clone Report removed from dropdown — available as top-level button
 
     def _clone_semantic_model(**kw):
         """Clone the semantic model via shared impl."""
@@ -2558,7 +2558,7 @@ def pbi_fixer(
         _clone_semantic_model_impl(ds, ws)
         print(f"\u2713 Semantic model cloned as '{ds}_copy'.")
 
-    _sm_fixer_cbs["\U0001F4CB Clone Model"] = lambda **kw: _clone_semantic_model(**kw)
+    # Clone Model removed from dropdown — available as top-level button
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
