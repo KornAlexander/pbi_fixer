@@ -787,7 +787,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             set_status(refresh_status, f"Error: {e}", "#ff3b30")
         finally:
             refresh_btn.disabled = False
-            refresh_btn.description = "🔄 Refresh Model"
+            # Restore label based on current selection
+            cur = _current_key[0] or ""
+            if cur.startswith("partition:"):
+                refresh_btn.description = "🔄 Refresh Partition"
+            elif cur.startswith("table:"):
+                refresh_btn.description = "🔄 Refresh Table"
+            else:
+                refresh_btn.description = "🔄 Refresh Model"
 
     refresh_btn.on_click(on_refresh)
     refresh_row = widgets.HBox([refresh_type_dd, refresh_btn, refresh_status], layout=widgets.Layout(align_items="center", gap="8px", margin="4px 0 0 0"))
@@ -1170,6 +1177,15 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         copy_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
         if key.split(":")[0] not in ("measure", "column"):
             ref_output.layout.display = "none"
+
+        # Dynamic refresh button label based on selection
+        if node_type == "partition":
+            refresh_btn.description = "🔄 Refresh Partition"
+        elif node_type == "table":
+            refresh_btn.description = "🔄 Refresh Table"
+        else:
+            refresh_btn.description = "🔄 Refresh Model"
+
         _suppressing_observe[0] = False
 
     def _expand_folders(tables, table_prefix=""):
