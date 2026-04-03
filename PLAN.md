@@ -411,6 +411,7 @@ Replace the custom inline BPA and Memory Analyzer tab implementations with the *
 
 ### Phase 16 — Advanced Features (Planned)
 
+* **Stop Load button** for SM Explorer and Report Explorer: add a "⏹ Stop" button next to the Load button that becomes visible/enabled while loading is in progress. When clicked, sets a shared `_cancel_load` flag that the item-by-item loading loop checks before processing the next item. On cancellation, the tree shows partially loaded items with a status message like "⏹ Stopped after 3/9 items." The stop button is hidden/disabled when no load is running. Applies to both `on_load` in `_sm_explorer.py` and `_report_explorer.py`.
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
 * Measure dependency tree (leverage existing `anytree` patterns in Semantic Link Labs)
