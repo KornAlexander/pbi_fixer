@@ -176,19 +176,19 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 | Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
 | Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
 
-### BPA Auto-Fixers (inline in `_bpa_tab`, no separate files)
+### BPA Auto-Fixers (standalone files + inline wrappers in `_bpa_tab`)
 
-These are small inline fix functions in `_pbi_fixer.py` that auto-fix specific Model BPA violations. They do **not** have separate fixer files or `scan_only` support — they operate on individual BPA findings via Fix/Fix All buttons in the BPA tab.
+These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support (created in Phase 14), plus inline per-row wrappers in `_pbi_fixer.py` for the BPA tab's Fix/Fix All buttons.
 
 | BPA Rule | Fix Action | Has Separate File |
 | --- | --- | --- |
-| Do not use floating point data types | Change column DataType from Double to Decimal | ❌ |
-| Set IsAvailableInMdx to false | Set `IsAvailableInMDX = False` on column | ❌ |
-| Visible objects with no description (Measures) | Set measure description to its DAX expression | ❌ |
-| Provide format string for 'Date' columns | Set format to `mm/dd/yyyy` | ❌ |
-| Provide format string for 'Month' columns | Set format to `MMMM yyyy` | ❌ |
-| Provide format string for measures | Set format to `#,0` | ❌ |
-| Hide foreign keys | Set `IsHidden = True` on column | ❌ |
+| Do not use floating point data types | Change column DataType from Double to Decimal | ✅ `_Fix_FloatingPointDataType.py` |
+| Set IsAvailableInMdx to false | Set `IsAvailableInMDX = False` on column | ✅ `_Fix_IsAvailableInMdx.py` |
+| Visible objects with no description (Measures) | Set measure description to its DAX expression | ✅ `_Fix_MeasureDescriptions.py` |
+| Provide format string for 'Date' columns | Set format to `mm/dd/yyyy` | ✅ `_Fix_DateColumnFormat.py` |
+| Provide format string for 'Month' columns | Set format to `MMMM yyyy` | ✅ `_Fix_MonthColumnFormat.py` |
+| Provide format string for measures | Set format to `#,0` | ✅ `_Fix_MeasureFormat.py` |
+| Hide foreign keys | Set `IsHidden = True` on column | ✅ `_Fix_HideForeignKeys.py` |
 
 ### Optional / Not Now
 
