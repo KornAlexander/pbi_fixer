@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.100"
+__version__ = "1.2.101"
 
 import ipywidgets as widgets
 import io
@@ -14,65 +14,29 @@ from uuid import UUID
 # Lazy imports — each fixer is optional so the UI degrades gracefully
 # if individual fixer PRs haven't been merged yet.
 # ---------------------------------------------------------------------------
-try:
-    from sempy_labs.report._Fix_PieChart import fix_piecharts
-except ImportError:
-    fix_piecharts = None
+import warnings as _warnings
 
-try:
-    from sempy_labs.report._Fix_BarChart import fix_barcharts
-except ImportError:
-    fix_barcharts = None
+def _lazy_import(module_path, name):
+    """Import a symbol from a module, returning None + warning on failure."""
+    try:
+        mod = __import__(module_path, fromlist=[name])
+        return getattr(mod, name)
+    except Exception as _e:
+        _warnings.warn(f"PBI Fixer: could not load {module_path}.{name}: {type(_e).__name__}: {_e}")
+        return None
 
-try:
-    from sempy_labs.report._Fix_ColumnChart import fix_columncharts
-except ImportError:
-    fix_columncharts = None
-
-try:
-    from sempy_labs.report._Fix_PageSize import fix_page_size
-except ImportError:
-    fix_page_size = None
-
-try:
-    from sempy_labs.report._Fix_HideVisualFilters import fix_hide_visual_filters
-except ImportError:
-    fix_hide_visual_filters = None
-
-try:
-    from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
-except ImportError:
-    fix_upgrade_to_pbir = None
-
-try:
-    from sempy_labs.semantic_model._Add_CalculatedTable_Calendar import add_calculated_calendar
-except ImportError:
-    add_calculated_calendar = None
-
-try:
-    from sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures import fix_discourage_implicit_measures
-except ImportError:
-    fix_discourage_implicit_measures = None
-
-try:
-    from sempy_labs.semantic_model._Add_Table_LastRefresh import add_last_refresh_table
-except ImportError:
-    add_last_refresh_table = None
-
-try:
-    from sempy_labs.semantic_model._Add_CalcGroup_Units import add_calc_group_units
-except ImportError:
-    add_calc_group_units = None
-
-try:
-    from sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence import add_calc_group_time_intelligence
-except ImportError:
-    add_calc_group_time_intelligence = None
-
-try:
-    from sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable import add_measure_table
-except ImportError:
-    add_measure_table = None
+fix_piecharts = _lazy_import("sempy_labs.report._Fix_PieChart", "fix_piecharts")
+fix_barcharts = _lazy_import("sempy_labs.report._Fix_BarChart", "fix_barcharts")
+fix_columncharts = _lazy_import("sempy_labs.report._Fix_ColumnChart", "fix_columncharts")
+fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
+fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
+fix_upgrade_to_pbir = _lazy_import("sempy_labs.report._Fix_UpgradeToPbir", "fix_upgrade_to_pbir")
+add_calculated_calendar = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_Calendar", "add_calculated_calendar")
+fix_discourage_implicit_measures = _lazy_import("sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures", "fix_discourage_implicit_measures")
+add_last_refresh_table = _lazy_import("sempy_labs.semantic_model._Add_Table_LastRefresh", "add_last_refresh_table")
+add_calc_group_units = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_Units", "add_calc_group_units")
+add_calc_group_time_intelligence = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence", "add_calc_group_time_intelligence")
+add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
 
 try:
     from sempy_labs.semantic_model._Add_MeasuresFromColumns import add_measures_from_columns
