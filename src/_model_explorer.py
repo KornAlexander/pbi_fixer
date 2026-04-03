@@ -1,4 +1,4 @@
-# Semantic Model Explorer tab for PBI Fixer.
+# Model Explorer tab for PBI Fixer.
 # Provides a tree view of tables, columns, measures, hierarchies and
 # calculation groups with DAX expression preview and editable properties.
 
@@ -487,8 +487,8 @@ def _get_preview_text(model_data, key):
     return ""
 
 
-def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=None):
-    """Build the Semantic Model Explorer tab widget."""
+def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=None):
+    """Build the Model Explorer tab widget."""
     _model_data = {}
     _key_map = {}
     _expanded = set()

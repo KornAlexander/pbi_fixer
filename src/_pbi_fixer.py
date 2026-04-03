@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.118"
+__version__ = "1.2.119"
 
 import ipywidgets as widgets
 import io
@@ -22,13 +22,13 @@ def _lazy_import(module_path, name):
 
 # add_measures_from_columns and add_py_measures are imported lazily inside pbi_fixer()
 
-# sm_explorer_tab, report_explorer_tab, perspective_editor_tab
+# model_explorer_tab, report_explorer_tab, perspective_editor_tab
 # are imported lazily inside pbi_fixer()
 
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# Vertipaq Analyzer tab (inline — no external file dependency)
+# Vertipaq Analyzer tab (inline â€” no external file dependency)
 # ---------------------------------------------------------------------------
 def _vertipaq_tab(workspace_input=None, report_input=None):
     """Build the Vertipaq Analyzer tab with full DataFrame subtabs."""
@@ -441,7 +441,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         status_html, set_status,
     )
 
-    # BPA fix functions — imported from standalone files (with inline fallbacks)
+    # BPA fix functions â€” imported from standalone files (with inline fallbacks)
     def _make_bpa_fixer(module_path, func_name, inline_fn):
         """Try to import standalone fixer; fall back to inline function."""
         fn = _lazy_import(module_path, func_name)
@@ -627,7 +627,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         m = re.match(r"'([^']+)'\[([^\]]+)\]", obj_name)
         if m:
             return m.group(1), m.group(2)
-        # Measure or table — just the name
+        # Measure or table â€” just the name
         return "", obj_name
 
     def _is_fixable(rule_name, obj_type):
@@ -987,7 +987,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
 # Report BPA tab (inline)
 # ---------------------------------------------------------------------------
 def _report_bpa_tab(workspace_input=None, report_input=None):
-    """Build the Report BPA tab — runs run_report_bpa and shows results."""
+    """Build the Report BPA tab â€” runs run_report_bpa and shows results."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
         status_html, set_status,
@@ -1258,7 +1258,7 @@ def _delta_analyzer_tab(workspace_input=None, report_input=None):
     def _render_subtab(tab_name=None):
         tab_name = tab_name or subtab_selector.value
         df = _da_data.get(tab_name)
-        # Summary is single-row — render vertically
+        # Summary is single-row â€” render vertically
         if tab_name == "Summary" and df is not None and len(df) > 0:
             r = df.iloc[0]
             html = f'<table style="border-collapse:collapse; font-size:13px; font-family:{FONT_FAMILY}; width:100%;">'
@@ -1426,7 +1426,7 @@ def pbi_fixer(
     """
 
     # ---------------------------------------------------------------------------
-    # Lazy imports — deferred to function call time to avoid circular imports.
+    # Lazy imports â€” deferred to function call time to avoid circular imports.
     # Each fixer is optional; the UI degrades gracefully if not available.
     # ---------------------------------------------------------------------------
     fix_piecharts = _lazy_import("sempy_labs.report._Fix_PieChart", "fix_piecharts")
@@ -1523,7 +1523,7 @@ def pbi_fixer(
             return created
 
     # Tab modules (deferred)
-    sm_explorer_tab = _lazy_import("sempy_labs._sm_explorer", "sm_explorer_tab")
+    model_explorer_tab = _lazy_import("sempy_labs._model_explorer", "model_explorer_tab")
     report_explorer_tab = _lazy_import("sempy_labs._report_explorer", "report_explorer_tab")
     perspective_editor_tab = _lazy_import("sempy_labs._perspective_editor", "perspective_editor_tab")
 
@@ -1694,7 +1694,7 @@ def pbi_fixer(
     _base_options = []
 
     def _strip_item_prefix(name):
-        """Strip icon prefixes (📄 / 📊) from dropdown selections."""
+        """Strip icon prefixes (ðŸ“„ / ðŸ“Š) from dropdown selections."""
         for prefix in ("\U0001F4C4 ", "\U0001F4CA "):
             if name.startswith(prefix):
                 return name[len(prefix):]
@@ -1718,7 +1718,7 @@ def pbi_fixer(
                     new_opts.append(f"{prefix}{opt}")
             report_input.options = new_opts
         else:
-            # No comma — restore base options
+            # No comma â€” restore base options
             report_input.options = _base_options
 
     report_input.observe(_on_report_input_change, names="value")
@@ -1930,11 +1930,11 @@ def pbi_fixer(
     )
 
     # -----------------------------
-    # TAB SELECTOR (ToggleButtons — more reliable than widgets.Tab in Fabric)
+    # TAB SELECTOR (ToggleButtons â€” more reliable than widgets.Tab in Fabric)
     # -----------------------------
     _fixer_visible = show_fixer_tab
     _tab_options = []
-    if sm_explorer_tab is not None:
+    if model_explorer_tab is not None:
         _tab_options.append("\U0001F4CA Semantic Model")
     if report_explorer_tab is not None:
         _tab_options.append("\U0001F4C4 Report")
@@ -1978,7 +1978,7 @@ def pbi_fixer(
         )
 
     # -----------------------------
-    # REPORT FIXERS — VISUALS
+    # REPORT FIXERS â€” VISUALS
     # -----------------------------
     cb_pie = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_bar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
@@ -1987,19 +1987,19 @@ def pbi_fixer(
     cb_hide_filters = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
     pie_row = widgets.HBox(
-        [cb_pie, _fixer_label("Fix Pie Charts", "replaces all pie charts → Clustered Bar Chart (default)")],
+        [cb_pie, _fixer_label("Fix Pie Charts", "replaces all pie charts â†’ Clustered Bar Chart (default)")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     bar_row = widgets.HBox(
-        [cb_bar, _fixer_label("Fix Bar Charts", "remove axis titles/values · add data labels · remove gridlines")],
+        [cb_bar, _fixer_label("Fix Bar Charts", "remove axis titles/values Â· add data labels Â· remove gridlines")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     col_row = widgets.HBox(
-        [cb_col, _fixer_label("Fix Column Charts", "remove axis titles/values · add data labels · remove gridlines")],
+        [cb_col, _fixer_label("Fix Column Charts", "remove axis titles/values Â· add data labels Â· remove gridlines")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     page_size_row = widgets.HBox(
-        [cb_page_size, _fixer_label("Fix Page Size", "changes default 720×1280 pages to 1080×1920 (Full HD)")],
+        [cb_page_size, _fixer_label("Fix Page Size", "changes default 720Ã—1280 pages to 1080Ã—1920 (Full HD)")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     hide_filters_row = widgets.HBox(
@@ -2014,7 +2014,7 @@ def pbi_fixer(
     )
 
     # Only show rows for available fixers
-    _report_fixer_rows = [_section_heading("Report — Visuals")]
+    _report_fixer_rows = [_section_heading("Report â€” Visuals")]
     if fix_upgrade_to_pbir is not None:
         _report_fixer_rows.append(upgrade_row)
     if fix_piecharts is not None:
@@ -2050,7 +2050,7 @@ def pbi_fixer(
     cb_time_intel = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_measure_tbl = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
-    # datasource_version_row removed — requires Large SM storage format enabled first
+    # datasource_version_row removed â€” requires Large SM storage format enabled first
     calendar_row = widgets.HBox(
         [cb_calendar, _fixer_label("Add Calendar Table", "adds \"CalcCalendar\" calculated table if no table has been \"marked\" as a date table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -2064,11 +2064,11 @@ def pbi_fixer(
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     units_row = widgets.HBox(
-        [cb_units, _fixer_label("Add Units Calc Group", "Thousand &amp; Million items · skips % / ratio measures · ⚡ can impact report performance")],
+        [cb_units, _fixer_label("Add Units Calc Group", "Thousand &amp; Million items Â· skips % / ratio measures Â· âš¡ can impact report performance")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     time_intel_row = widgets.HBox(
-        [cb_time_intel, _fixer_label("Add Time Intelligence Calc Group", "AC · Y-1/Y-2/Y-3 · YTD · abs/rel/achiev. variances · requires calendar table")],
+        [cb_time_intel, _fixer_label("Add Time Intelligence Calc Group", "AC Â· Y-1/Y-2/Y-3 Â· YTD Â· abs/rel/achiev. variances Â· requires calendar table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     measure_tbl_row = widgets.HBox(
@@ -2076,14 +2076,14 @@ def pbi_fixer(
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
 
-    # XMLA warning + confirmation — shown only when ≥1 SM fixer is checked
+    # XMLA warning + confirmation â€” shown only when â‰¥1 SM fixer is checked
     cb_sm_confirm = widgets.Checkbox(
         value=False, indent=False, layout=widgets.Layout(width="22px"),
     )
     sm_warning_text = widgets.HTML(
         value=f'<span style="font-size:12px; color:#856404; '
         f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
-        f'⚠️ <b>XMLA write</b> — Semantic model fixers use the XMLA endpoint. '
+        f'âš ï¸ <b>XMLA write</b> â€” Semantic model fixers use the XMLA endpoint. '
         f'Once modified, the model can no longer be downloaded as a .pbix with embedded data. '
         f'This is irreversible. <b>Tick to confirm.</b></span>'
     )
@@ -2164,7 +2164,7 @@ def pbi_fixer(
     # RUN HANDLER
     # -----------------------------
     report_fixers = [
-        # (checkbox, label, callable) — Upgrade to PBIR runs first
+        # (checkbox, label, callable) â€” Upgrade to PBIR runs first
         x for x in [
             (cb_upgrade, "Upgrade to PBIR", lambda r, p, w, s: fix_upgrade_to_pbir(report=r, page_name=p, workspace=w, scan_only=s)) if fix_upgrade_to_pbir else None,
             (cb_pie, "Fix Pie Charts", lambda r, p, w, s: fix_piecharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_piecharts else None,
@@ -2202,7 +2202,7 @@ def pbi_fixer(
         status.value = ""
         run_btn.disabled = True
         god_btn.disabled = True
-        run_btn.description = "Running…"
+        run_btn.description = "Runningâ€¦"
 
         rpt_selected = [(cb, label, fn) for cb, label, fn in report_fixers if cb.value]
         sm_selected  = [(cb, label, fn) for cb, label, fn in sm_fixers if cb.value]
@@ -2218,7 +2218,7 @@ def pbi_fixer(
         # Require confirmation when SM fixers are selected in a mode that writes
         if sm_selected and mode != "Scan" and not cb_sm_confirm.value:
             show_status(
-                "⚠️  Please tick the XMLA confirmation checkbox before running semantic model fixers.",
+                "âš ï¸  Please tick the XMLA confirmation checkbox before running semantic model fixers.",
                 "#ff9500",
             )
             run_btn.disabled = False
@@ -2244,7 +2244,7 @@ def pbi_fixer(
                         + "</div>"
                     )
 
-                _log(f"{total_fixers} Fixer(s) × {len(items)} Item(s) = {total} total  [Mode: {mode}]")
+                _log(f"{total_fixers} Fixer(s) Ã— {len(items)} Item(s) = {total} total  [Mode: {mode}]")
                 _log()
                 _log(f"  Workspace: {ws or 'Notebook workspace'}")
                 _log(f"  Items:     {', '.join(items)}")
@@ -2258,7 +2258,7 @@ def pbi_fixer(
                 def _check_timeout():
                     nonlocal timed_out
                     if time.time() - start_time > _TOTAL_TIMEOUT:
-                        _log(f"⏱️  5-minute timeout reached ({int(time.time() - start_time)}s). Aborting.")
+                        _log(f"â±ï¸  5-minute timeout reached ({int(time.time() - start_time)}s). Aborting.")
                         timed_out = True
                         return True
                     return False
@@ -2269,7 +2269,7 @@ def pbi_fixer(
 
                 def _run_report_fixers(scan: bool):
                     nonlocal idx, errors
-                    prefix = "🔍" if scan else "▶"
+                    prefix = "ðŸ”" if scan else "â–¶"
                     for item in items:
                         if _check_timeout():
                             return
@@ -2277,8 +2277,8 @@ def pbi_fixer(
                         if not scan and non_upgrade_rpt:
                             fmt = _check_report_format(item, ws)
                             if fmt == "PBIRLegacy" and not upgrade_selected:
-                                _log(f"⚠️  '{item}' is in PBIRLegacy format — skipping report fixers.")
-                                _log(f"    → Enable 'Upgrade to PBIR' to convert automatically.")
+                                _log(f"âš ï¸  '{item}' is in PBIRLegacy format â€” skipping report fixers.")
+                                _log(f"    â†’ Enable 'Upgrade to PBIR' to convert automatically.")
                                 _log()
                                 idx += len(rpt_selected)
                                 errors += len(rpt_selected)
@@ -2299,12 +2299,12 @@ def pbi_fixer(
                                         _log(f"   {line}")
                             except Exception as e:
                                 errors += 1
-                                _log(f"   ❌ Error: {e}")
+                                _log(f"   âŒ Error: {e}")
                             _log()
 
                 def _run_sm_fixers(scan: bool):
                     nonlocal idx, errors
-                    prefix = "🔍" if scan else "▶"
+                    prefix = "ðŸ”" if scan else "â–¶"
                     for item in items:
                         if _check_timeout():
                             return
@@ -2324,7 +2324,7 @@ def pbi_fixer(
                                         _log(f"   {line}")
                             except Exception as e:
                                 errors += 1
-                                _log(f"   ❌ Error: {e}")
+                                _log(f"   âŒ Error: {e}")
                             _log()
 
                 if mode == "Scan":
@@ -2334,13 +2334,13 @@ def pbi_fixer(
                     _run_report_fixers(scan=False)
                     _run_sm_fixers(scan=False)
                 else:  # Scan + Fix
-                    _log("─" * 40)
+                    _log("â”€" * 40)
                     _log("PHASE 1: Scan")
                     _log()
                     _run_report_fixers(scan=True)
                     _run_sm_fixers(scan=True)
                     idx = 0
-                    _log("─" * 40)
+                    _log("â”€" * 40)
                     _log("PHASE 2: Fix")
                     _log()
                     _run_report_fixers(scan=False)
@@ -2349,20 +2349,20 @@ def pbi_fixer(
                 elapsed = int(time.time() - start_time)
                 if timed_out:
                     show_status(
-                        f"⏱️  Timed out after {elapsed}s. {idx}/{total} run(s), {errors} error(s).",
+                        f"â±ï¸  Timed out after {elapsed}s. {idx}/{total} run(s), {errors} error(s).",
                         "#ff9500",
                     )
                 elif errors > 0:
                     show_status(
-                        f"⚠️  Completed with {errors} error(s) out of {total} run(s) in {elapsed}s.",
+                        f"âš ï¸  Completed with {errors} error(s) out of {total} run(s) in {elapsed}s.",
                         "#ff9500",
                     )
                 elif mode == "Scan":
-                    show_status(f"✓  Scan complete — {total} run(s) in {elapsed}s.", "#007aff")
+                    show_status(f"âœ“  Scan complete â€” {total} run(s) in {elapsed}s.", "#007aff")
                 elif mode == "Fix":
-                    show_status(f"✓  All {total} run(s) completed in {elapsed}s.", "#34c759")
+                    show_status(f"âœ“  All {total} run(s) completed in {elapsed}s.", "#34c759")
                 else:
-                    show_status(f"✓  Scan + Fix complete — {total} run(s) in {elapsed}s.", "#34c759")
+                    show_status(f"âœ“  Scan + Fix complete â€” {total} run(s) in {elapsed}s.", "#34c759")
 
             except Exception as e:
                 show_status(f"Error: {e}", "#ff3b30")
@@ -2435,26 +2435,26 @@ def pbi_fixer(
     if fix_hide_visual_filters is not None:
         _rpt_fixer_cbs["Hide Visual Filters"] = lambda **kw: fix_hide_visual_filters(**kw)
 
-    # -- Build fixer callbacks for SM Explorer actions dropdown --
-    _sm_fixer_cbs = {}
+    # -- Build fixer callbacks for Model Explorer actions dropdown --
+    _model_fixer_cbs = {}
     if fix_discourage_implicit_measures is not None:
-        _sm_fixer_cbs["Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(**kw)
+        _model_fixer_cbs["Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(**kw)
     if add_calculated_calendar is not None:
-        _sm_fixer_cbs["Add Calendar Table"] = lambda **kw: add_calculated_calendar(**kw)
+        _model_fixer_cbs["Add Calendar Table"] = lambda **kw: add_calculated_calendar(**kw)
     if add_last_refresh_table is not None:
-        _sm_fixer_cbs["Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
+        _model_fixer_cbs["Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
     if add_measure_table is not None:
-        _sm_fixer_cbs["Add Measure Table"] = lambda **kw: add_measure_table(**kw)
+        _model_fixer_cbs["Add Measure Table"] = lambda **kw: add_measure_table(**kw)
     if add_calc_group_units is not None:
-        _sm_fixer_cbs["Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
+        _model_fixer_cbs["Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
     if add_calc_group_time_intelligence is not None:
-        _sm_fixer_cbs["Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
+        _model_fixer_cbs["Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
     if add_measures_from_columns is not None:
-        _sm_fixer_cbs["Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
+        _model_fixer_cbs["Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
     if add_py_measures is not None:
-        _sm_fixer_cbs["Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
+        _model_fixer_cbs["Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
 
@@ -2471,9 +2471,9 @@ def pbi_fixer(
             tom.format_dax()
         print(f"\u2713 All DAX expressions formatted.")
 
-    _sm_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
+    _model_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
 
-    # BPA standalone fixers — also available as SM Explorer actions
+    # BPA standalone fixers â€” also available as Model Explorer actions
     _bpa_fix_floating = _lazy_import("sempy_labs.semantic_model._Fix_FloatingPointDataType", "fix_floating_point_datatype")
     _bpa_fix_mdx = _lazy_import("sempy_labs.semantic_model._Fix_IsAvailableInMdx", "fix_isavailable_in_mdx")
     _bpa_fix_desc = _lazy_import("sempy_labs.semantic_model._Fix_MeasureDescriptions", "fix_measure_descriptions")
@@ -2499,39 +2499,39 @@ def pbi_fixer(
         return lambda **kw: fn(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     if _bpa_fix_floating is not None:
-        _sm_fixer_cbs["Fix Floating Point Types"] = _sm_action(_bpa_fix_floating)
+        _model_fixer_cbs["Fix Floating Point Types"] = _sm_action(_bpa_fix_floating)
     if _bpa_fix_mdx is not None:
-        _sm_fixer_cbs["Fix IsAvailableInMDX (False)"] = _sm_action(_bpa_fix_mdx)
+        _model_fixer_cbs["Fix IsAvailableInMDX (False)"] = _sm_action(_bpa_fix_mdx)
     if _bpa_fix_desc is not None:
-        _sm_fixer_cbs["Fix Measure Descriptions"] = _sm_action(_bpa_fix_desc)
+        _model_fixer_cbs["Fix Measure Descriptions"] = _sm_action(_bpa_fix_desc)
     if _bpa_fix_fk is not None:
-        _sm_fixer_cbs["Hide Foreign Keys"] = _sm_action(_bpa_fix_fk)
+        _model_fixer_cbs["Hide Foreign Keys"] = _sm_action(_bpa_fix_fk)
     if _bpa_fix_divide is not None:
-        _sm_fixer_cbs["Fix DIVIDE Function"] = _sm_action(_bpa_fix_divide)
+        _model_fixer_cbs["Fix DIVIDE Function"] = _sm_action(_bpa_fix_divide)
     if _bpa_fix_zero is not None:
-        _sm_fixer_cbs["Fix Avoid Adding 0"] = _sm_action(_bpa_fix_zero)
+        _model_fixer_cbs["Fix Avoid Adding 0"] = _sm_action(_bpa_fix_zero)
     if _bpa_fix_summarize is not None:
-        _sm_fixer_cbs["Fix Do Not Summarize"] = _sm_action(_bpa_fix_summarize)
+        _model_fixer_cbs["Fix Do Not Summarize"] = _sm_action(_bpa_fix_summarize)
     if _bpa_fix_pk is not None:
-        _sm_fixer_cbs["Mark Primary Keys"] = _sm_action(_bpa_fix_pk)
+        _model_fixer_cbs["Mark Primary Keys"] = _sm_action(_bpa_fix_pk)
     if _bpa_fix_trim is not None:
-        _sm_fixer_cbs["Trim Object Names"] = _sm_action(_bpa_fix_trim)
+        _model_fixer_cbs["Trim Object Names"] = _sm_action(_bpa_fix_trim)
     if _bpa_fix_cap is not None:
-        _sm_fixer_cbs["Capitalize Object Names"] = _sm_action(_bpa_fix_cap)
+        _model_fixer_cbs["Capitalize Object Names"] = _sm_action(_bpa_fix_cap)
     if _bpa_fix_pct is not None:
-        _sm_fixer_cbs["Fix Percentage Format"] = _sm_action(_bpa_fix_pct)
+        _model_fixer_cbs["Fix Percentage Format"] = _sm_action(_bpa_fix_pct)
     if _bpa_fix_whole is not None:
-        _sm_fixer_cbs["Fix Whole Number Format"] = _sm_action(_bpa_fix_whole)
+        _model_fixer_cbs["Fix Whole Number Format"] = _sm_action(_bpa_fix_whole)
     if _bpa_fix_flag is not None:
-        _sm_fixer_cbs["Fix Flag Column Format"] = _sm_action(_bpa_fix_flag)
+        _model_fixer_cbs["Fix Flag Column Format"] = _sm_action(_bpa_fix_flag)
     if _bpa_fix_mdx_true is not None:
-        _sm_fixer_cbs["Fix IsAvailableInMDX (True)"] = _sm_action(_bpa_fix_mdx_true)
+        _model_fixer_cbs["Fix IsAvailableInMDX (True)"] = _sm_action(_bpa_fix_mdx_true)
     if _bpa_fix_sort_month is not None:
-        _sm_fixer_cbs["Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
+        _model_fixer_cbs["Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
     if _bpa_fix_data_cat is not None:
-        _sm_fixer_cbs["Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
+        _model_fixer_cbs["Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
 
-    # -- Clone callbacks (for action dropdowns — reuse shared impl) --
+    # -- Clone callbacks (for action dropdowns â€” reuse shared impl) --
     def _clone_report(**kw):
         """Clone the report (appends '_copy' to the name)."""
         rpt = kw.get("report", "")
@@ -2545,7 +2545,7 @@ def pbi_fixer(
         _clone_rpt(report=rpt, cloned_report=cloned_name, workspace=ws)
         print(f"\u2713 Report cloned as '{cloned_name}'.")
 
-    # Clone Report removed from dropdown — available as top-level button
+    # Clone Report removed from dropdown â€” available as top-level button
 
     def _clone_semantic_model(**kw):
         """Clone the semantic model via shared impl."""
@@ -2558,33 +2558,33 @@ def pbi_fixer(
         _clone_semantic_model_impl(ds, ws)
         print(f"\u2713 Semantic model cloned as '{ds}_copy'.")
 
-    # Clone Model removed from dropdown — available as top-level button
+    # Clone Model removed from dropdown â€” available as top-level button
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
 
-    if sm_explorer_tab is not None:
-        sm_result = sm_explorer_tab(
+    if model_explorer_tab is not None:
+        model_result = model_explorer_tab(
             workspace_input=workspace_input, report_input=report_input,
-            fixer_callbacks=_sm_fixer_cbs,
+            fixer_callbacks=_model_fixer_cbs,
         )
-        if isinstance(sm_result, tuple):
-            sm_content, _sm_load_fn = sm_result
+        if isinstance(model_result, tuple):
+            model_content, _model_load_fn = model_result
         else:
-            sm_content = sm_result
-        tab_panels.append(sm_content)
+            model_content = model_result
+        tab_panels.append(model_content)
 
     if report_explorer_tab is not None:
-        def _navigate_to_sm(obj_name, table_name, obj_type):
-            """Switch to SM Explorer tab (callback from Report Explorer)."""
-            sm_tab_label = "\U0001F4CA Semantic Model"
-            if sm_tab_label in _tab_options:
-                tab_selector.value = sm_tab_label
+        def _navigate_to_model(obj_name, table_name, obj_type):
+            """Switch to Model Explorer tab (callback from Report Explorer)."""
+            model_tab_label = "\U0001F4CA Semantic Model"
+            if model_tab_label in _tab_options:
+                tab_selector.value = model_tab_label
 
         rpt_result = report_explorer_tab(
             workspace_input=workspace_input, report_input=report_input,
             fixer_callbacks=_rpt_fixer_cbs,
-            navigate_to_sm=_navigate_to_sm if sm_explorer_tab is not None else None,
+            navigate_to_sm=_navigate_to_model if model_explorer_tab is not None else None,
         )
         if isinstance(rpt_result, tuple):
             rpt_content, _rpt_load_fn = rpt_result
