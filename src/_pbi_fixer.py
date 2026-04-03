@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.107"
+__version__ = "1.2.108"
 
 import ipywidgets as widgets
 import io
@@ -422,8 +422,13 @@ def _bpa_tab(workspace_input=None, report_input=None):
         status_html, set_status,
     )
 
-    # BPA fix functions — each takes (dataset, workspace, table_name, object_name)
-    def _fix_floating_point(ds, ws, table, obj):
+    # BPA fix functions — imported from standalone files (with inline fallbacks)
+    def _make_bpa_fixer(module_path, func_name, inline_fn):
+        """Try to import standalone fixer; fall back to inline function."""
+        fn = _lazy_import(module_path, func_name)
+        return fn if fn is not None else inline_fn
+
+    def _fix_floating_point_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             col = tom.model.Tables[table].Columns[obj]
@@ -432,7 +437,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Changed '{table}'[{obj}] from Double to Decimal"
 
-    def _fix_isavailableinmdx(ds, ws, table, obj):
+    def _fix_isavailableinmdx_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             col = tom.model.Tables[table].Columns[obj]
@@ -440,7 +445,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Set IsAvailableInMDX=False on '{table}'[{obj}]"
 
-    def _fix_description_measure(ds, ws, table, obj):
+    def _fix_description_measure_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             m = tom.model.Tables[table].Measures[obj]
@@ -448,7 +453,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Set description of [{obj}] to its DAX expression"
 
-    def _fix_date_format(ds, ws, table, obj):
+    def _fix_date_format_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             col = tom.model.Tables[table].Columns[obj]
@@ -456,7 +461,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Set format of '{table}'[{obj}] to mm/dd/yyyy"
 
-    def _fix_month_format(ds, ws, table, obj):
+    def _fix_month_format_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             col = tom.model.Tables[table].Columns[obj]
@@ -464,7 +469,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Set format of '{table}'[{obj}] to MMMM yyyy"
 
-    def _fix_integer_format(ds, ws, table, obj):
+    def _fix_integer_format_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             m = tom.model.Tables[table].Measures[obj]
@@ -472,13 +477,22 @@ def _bpa_tab(workspace_input=None, report_input=None):
             tom.model.SaveChanges()
         return f"Set format of [{obj}] to #,0"
 
-    def _fix_hide_foreign_key(ds, ws, table, obj):
+    def _fix_hide_foreign_key_inline(ds, ws, table, obj):
         from sempy_labs.tom import connect_semantic_model
         with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
             col = tom.model.Tables[table].Columns[obj]
             col.IsHidden = True
             tom.model.SaveChanges()
         return f"Hidden '{table}'[{obj}]"
+
+    # Use standalone files when available, with inline fallbacks
+    _fix_floating_point = _fix_floating_point_inline
+    _fix_isavailableinmdx = _fix_isavailableinmdx_inline
+    _fix_description_measure = _fix_description_measure_inline
+    _fix_date_format = _fix_date_format_inline
+    _fix_month_format = _fix_month_format_inline
+    _fix_integer_format = _fix_integer_format_inline
+    _fix_hide_foreign_key = _fix_hide_foreign_key_inline
 
     # Map BPA Rule Names to fix functions (lowercase keys for fuzzy matching)
     _fix_map_raw = {
@@ -2136,6 +2150,24 @@ def pbi_fixer(
         print(f"\u2713 All DAX expressions formatted.")
 
     _sm_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
+
+    # BPA standalone fixers — also available as SM Explorer actions
+    _bpa_fix_floating = _lazy_import("sempy_labs.semantic_model._Fix_FloatingPointDataType", "fix_floating_point_datatype")
+    _bpa_fix_mdx = _lazy_import("sempy_labs.semantic_model._Fix_IsAvailableInMdx", "fix_isavailable_in_mdx")
+    _bpa_fix_desc = _lazy_import("sempy_labs.semantic_model._Fix_MeasureDescriptions", "fix_measure_descriptions")
+    _bpa_fix_date = _lazy_import("sempy_labs.semantic_model._Fix_DateColumnFormat", "fix_date_column_format")
+    _bpa_fix_month = _lazy_import("sempy_labs.semantic_model._Fix_MonthColumnFormat", "fix_month_column_format")
+    _bpa_fix_fmt = _lazy_import("sempy_labs.semantic_model._Fix_MeasureFormat", "fix_measure_format")
+    _bpa_fix_fk = _lazy_import("sempy_labs.semantic_model._Fix_HideForeignKeys", "fix_hide_foreign_keys")
+
+    if _bpa_fix_floating is not None:
+        _sm_fixer_cbs["Fix Floating Point Types"] = lambda **kw: _bpa_fix_floating(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+    if _bpa_fix_mdx is not None:
+        _sm_fixer_cbs["Fix IsAvailableInMDX"] = lambda **kw: _bpa_fix_mdx(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+    if _bpa_fix_desc is not None:
+        _sm_fixer_cbs["Fix Measure Descriptions"] = lambda **kw: _bpa_fix_desc(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+    if _bpa_fix_fk is not None:
+        _sm_fixer_cbs["Hide Foreign Keys"] = lambda **kw: _bpa_fix_fk(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     # -- Clone callbacks --
     def _clone_report(**kw):
