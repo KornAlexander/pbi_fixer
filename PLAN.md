@@ -539,67 +539,87 @@ Make Report Explorer visual/page properties editable via `connect_report`:
 * Search/filter input above the tree for large models (100+ tables).
 * Filter tree items by name in real time as the user types.
 
-### Phase 25 — Export Scan Results (Planned)
+### Phase 25 — Report Page Relationship Map (Planned)
+
+Add a **page relationship/dependency view** in the Report Explorer that shows how pages are connected:
+
+* **Data sources** (already available in SLL's `connect_report`):
+  + `list_pages()` → `Drillthrough Target Page` column identifies drill-through pages.
+  + `list_visual_objects()` → which measures/columns each visual on each page uses.
+  + `list_bookmarks()` → bookmark definitions that may target specific pages.
+  + Visual JSON parsing → button actions with `navigation` type that link to other pages.
+* **Page dependency panel**: When a page is selected in the Report Explorer tree, the properties panel shows:
+  + **Navigates to**: list of pages this page links to (via buttons, drill-through, bookmarks).
+  + **Navigated from**: list of pages that link to this page.
+  + **Shared measures**: measures used on this page that also appear on other pages.
+  + **Unique measures**: measures used only on this page.
+* **Report-level summary** (shown when the report root node is selected):
+  + Total pages, drill-through pages, orphan pages (no incoming navigation links).
+  + Measure coverage: how many model measures are used vs unused across all pages.
+  + Visual type distribution across the entire report.
+* **Navigation graph** (HTML/SVG): A simple inline diagram (in the preview panel) showing pages as nodes and navigation links as arrows. Rendered as inline SVG in `ipywidgets.HTML`. This is a lightweight precursor to the full Excalidraw export in Phase 38.
+
+### Phase 27 — Export Scan Results (Planned)
 
 * Export scan results to DataFrame / CSV for external reporting.
 * Add an "Export" button next to the Scan button.
 
-### Phase 26 — Batch Fixer Presets (Planned)
+### Phase 27 — Batch Fixer Presets (Planned)
 
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
 * Preset dropdown in the Fixer tab or as a top-level action.
 
-### Phase 27 — Incremental Refresh Setup (Planned)
+### Phase 28 — Incremental Refresh Setup (Planned)
 
 * **Incremental refresh setup** in Model Explorer: when a table is selected, offer a one-click action to configure an incremental refresh policy. UI form: date column picker, lookback window, incremental rows count. Uses SLL's `add_incremental_refresh_policy()` / `update_incremental_refresh_policy()`.
 
-### Phase 28 — Fix Visual Alignment & Size (Planned)
+### Phase 29 — Fix Visual Alignment & Size (Planned)
 
 * A new fixer (`report/_Fix_VisualAlignment.py`) that detects and corrects misaligned or undersized chart visuals on a page.
 * Scan chart-type visuals, flag tiny charts (<1% page area), snap to grid by row/column alignment.
 * `scan_only` support. Wired into Report Explorer actions dropdown.
 
-### Phase 29 — Design Theme Editor (Planned)
+### Phase 30 — Design Theme Editor (Planned)
 
 * A new tab or sub-panel in Report Explorer for editing the report's JSON theme.
 * Visual editor for colors (primary/secondary/tertiary, background, foreground, accent).
 * Font family and size overrides. Preview swatches.
 * Save back via `connect_report` / `updateDefinition`.
 
-### Phase 30 — Background Editor (Planned)
+### Phase 31 — Background Editor (Planned)
 
 * Set/change page backgrounds: solid color picker (hex input), transparency slider (0–100%).
 * Apply to current page or all pages. Modifies PBIR page `background` property.
 
-### Phase 31 — Logo Uploader (Planned)
+### Phase 32 — Logo Uploader (Planned)
 
 * Add a logo/image to report pages via URL input.
 * Preview inline, insert as Image visual at configurable position/size.
 * Apply to current page or all pages. Uses `connect_report`.
 
-### Phase 32 — Standard Design Themes (Planned)
+### Phase 33 — Standard Design Themes (Planned)
 
 * Dropdown of built-in Microsoft theme presets applied in one click.
 * Source from Microsoft's official theme gallery. Apply via `updateDefinition`.
 
-### Phase 33 — Enhanced Fix Page Size (Planned)
+### Phase 34 — Enhanced Fix Page Size (Planned)
 
 * Extend `_Fix_PageSize.py`: proportionally resize all visuals + scale font sizes when page size changes.
 * `resize_visuals=True` and `resize_fonts=True` parameters. `scan_only` compatible.
 
-### Phase 34 — Fix Variance Charts (Planned)
+### Phase 35 — Fix Variance Charts (Planned)
 
 * IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`).
 * Detect bar/column charts with variance indicators. Apply positive/negative color formatting.
 * Axis/label cleanup. Waterfall chart support. Wired into Report Explorer actions.
 
-### Phase 35 — Design Preview Before Fix (Planned)
+### Phase 36 — Design Preview Before Fix (Planned)
 
 * General pattern: show 2–4 design preset previews (HTML/SVG mockups) before applying a fix.
 * User selects preset, confirms with "Apply". Framework in `_ui_components.py`.
 * Presets for variance charts (IBCS Standard/Strict/Traffic Light/Monochrome), bar/column, pie replacement.
 
-### Phase 36 — Workspace Report Format Overview (Planned)
+### Phase 37 — Workspace Report Format Overview (Planned)
 
 Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
 
@@ -609,7 +629,7 @@ Add a **report format overview** panel or subtab (e.g. in the Report tab or as a
 * Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
 * This provides a quick workspace-level health check before loading individual reports.
 
-### Phase 37 — Model Diagram Tab (Planned)
+### Phase 38 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -629,7 +649,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 38 — Report Prototyping with Excalidraw (Planned)
+### Phase 39 — Report Prototyping with Excalidraw (Planned)
 
 Add a **📐 Report Prototype** tab (or action) that generates an Excalidraw diagram of the loaded report, showing all pages as **actual rendered screenshots**, navigation dependencies, and measure/table usage as a complete visual map.
 
@@ -667,7 +687,7 @@ Each page is rendered as an **actual PNG screenshot** using the Power BI Export 
 
 Since the PBI Fixer already runs in a Fabric Notebook (which requires Fabric capacity), and the Export API also requires Fabric/Premium capacity on the report's workspace, there is **no additional capacity requirement** for page screenshots. The fallback is only needed if the Export API fails for other reasons (permissions, timeouts, service issues). In that case, fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
 
-### Phase 39 — AI Assistant (Planned)
+### Phase 40 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
