@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.114"
+__version__ = "1.2.115"
 
 import ipywidgets as widgets
 import io
@@ -1674,6 +1674,8 @@ def pbi_fixer(
                     combined.append(f"\U0001F4CA {name}")
 
             report_input.options = combined
+            _base_options.clear()
+            _base_options.extend(combined)
             list_items_status.value = (
                 f'<span style="font-size:12px; color:#34c759;">'
                 f'{len(rpt_names)} report(s), {len(ds_names)} model(s)</span>'
@@ -1688,12 +1690,38 @@ def pbi_fixer(
 
     list_items_btn.on_click(_on_list_items)
 
+    # Store base options separately (the full unmodified list from List Items)
+    _base_options = []
+
     def _strip_item_prefix(name):
         """Strip icon prefixes (📄 / 📊) from dropdown selections."""
         for prefix in ("\U0001F4C4 ", "\U0001F4CA "):
             if name.startswith(prefix):
                 return name[len(prefix):]
         return name
+
+    def _on_report_input_change(change):
+        """Update Combobox options to support autocomplete after commas."""
+        val = change.get("new", "")
+        if not _base_options:
+            return
+        if "," in val:
+            # Everything up to and including the last comma + space
+            prefix = val.rsplit(",", 1)[0] + ", "
+            # Already-entered items (for dedup)
+            already = {_strip_item_prefix(x.strip()).lower() for x in prefix.split(",") if x.strip()}
+            # Build new options: prefix + each remaining base option
+            new_opts = []
+            for opt in _base_options:
+                clean = _strip_item_prefix(opt).lower()
+                if clean not in already:
+                    new_opts.append(f"{prefix}{opt}")
+            report_input.options = new_opts
+        else:
+            # No comma — restore base options
+            report_input.options = _base_options
+
+    report_input.observe(_on_report_input_change, names="value")
 
     shared_inputs_box = widgets.VBox(
         [
