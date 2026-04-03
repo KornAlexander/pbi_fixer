@@ -498,6 +498,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     _scan_results = {}  # key -> violation count
 
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
+    stop_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
+    _cancel_load = [False]
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
     scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="110px"))
@@ -514,9 +516,14 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         layout=widgets.Layout(width="100px"),
     )
 
+    def _on_stop(_):
+        _cancel_load[0] = True
+
+    stop_btn.on_click(_on_stop)
+
     conn_status = status_html()
     nav_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, conn_status],
+        [load_btn, stop_btn, expand_btn, collapse_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
     action_row = widgets.HBox(
@@ -920,6 +927,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
         load_btn.disabled = True
         load_btn.description = "Loading\u2026"
+        stop_btn.layout.display = ""
+        _cancel_load[0] = False
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
         start_time = time.time()
@@ -929,6 +938,9 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
         try:
             for i, ds in enumerate(items):
+                if _cancel_load[0]:
+                    set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models.", "#ff9500")
+                    break
                 if time.time() - start_time > _LOAD_TIMEOUT:
                     set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
                     break
@@ -982,6 +994,8 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
         finally:
             load_btn.disabled = False
             load_btn.description = "Load Model"
+            stop_btn.layout.display = "none"
+            _cancel_load[0] = False
 
     def on_select(change):
         selected = change.get("new", ())
