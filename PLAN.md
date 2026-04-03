@@ -479,7 +479,7 @@ Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_
 * Avoid using calculated columns (#2), Reduce calculated tables (#15) — require rewriting data pipeline. Flag only.
 * Rules involving RLS logic, DirectQuery tuning, star schema design — architectural decisions. Flag only.
 
-### Phase 19 — Table Data Preview (Planned)
+### Phase 19 — Table Data Preview (v1.2.114) ✅
 
 Add a **table data preview** in SM Explorer: when a table node is selected in the tree, show the top N rows as an HTML table in the preview panel.
 
