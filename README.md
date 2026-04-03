@@ -153,6 +153,128 @@ These fix specific violations found by `run_model_bpa()`. Available as per-row f
 
 ---
 
+## Standalone Usage — Run Any Fixer Individually
+
+Every fixer script can be called directly from a Fabric Notebook without the UI. Each follows the pattern `fix_xxx(report=..., workspace=..., scan_only=True/False)`.
+
+### Report Fixers
+
+```python
+from sempy_labs.report._Fix_PieChart import fix_piecharts
+fix_piecharts(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_BarChart import fix_barcharts
+fix_barcharts(report="My Report", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.report._Fix_ColumnChart import fix_columncharts
+fix_columncharts(report="My Report", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.report._Fix_PageSize import fix_page_size
+fix_page_size(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_HideVisualFilters import fix_hide_visual_filters
+fix_hide_visual_filters(report="My Report", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+fix_upgrade_to_pbir(report="My Report", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.report._Fix_MigrateSlicerToSlicerbar import fix_migrate_slicer_to_slicerbar
+fix_migrate_slicer_to_slicerbar(report="My Report", workspace="My Workspace", scan_only=True)
+```
+
+### Semantic Model Fixers — Additive
+
+```python
+from sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures import fix_discourage_implicit_measures
+fix_discourage_implicit_measures(report="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_CalculatedTable_Calendar import add_calculated_calendar
+add_calculated_calendar(report="My Model", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable import add_measure_table
+add_measure_table(report="My Model", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.semantic_model._Add_Table_LastRefresh import add_last_refresh_table
+add_last_refresh_table(report="My Model", workspace="My Workspace", scan_only=False)
+
+from sempy_labs.semantic_model._Add_CalcGroup_Units import add_calc_group_units
+add_calc_group_units(report="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence import add_calc_group_time_intelligence
+add_calc_group_time_intelligence(report="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_MeasuresFromColumns import add_measures_from_columns
+add_measures_from_columns(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_PYMeasures import add_py_measures
+add_py_measures(dataset="My Model", workspace="My Workspace", scan_only=True)
+```
+
+### BPA Auto-Fixers
+
+All BPA fixers take `(dataset, workspace, scan_only)`:
+
+```python
+from sempy_labs.semantic_model._Fix_FloatingPointDataType import fix_floating_point_datatype
+fix_floating_point_datatype(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_IsAvailableInMdx import fix_isavailable_in_mdx
+fix_isavailable_in_mdx(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_IsAvailableInMdxTrue import fix_isavailable_in_mdx_true
+fix_isavailable_in_mdx_true(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_MeasureDescriptions import fix_measure_descriptions
+fix_measure_descriptions(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_DateColumnFormat import fix_date_column_format
+fix_date_column_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_MonthColumnFormat import fix_month_column_format
+fix_month_column_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_MeasureFormat import fix_measure_format
+fix_measure_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_HideForeignKeys import fix_hide_foreign_keys
+fix_hide_foreign_keys(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_UseDivideFunction import fix_use_divide_function
+fix_use_divide_function(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_AvoidAdding0 import fix_avoid_adding_zero
+fix_avoid_adding_zero(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_DoNotSummarize import fix_do_not_summarize
+fix_do_not_summarize(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_MarkPrimaryKeys import fix_mark_primary_keys
+fix_mark_primary_keys(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_TrimObjectNames import fix_trim_object_names
+fix_trim_object_names(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_CapitalizeObjectNames import fix_capitalize_object_names
+fix_capitalize_object_names(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_PercentageFormat import fix_percentage_format
+fix_percentage_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_WholeNumberFormat import fix_whole_number_format
+fix_whole_number_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_FlagColumnFormat import fix_flag_column_format
+fix_flag_column_format(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_SortMonthColumn import fix_sort_month_column
+fix_sort_month_column(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Fix_DataCategory import fix_data_category
+fix_data_category(dataset="My Model", workspace="My Workspace", scan_only=True)
+```
+
+---
+
 ## Requirements
 
 - **Microsoft Fabric** workspace (F or P capacity)
