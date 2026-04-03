@@ -395,6 +395,14 @@ Add a **"⏹ Stop" button** to both SM Explorer and Report Explorer that allows 
 
 Replace the custom inline BPA and Memory Analyzer tab implementations with the **original upstream HTML renderers** from Semantic Link Labs, integrated as copied source code within the PBI Fixer codebase. The goal is to use the rich, tabbed HTML visualizations from `run_model_bpa()` and `vertipaq_analyzer()` directly, rather than maintaining a separate simplified version.
 
+#### Multi-Model Support
+
+The upstream `run_model_bpa()` and `vertipaq_analyzer()` each operate on a **single model**. The PBI Fixer loads multiple models at once (comma-separated or "load all"). The copied HTML rendering must be **modified to support multiple models**:
+
+* **BPA tab**: Run `run_model_bpa(return_dataframe=True)` per model, concatenate the DataFrames with an added `Model` column, then render the combined results into a single HTML table. Add a **model selector** (dropdown or tabs at the top of the BPA results panel) to filter by model, plus an "All Models" option. The native category tabs (Performance, DAX Expressions, Formatting, etc.) should work across the combined dataset — each category tab shows findings from all selected models, with the Model column visible.
+* **Memory Analyzer tab**: Run `vertipaq_analyzer()` per model, store each result dict keyed by model name. The subtab selector (Model Summary | Tables | Columns | etc.) already exists. Add a **model dropdown** at the top that switches which model's data is displayed. The "All Models" option should show a combined Model Summary table comparing all loaded models side-by-side (total size, table count, column count per model).
+* **Report BPA tab**: Already supports multi-report — no change needed.
+
 #### Approach
 
 * **Copy, don't rewrite**: Take the HTML rendering logic from `_model_bpa.py` (the styled tab UI with tooltips, severity summaries, clickable rules, URL links) and `_vertipaq.py` (the vertipaq_map, formatted HTML tables with data type icons, size formatting) and embed them as local copies inside the PBI Fixer source tree (e.g. `_bpa_native.py`, `_vertipaq_native.py`). This avoids drift from upstream while allowing amendments.
