@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.102"
+__version__ = "1.2.103"
 
 import ipywidgets as widgets
 import io
@@ -9,11 +9,6 @@ import time
 from contextlib import redirect_stdout
 from typing import Optional
 from uuid import UUID
-
-# ---------------------------------------------------------------------------
-# Lazy imports — each fixer is optional so the UI degrades gracefully
-# if individual fixer PRs haven't been merged yet.
-# ---------------------------------------------------------------------------
 import warnings as _warnings
 
 def _lazy_import(module_path, name):
@@ -25,152 +20,10 @@ def _lazy_import(module_path, name):
         _warnings.warn(f"PBI Fixer: could not load {module_path}.{name}: {type(_e).__name__}: {_e}")
         return None
 
-fix_piecharts = _lazy_import("sempy_labs.report._Fix_PieChart", "fix_piecharts")
-fix_barcharts = _lazy_import("sempy_labs.report._Fix_BarChart", "fix_barcharts")
-fix_columncharts = _lazy_import("sempy_labs.report._Fix_ColumnChart", "fix_columncharts")
-fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
-fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
-fix_upgrade_to_pbir = _lazy_import("sempy_labs.report._Fix_UpgradeToPbir", "fix_upgrade_to_pbir")
-add_calculated_calendar = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_Calendar", "add_calculated_calendar")
-fix_discourage_implicit_measures = _lazy_import("sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures", "fix_discourage_implicit_measures")
-add_last_refresh_table = _lazy_import("sempy_labs.semantic_model._Add_Table_LastRefresh", "add_last_refresh_table")
-add_calc_group_units = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_Units", "add_calc_group_units")
-add_calc_group_time_intelligence = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence", "add_calc_group_time_intelligence")
-add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
+# add_measures_from_columns and add_py_measures are imported lazily inside pbi_fixer()
 
-try:
-    from sempy_labs.semantic_model._Add_MeasuresFromColumns import add_measures_from_columns
-except Exception:
-    # Inline fallback if separate file not deployed
-    def add_measures_from_columns(dataset, workspace=None, target_table=None, scan_only=False, **kw):
-        """Creates measures from columns based on SummarizeBy property."""
-        from sempy_labs.tom import connect_semantic_model
-        created = 0
-        with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
-            for table in tom.model.Tables:
-                dest_name = target_table or table.Name
-                for col in table.Columns:
-                    summarize_by = str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "None"
-                    if summarize_by in ("None", "Default"):
-                        continue
-                    agg_fn = summarize_by.upper()
-                    dax_expr = f"{agg_fn}('{table.Name}'[{col.Name}])"
-                    # Check if measure already exists
-                    dest_tbl = tom.model.Tables[dest_name]
-                    if dest_tbl.Measures.Find(col.Name) is not None:
-                        continue
-                    if scan_only:
-                        print(f"  Would create: [{col.Name}] = {dax_expr}")
-                        created += 1
-                        continue
-                    tom.add_measure(
-                        table_name=dest_name,
-                        measure_name=col.Name,
-                        expression=dax_expr,
-                        format_string="0.0",
-                        display_folder=table.Name,
-                    )
-                    col.IsHidden = True
-                    created += 1
-                    print(f"  Created [{col.Name}] = {dax_expr}")
-            if not scan_only and created > 0:
-                tom.model.SaveChanges()
-        print(f"  {'Would create' if scan_only else 'Created'} {created} measure(s) from columns.")
-        return created
-
-try:
-    from sempy_labs.semantic_model._Add_PYMeasures import add_py_measures
-except Exception:
-    # Inline fallback if separate file not deployed
-    def add_py_measures(dataset, workspace=None, measures=None, calendar_table=None, date_column=None, target_table=None, scan_only=False, **kw):
-        """Creates PY time intelligence measures (PY, Δ PY, Δ PY %, Max Green, Max Red)."""
-        from sempy_labs.tom import connect_semantic_model
-        created = 0
-        with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
-            cal = None
-            if calendar_table:
-                cal = tom.model.Tables.Find(calendar_table)
-            else:
-                for t in tom.model.Tables:
-                    if str(getattr(t, "DataCategory", "")) == "Time":
-                        cal = t
-                        break
-            if cal is None:
-                print("  No calendar table found.")
-                return 0
-            dt_col = date_column
-            if not dt_col:
-                for c in cal.Columns:
-                    if getattr(c, "IsKey", False):
-                        dt_col = c.Name
-                        break
-                if not dt_col:
-                    for c in cal.Columns:
-                        if "date" in c.Name.lower():
-                            dt_col = c.Name
-                            break
-            if not dt_col:
-                print(f"  No date column found in '{cal.Name}'.")
-                return 0
-            print(f"  Calendar: '{cal.Name}'[{dt_col}]")
-            dest_tbl = tom.model.Tables.Find(target_table) if target_table else None
-            src = []
-            for table in tom.model.Tables:
-                for m in table.Measures:
-                    if measures is None or m.Name in measures:
-                        src.append(m)
-            if not src:
-                print("  No measures found.")
-                return 0
-            for m in src:
-                n = m.Name
-                fmt = str(m.FormatString) if m.FormatString else ""
-                folder = str(m.DisplayFolder) if m.DisplayFolder else ""
-                py_folder = f"{folder}\\\\PY" if folder else "PY"
-                dest = dest_tbl or m.Table
-                variants = [
-                    (f"{n} PY", f"CALCULATE([{n}], SAMEPERIODLASTYEAR('{cal.Name}'[{dt_col}]))"),
-                    (f"{n} \\u0394 PY", f"[{n}] - [{n} PY]"),
-                    (f"{n} \\u0394 PY %", f"DIVIDE([{n}] - [{n} PY], [{n}])"),
-                    (f"{n} Max Green PY", f"IF([{n} \\u0394 PY] > 0, MAX([{n}], [{n} PY]))"),
-                    (f"{n} Max Red AC", f"IF([{n} \\u0394 PY] < 0, MAX([{n}], [{n} PY]))"),
-                ]
-                for v_name, v_expr in variants:
-                    if dest.Measures.Find(v_name) is not None:
-                        continue
-                    if scan_only:
-                        print(f"  Would create: [{v_name}]")
-                        created += 1
-                        continue
-                    tom.add_measure(
-                        table_name=dest.Name,
-                        measure_name=v_name,
-                        expression=v_expr,
-                        format_string=fmt,
-                        display_folder=py_folder,
-                    )
-                    created += 1
-                if not scan_only:
-                    print(f"  Created PY variants for [{n}]")
-            if not scan_only and created > 0:
-                tom.model.SaveChanges()
-        print(f"  {'Would create' if scan_only else 'Created'} {created} PY measure(s).")
-        return created
-
-try:
-    from sempy_labs._sm_explorer import sm_explorer_tab
-except ImportError:
-    sm_explorer_tab = None
-
-try:
-    from sempy_labs._report_explorer import report_explorer_tab
-except ImportError:
-    report_explorer_tab = None
-
-try:
-    from sempy_labs._perspective_editor import perspective_editor_tab
-except ImportError:
-    perspective_editor_tab = None
+# sm_explorer_tab, report_explorer_tab, perspective_editor_tab
+# are imported lazily inside pbi_fixer()
 
 
 # ---------------------------------------------------------------------------
@@ -1396,6 +1249,108 @@ def pbi_fixer(
         If True, shows the Fixer tab. By default hidden since all fixers
         are accessible via action dropdowns in the Report and SM tabs.
     """
+
+    # ---------------------------------------------------------------------------
+    # Lazy imports — deferred to function call time to avoid circular imports.
+    # Each fixer is optional; the UI degrades gracefully if not available.
+    # ---------------------------------------------------------------------------
+    fix_piecharts = _lazy_import("sempy_labs.report._Fix_PieChart", "fix_piecharts")
+    fix_barcharts = _lazy_import("sempy_labs.report._Fix_BarChart", "fix_barcharts")
+    fix_columncharts = _lazy_import("sempy_labs.report._Fix_ColumnChart", "fix_columncharts")
+    fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
+    fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
+    fix_upgrade_to_pbir = _lazy_import("sempy_labs.report._Fix_UpgradeToPbir", "fix_upgrade_to_pbir")
+    add_calculated_calendar = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_Calendar", "add_calculated_calendar")
+    fix_discourage_implicit_measures = _lazy_import("sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures", "fix_discourage_implicit_measures")
+    add_last_refresh_table = _lazy_import("sempy_labs.semantic_model._Add_Table_LastRefresh", "add_last_refresh_table")
+    add_calc_group_units = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_Units", "add_calc_group_units")
+    add_calc_group_time_intelligence = _lazy_import("sempy_labs.semantic_model._Add_CalcGroup_TimeIntelligence", "add_calc_group_time_intelligence")
+    add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
+    add_measures_from_columns = _lazy_import("sempy_labs.semantic_model._Add_MeasuresFromColumns", "add_measures_from_columns")
+    add_py_measures = _lazy_import("sempy_labs.semantic_model._Add_PYMeasures", "add_py_measures")
+
+    # Inline fallbacks for MeasuresFromColumns and PYMeasures
+    if add_measures_from_columns is None:
+        def add_measures_from_columns(dataset, workspace=None, target_table=None, scan_only=False, **kw):
+            from sempy_labs.tom import connect_semantic_model
+            created = 0
+            with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
+                for table in tom.model.Tables:
+                    dest_name = target_table or table.Name
+                    for col in table.Columns:
+                        summarize_by = str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "None"
+                        if summarize_by in ("None", "Default"):
+                            continue
+                        agg_fn = summarize_by.upper()
+                        dax_expr = f"{agg_fn}('{table.Name}'[{col.Name}])"
+                        dest_tbl = tom.model.Tables[dest_name]
+                        if dest_tbl.Measures.Find(col.Name) is not None:
+                            continue
+                        if scan_only:
+                            print(f"  Would create: [{col.Name}] = {dax_expr}")
+                            created += 1
+                            continue
+                        tom.add_measure(table_name=dest_name, measure_name=col.Name, expression=dax_expr, format_string="0.0", display_folder=table.Name)
+                        col.IsHidden = True
+                        created += 1
+                        print(f"  Created [{col.Name}] = {dax_expr}")
+                if not scan_only and created > 0:
+                    tom.model.SaveChanges()
+            print(f"  {'Would create' if scan_only else 'Created'} {created} measure(s) from columns.")
+            return created
+
+    if add_py_measures is None:
+        def add_py_measures(dataset, workspace=None, measures=None, calendar_table=None, date_column=None, target_table=None, scan_only=False, **kw):
+            from sempy_labs.tom import connect_semantic_model
+            created = 0
+            with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
+                cal = None
+                if calendar_table:
+                    cal = tom.model.Tables.Find(calendar_table)
+                else:
+                    for t in tom.model.Tables:
+                        if str(getattr(t, "DataCategory", "")) == "Time":
+                            cal = t; break
+                if cal is None:
+                    print("  No calendar table found."); return 0
+                dt_col = date_column
+                if not dt_col:
+                    for c in cal.Columns:
+                        if getattr(c, "IsKey", False): dt_col = c.Name; break
+                    if not dt_col:
+                        for c in cal.Columns:
+                            if "date" in c.Name.lower(): dt_col = c.Name; break
+                if not dt_col:
+                    print(f"  No date column found in '{cal.Name}'."); return 0
+                dest_tbl = tom.model.Tables.Find(target_table) if target_table else None
+                src = [m for table in tom.model.Tables for m in table.Measures if measures is None or m.Name in measures]
+                if not src:
+                    print("  No measures found."); return 0
+                for m in src:
+                    n, fmt = m.Name, str(m.FormatString) if m.FormatString else ""
+                    folder = str(m.DisplayFolder) if m.DisplayFolder else ""
+                    py_folder = f"{folder}\\\\PY" if folder else "PY"
+                    dest = dest_tbl or m.Table
+                    for v_name, v_expr in [
+                        (f"{n} PY", f"CALCULATE([{n}], SAMEPERIODLASTYEAR('{cal.Name}'[{dt_col}]))"),
+                        (f"{n} \u0394 PY", f"[{n}] - [{n} PY]"),
+                        (f"{n} \u0394 PY %", f"DIVIDE([{n}] - [{n} PY], [{n}])"),
+                        (f"{n} Max Green PY", f"IF([{n} \u0394 PY] > 0, MAX([{n}], [{n} PY]))"),
+                        (f"{n} Max Red AC", f"IF([{n} \u0394 PY] < 0, MAX([{n}], [{n} PY]))"),
+                    ]:
+                        if dest.Measures.Find(v_name) is not None: continue
+                        if scan_only: print(f"  Would create: [{v_name}]"); created += 1; continue
+                        tom.add_measure(table_name=dest.Name, measure_name=v_name, expression=v_expr, format_string=fmt, display_folder=py_folder)
+                        created += 1
+                if not scan_only and created > 0:
+                    tom.model.SaveChanges()
+            print(f"  {'Would create' if scan_only else 'Created'} {created} PY measure(s).")
+            return created
+
+    # Tab modules (deferred)
+    sm_explorer_tab = _lazy_import("sempy_labs._sm_explorer", "sm_explorer_tab")
+    report_explorer_tab = _lazy_import("sempy_labs._report_explorer", "report_explorer_tab")
+    perspective_editor_tab = _lazy_import("sempy_labs._perspective_editor", "perspective_editor_tab")
 
     # -----------------------------
     # COLOR THEME (matches perspective_editor)
