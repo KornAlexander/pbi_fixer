@@ -441,7 +441,7 @@ The upstream `run_model_bpa()` and `vertipaq_analyzer()` each operate on a **sin
 * **Maintain fix button wiring** — the fix buttons must still reference the `_fix_map` and `_apply_fix` functions from the BPA tab. Augment the native HTML with fix button columns or overlay ipywidgets buttons alongside the HTML output.
 * **`IPython.display` vs `ipywidgets.HTML`** — the upstream functions use `display(HTML(...))` which renders directly in notebook output. For the PBI Fixer, capture the HTML string (not the display call) and inject it into an `ipywidgets.HTML` widget inside the tab panel. Use the `return_dataframe=True` path for BPA and the dict return for vertipaq_analyzer to get data, then apply the copied formatting logic to produce the HTML string.
 
-### Phase 18 — Additional BPA Fix Scripts (Planned)
+### Phase 18 — Additional BPA Fix Scripts (v1.2.113) ✅
 
 Expand the auto-fix coverage from the current 7 BPA fixers to cover all rules where a safe, deterministic fix is possible. The upstream SLL `_model_bpa_rules.py` defines **60 rules total**. Of these, the following are already auto-fixable (Phases 9+14):
 
