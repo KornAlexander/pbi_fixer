@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.109"
+__version__ = "1.2.110"
 
 import ipywidgets as widgets
 import io
@@ -1537,11 +1537,11 @@ def pbi_fixer(
     shared_inputs_box = widgets.VBox(
         [
             widgets.HBox(
-                [_input_label("Workspace"), workspace_input, list_items_btn, list_items_status],
+                [_input_label("Workspace"), workspace_input],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
             widgets.HBox(
-                [_input_label("Report / SM"), report_input],
+                [_input_label("Report"), report_input, list_items_btn, list_items_status],
                 layout=widgets.Layout(align_items="center", gap="8px"),
             ),
         ],
@@ -1602,9 +1602,142 @@ def pbi_fixer(
 
     download_pbix_btn.on_click(_on_download_pbix)
     download_pbip_btn.on_click(_on_download_pbip)
+
+    # -----------------------------
+    # CLONE BUTTONS (next to downloads)
+    # -----------------------------
+    clone_both_btn = widgets.Button(description="\U0001F4CB Clone Both", layout=widgets.Layout(width="120px"))
+    clone_rpt_btn = widgets.Button(description="\U0001F4CB Clone Report", layout=widgets.Layout(width="130px"))
+    clone_model_btn = widgets.Button(description="\U0001F4CB Clone Model", layout=widgets.Layout(width="130px"))
+
+    def _resolve_report_model_name(rpt_name, ws):
+        """Resolve the semantic model name backing a report."""
+        try:
+            from sempy_labs._helper_functions import resolve_workspace_name_and_id, _base_api
+            _, ws_id = resolve_workspace_name_and_id(ws)
+            url = f"/v1.0/myorg/groups/{ws_id}/reports"
+            resp = _base_api(request=url, client="fabric_sp")
+            for r in resp.json().get("value", []):
+                if r.get("name") == rpt_name:
+                    ds_id = r.get("datasetId", "")
+                    if ds_id:
+                        ds_url = f"/v1.0/myorg/groups/{ws_id}/datasets/{ds_id}"
+                        ds_resp = _base_api(request=ds_url, client="fabric_sp")
+                        return ds_resp.json().get("name", "")
+        except Exception:
+            pass
+        return ""
+
+    def _on_clone_report(_):
+        rpt = _strip_item_prefix(report_input.value.strip())
+        ws = workspace_input.value.strip() or None
+        if not rpt:
+            download_status.value = '<span style="color:#ff3b30; font-size:12px;">Enter a report name.</span>'
+            return
+        rpt = rpt.split(",")[0].strip()
+        clone_rpt_btn.disabled = True
+        download_status.value = f'<span style="color:#999; font-size:12px;">Cloning report\u2026</span>'
+        try:
+            from sempy_labs.report._report_functions import clone_report as _clone_rpt
+            cloned = f"{rpt}_copy"
+            _clone_rpt(report=rpt, cloned_report=cloned, workspace=ws)
+            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 Report cloned as \'{cloned}\'.</span>'
+        except Exception as e:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+        clone_rpt_btn.disabled = False
+
+    def _on_clone_model(_):
+        rpt = _strip_item_prefix(report_input.value.strip())
+        ws = workspace_input.value.strip() or None
+        if not rpt:
+            download_status.value = '<span style="color:#ff3b30; font-size:12px;">Enter a model name.</span>'
+            return
+        ds = rpt.split(",")[0].strip()
+        clone_model_btn.disabled = True
+        download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model\u2026</span>'
+        try:
+            _clone_semantic_model_impl(ds, ws)
+            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 Model cloned as \'{ds}_copy\'.</span>'
+        except Exception as e:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+        clone_model_btn.disabled = False
+
+    def _clone_semantic_model_impl(ds, ws):
+        """Clone a semantic model by name."""
+        from sempy_labs._helper_functions import resolve_workspace_name_and_id, _base_api
+        from sempy_labs._generate_semantic_model import create_semantic_model_from_bim
+        import json, base64
+        _, ws_id = resolve_workspace_name_and_id(ws)
+        import sempy.fabric as fabric
+        df = fabric.list_datasets(workspace=ws_id, mode="rest")
+        df_filt = df[df["Dataset Name"] == ds]
+        if df_filt.empty:
+            raise ValueError(f"Model '{ds}' not found.")
+        ds_id = str(df_filt.iloc[0]["Dataset Id"])
+        url = f"v1/workspaces/{ws_id}/semanticModels/{ds_id}/getDefinition"
+        resp = _base_api(request=url, method="post", lro_return_status_code=True, status_codes=[200, 202])
+        if resp.status_code == 202:
+            import time as _t
+            loc = resp.headers.get("Location", "")
+            retry = int(resp.headers.get("Retry-After", "5"))
+            _t.sleep(retry + 2)
+            resp = _base_api(request=f"{loc}/result", method="get")
+        result = resp.json()
+        bim_part = None
+        for part in result.get("definition", {}).get("parts", []):
+            if part.get("path", "").endswith("model.bim"):
+                bim_part = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                break
+        if bim_part is None:
+            raise ValueError("Could not extract model.bim.")
+        create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
+
+    def _on_clone_both(_):
+        rpt = _strip_item_prefix(report_input.value.strip())
+        ws = workspace_input.value.strip() or None
+        if not rpt:
+            download_status.value = '<span style="color:#ff3b30; font-size:12px;">Enter a report name.</span>'
+            return
+        rpt = rpt.split(",")[0].strip()
+        clone_both_btn.disabled = True
+
+        # Resolve the model name backing this report
+        model_name = _resolve_report_model_name(rpt, ws)
+
+        # Name mismatch warning
+        if model_name and model_name != rpt:
+            download_status.value = (
+                f'<span style="color:#ff9500; font-size:12px;">'
+                f'\u26a0\ufe0f Report \'{rpt}\' uses model \'{model_name}\'. '
+                f'Cloning both\u2026</span>'
+            )
+        else:
+            download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model + report\u2026</span>'
+
+        ds = model_name or rpt
+        try:
+            # 1. Clone model
+            download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model \'{ds}\'\u2026</span>'
+            _clone_semantic_model_impl(ds, ws)
+            # 2. Clone report, rebound to new model
+            download_status.value = f'<span style="color:#999; font-size:12px;">Cloning report \'{rpt}\'\u2026</span>'
+            from sempy_labs.report._report_functions import clone_report as _clone_rpt
+            _clone_rpt(report=rpt, cloned_report=f"{rpt}_copy", workspace=ws, target_dataset=f"{ds}_copy")
+            download_status.value = (
+                f'<span style="color:#34c759; font-size:12px;">'
+                f'\u2713 Cloned \'{rpt}_copy\' + \'{ds}_copy\'.</span>'
+            )
+        except Exception as e:
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+        clone_both_btn.disabled = False
+
+    clone_both_btn.on_click(_on_clone_both)
+    clone_rpt_btn.on_click(_on_clone_report)
+    clone_model_btn.on_click(_on_clone_model)
+
     download_row = widgets.HBox(
-        [download_pbix_btn, download_pbip_btn, download_status],
-        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+        [download_pbix_btn, download_pbip_btn, clone_both_btn, clone_rpt_btn, clone_model_btn, download_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0", flex_wrap="wrap"),
     )
 
     # -----------------------------
@@ -2169,7 +2302,7 @@ def pbi_fixer(
     if _bpa_fix_fk is not None:
         _sm_fixer_cbs["Hide Foreign Keys"] = lambda **kw: _bpa_fix_fk(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
-    # -- Clone callbacks --
+    # -- Clone callbacks (for action dropdowns — reuse shared impl) --
     def _clone_report(**kw):
         """Clone the report (appends '_copy' to the name)."""
         rpt = kw.get("report", "")
@@ -2186,47 +2319,15 @@ def pbi_fixer(
     _rpt_fixer_cbs["\U0001F4CB Clone Report"] = lambda **kw: _clone_report(**kw)
 
     def _clone_semantic_model(**kw):
-        """Clone the semantic model via getDefinition + create_semantic_model_from_bim."""
+        """Clone the semantic model via shared impl."""
         ds = kw.get("report", "")
         ws = kw.get("workspace")
         if not ds:
             print("No model specified.")
             return
-        cloned_name = f"{ds}_copy"
-        print(f"Cloning model '{ds}' \u2192 '{cloned_name}'\u2026")
-        from sempy_labs._helper_functions import resolve_workspace_name_and_id, _base_api
-        from sempy_labs._generate_semantic_model import create_semantic_model_from_bim
-        import json, base64
-        _, ws_id = resolve_workspace_name_and_id(ws)
-        # Resolve dataset ID
-        import sempy.fabric as fabric
-        df = fabric.list_datasets(workspace=ws_id, mode="rest")
-        df_filt = df[df["Dataset Name"] == ds]
-        if df_filt.empty:
-            print(f"Model '{ds}' not found.")
-            return
-        ds_id = str(df_filt.iloc[0]["Dataset Id"])
-        # Get definition
-        url = f"v1/workspaces/{ws_id}/semanticModels/{ds_id}/getDefinition"
-        resp = _base_api(request=url, method="post", lro_return_status_code=True, status_codes=[200, 202])
-        if resp.status_code == 202:
-            import time as _t
-            loc = resp.headers.get("Location", "")
-            retry = int(resp.headers.get("Retry-After", "5"))
-            _t.sleep(retry + 2)
-            resp = _base_api(request=f"{loc}/result", method="get")
-        result = resp.json()
-        # Find model.bim part
-        bim_part = None
-        for part in result.get("definition", {}).get("parts", []):
-            if part.get("path", "").endswith("model.bim"):
-                bim_part = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
-                break
-        if bim_part is None:
-            print("Could not extract model.bim from definition.")
-            return
-        create_semantic_model_from_bim(dataset=cloned_name, bim_file=bim_part, workspace=ws)
-        print(f"\u2713 Semantic model cloned as '{cloned_name}'.")
+        print(f"Cloning model '{ds}' \u2192 '{ds}_copy'\u2026")
+        _clone_semantic_model_impl(ds, ws)
+        print(f"\u2713 Semantic model cloned as '{ds}_copy'.")
 
     _sm_fixer_cbs["\U0001F4CB Clone Model"] = lambda **kw: _clone_semantic_model(**kw)
 
