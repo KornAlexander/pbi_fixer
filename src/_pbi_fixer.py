@@ -405,7 +405,22 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     tree_header = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Tables &amp; Columns by Size</div>'
     )
-    right_panel = widgets.VBox([subtab_selector, df_container, detail_label, detail_container], layout=widgets.Layout(flex="1", gap="4px"))
+    # Model selector dropdown for multi-model switching
+    model_dropdown = widgets.Dropdown(
+        options=["(no models loaded)"],
+        value="(no models loaded)",
+        layout=widgets.Layout(width="300px"),
+    )
+
+    def on_model_change(change):
+        m = change.get("new", "")
+        if m and m != "(no models loaded)" and m in _vp_data:
+            _current_model[0] = m
+            _render_subtab()
+
+    model_dropdown.observe(on_model_change, names="value")
+
+    right_panel = widgets.VBox([model_dropdown, subtab_selector, df_container, detail_label, detail_container], layout=widgets.Layout(flex="1", gap="4px"))
     panels = widgets.HBox([tree, right_panel], layout=widgets.Layout(width="100%", gap="8px"))
 
     widget = widgets.VBox([nav_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
@@ -633,38 +648,85 @@ def _bpa_tab(workspace_input=None, report_input=None):
             )]
             return
 
-        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
-        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
-        for hdr in ["#", "Model", "Rule", "Type", "Object", "Sev", "Fixable"]:
-            html += f'<th style="text-align:left; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{hdr}</th>'
-        html += '</tr>'
-
-        n_fixable = 0
-        for idx, (ds, rule_name, category, obj_name, obj_type, severity) in enumerate(_all_findings):
+        # Group findings by category (native BPA style with tabs)
+        from collections import OrderedDict
+        cats = OrderedDict()
+        for ds, rule_name, category, obj_name, obj_type, severity in _all_findings:
             if rule_name.startswith("ERROR"):
-                html += f'<tr><td colspan="7" style="color:#ff3b30; padding:3px 8px;">\u274c {ds}: {rule_name}</td></tr>'
+                cats.setdefault("Errors", []).append((ds, rule_name, category, obj_name, obj_type, severity))
                 continue
-            sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
-            has_fix = _is_fixable(rule_name, obj_type)
-            if has_fix:
-                n_fixable += 1
-            fix_icon = f'<span style="color:#34c759;">\u2713</span>' if has_fix else '\u2014'
-            html += f'<tr>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{idx+1}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{ds}">{ds[:16]}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT}; white-space:nowrap;" title="{rule_name}">{rule_name[:35]}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:#888;">{obj_type[:10]}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;" title="{obj_name}">{obj_name[:35]}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; color:{sev_color}; font-weight:600;">{severity}</td>'
-            html += f'<td style="padding:3px 8px; border-bottom:1px solid #f0f0f0; text-align:center;">{fix_icon}</td>'
-            html += '</tr>'
-        html += '</table></div>'
+            cats.setdefault(category, []).append((ds, rule_name, category, obj_name, obj_type, severity))
+
+        # Use unique IDs to avoid JS collision with other tabs
+        import random as _rnd
+        uid = _rnd.randint(1000, 9999)
+
+        # CSS + JS (scoped with uid)
+        styles = f'''<style>
+        .bpa-tab-{uid} {{ overflow:hidden; border:1px solid #ccc; background:#f1f1f1; display:flex; flex-wrap:wrap; }}
+        .bpa-tab-{uid} button {{ background:inherit; border:none; outline:none; cursor:pointer; padding:8px 12px; transition:0.3s; font-size:11px; }}
+        .bpa-tab-{uid} button:hover {{ background:#ddd; }}
+        .bpa-tab-{uid} button.active {{ background:#ccc; font-weight:bold; }}
+        .bpa-tc-{uid} {{ display:none; padding:4px 8px; border:1px solid #ccc; border-top:none; max-height:350px; overflow-y:auto; }}
+        .bpa-tc-{uid}.active {{ display:block; }}
+        .bpa-tt {{ position:relative; display:inline-block; }}
+        .bpa-tt .bpa-ttp {{ visibility:hidden; width:280px; background:#555; color:#fff; text-align:center; border-radius:6px; padding:5px; position:absolute; z-index:1; bottom:125%; left:50%; margin-left:-140px; opacity:0; transition:opacity 0.3s; font-size:11px; }}
+        .bpa-tt:hover .bpa-ttp {{ visibility:visible; opacity:1; }}
+        </style>'''
+
+        script = f'''<script>
+        function bpaTab{uid}(evt, tabId) {{
+            var tc = document.querySelectorAll('.bpa-tc-{uid}');
+            for (var i=0; i<tc.length; i++) tc[i].style.display='none';
+            var btns = document.querySelectorAll('.bpa-tab-{uid} button');
+            for (var i=0; i<btns.length; i++) btns[i].className = btns[i].className.replace(' active','');
+            document.getElementById(tabId).style.display='block';
+            evt.currentTarget.className += ' active';
+        }}
+        </script>'''
+
+        tab_html = f'<div class="bpa-tab-{uid}">'
+        content_html = ""
+        n_fixable = 0
+
+        for cat_idx, (cat_name, findings) in enumerate(cats.items()):
+            tab_id = f"bpa{uid}_{cat_idx}"
+            active = " active" if cat_idx == 0 else ""
+            # Severity summary
+            sev_counts = {}
+            for _, _, _, _, _, sev in findings:
+                sev_counts[sev] = sev_counts.get(sev, 0) + 1
+            summary = " + ".join(f"{v} (Sev {k})" for k, v in sorted(sev_counts.items()))
+            tab_html += f'<button class="{active}" onclick="bpaTab{uid}(event,\'{tab_id}\')">{cat_name}<br><span style="font-size:10px;color:#888;">{summary}</span></button>'
+
+            content_html += f'<div id="{tab_id}" class="bpa-tc-{uid}{active}">'
+            content_html += '<table style="border-collapse:collapse; width:100%; font-size:11px; font-family:monospace;">'
+            content_html += '<tr style="background:#f5f5f5;"><th style="padding:3px 6px; text-align:left;">Model</th><th style="padding:3px 6px; text-align:left;">Rule</th><th style="padding:3px 6px; text-align:left;">Type</th><th style="padding:3px 6px; text-align:left;">Object</th><th style="padding:3px 6px; text-align:center;">Sev</th><th style="padding:3px 6px; text-align:center;">Fix</th></tr>'
+            for ds, rule_name, category, obj_name, obj_type, severity in findings:
+                if rule_name.startswith("ERROR"):
+                    content_html += f'<tr><td colspan="6" style="color:#ff3b30; padding:2px 6px;">\u274c {ds}: {rule_name}</td></tr>'
+                    continue
+                sev_color = "#ff3b30" if severity in ("3",) else "#ff9500" if severity in ("2",) else "#888"
+                has_fix = _is_fixable(rule_name, obj_type)
+                if has_fix:
+                    n_fixable += 1
+                fix_icon = '<span style="color:#34c759;">\u2713</span>' if has_fix else '\u2014'
+                content_html += f'<tr><td style="padding:2px 6px; border-bottom:1px solid #f0f0f0;" title="{ds}">{ds[:16]}</td>'
+                content_html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT};" title="{rule_name}">{rule_name[:40]}</td>'
+                content_html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0; color:#888;">{obj_type[:10]}</td>'
+                content_html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0;" title="{obj_name}">{obj_name[:40]}</td>'
+                content_html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0; text-align:center; color:{sev_color}; font-weight:600;">{severity}</td>'
+                content_html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0; text-align:center;">{fix_icon}</td></tr>'
+            content_html += '</table></div>'
+        tab_html += '</div>'
+
+        full_html = styles + tab_html + content_html + script
 
         summary = widgets.HTML(
             value=f'<div style="font-size:12px; font-family:{FONT_FAMILY}; color:#555; margin:8px 0 4px 0;">'
             f'{len(_all_findings)} finding(s), <b>{n_fixable}</b> auto-fixable</div>'
         )
-        results_box.children = [widgets.HTML(value=html), summary]
+        results_box.children = [widgets.HTML(value=full_html), summary]
 
     def on_fix_all(_):
         """Fix all fixable violations."""
