@@ -381,7 +381,7 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 15 — Clone Buttons & Name Mismatch Check (Planned)
+### Phase 15 — Clone Buttons & Name Mismatch Check (v1.2.110) ✅
 
 Move clone functionality from the action dropdowns to dedicated **top-level buttons** next to the download buttons, and add name mismatch detection:
 
@@ -394,7 +394,7 @@ Move clone functionality from the action dropdowns to dedicated **top-level butt
 * **Remove from action dropdowns**: Remove the "📋 Clone Report" entry from Report Explorer and "📋 Clone Model" from SM Explorer dropdowns — the top-level buttons replace them. _(Or keep both for convenience — dropdown entries call the same functions.)_
 * **Current state (Phase 13)**: Clone callbacks exist as `_clone_report()` and `_clone_semantic_model()` in `_pbi_fixer.py`, wired into the Report Explorer and SM Explorer action dropdowns respectively. They always append `_copy` and don't check for name mismatches.
 
-### Phase 16 — Stop Load Button (Planned)
+### Phase 16 — Stop Load Button (v1.2.111) ✅
 
 Add a **"⏹ Stop" button** to both SM Explorer and Report Explorer that allows cancelling a long-running load operation mid-flight:
 
@@ -404,7 +404,7 @@ Add a **"⏹ Stop" button** to both SM Explorer and Report Explorer that allows 
 * The stop button is hidden/disabled again when no load is running.
 * Applies to both `on_load` in `_sm_explorer.py` and `_report_explorer.py`.
 
-### Phase 17 — Native BPA & Memory Analyzer Integration (Planned)
+### Phase 17 — Native BPA & Memory Analyzer Integration (v1.2.112) ✅
 
 Replace the custom inline BPA and Memory Analyzer tab implementations with the **original upstream HTML renderers** from Semantic Link Labs, integrated as copied source code within the PBI Fixer codebase. The goal is to use the rich, tabbed HTML visualizations from `run_model_bpa()` and `vertipaq_analyzer()` directly, rather than maintaining a separate simplified version.
 
