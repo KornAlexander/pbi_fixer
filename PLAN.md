@@ -631,20 +631,41 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
 
 ### Phase 38 — Report Prototyping with Excalidraw (Planned)
 
-Add a **📐 Report Prototype** tab (or action) that generates an Excalidraw diagram of the loaded report, showing all pages, their visuals, navigation dependencies, and measure/table usage as a complete visual map.
+Add a **📐 Report Prototype** tab (or action) that generates an Excalidraw diagram of the loaded report, showing all pages as **actual rendered screenshots**, navigation dependencies, and measure/table usage as a complete visual map.
 
-* **Page-level overview**: Each report page is rendered as a labeled box (teal header, page name, visual count). Pages are arranged horizontally by category or navigation hierarchy.
-* **Visual inventory per page**: Inside each page box, list the visuals with their type, title, and the measures/columns they use (from `list_visual_objects`). Group visuals by type (charts, slicers, cards, tables).
-* **Navigation dependencies**: Draw arrows between pages that have drill-through targets, button navigation actions, or bookmark links. Parse the PBIR visual definitions for `drillthrough`, `navigation`, and `bookmark` actions to detect page-to-page links.
+#### Page Screenshots (Feasible — Server-Side Rendering)
+
+Each page is rendered as an **actual PNG screenshot** using the Power BI Export To File REST API (`export_report(format="PNG", page_name=...)`). This is a server-side render — no browser/Playwright needed. Works in Fabric Notebooks.
+
+* Use `sempy_labs.report.export_report(report, export_format="PNG", page_name=page_guid)` per page.
+* The Export API is async (polls for completion), takes ~5-15s per page. A 20-page report ≈ 2-5 minutes.
+* Read the exported PNG from the lakehouse, convert to base64, embed in the Excalidraw `files` object.
+* Create `image` elements in Excalidraw referencing the base64 files — same pattern as PBI-Prototyping screenshots.
+* Scale images to ~50% (960×540) for readability in the overview diagram.
+* **Requires Premium/Fabric capacity** (the Export API needs it — but the PBI Fixer already runs on Fabric).
+
+#### Diagram Structure
+
+* **Page screenshots** arranged horizontally by category or navigation hierarchy. Each has a title label above and a one-line description below.
+* **Navigation arrows**: Draw arrows between pages that have drill-through targets, button navigation actions, or bookmark links. Parse PBIR visual definitions for `drillthrough`, `navigation`, and `bookmark` actions.
+* **Visual inventory overlay**: Optionally annotate each page screenshot with badges showing visual count by type (e.g. "3× bar, 2× card, 1× slicer").
 * **Measure → Page mapping**: Show which measures appear on which pages. Highlight "orphan" measures (defined in the model but not used on any page) and "hot" measures (used on many pages).
-* **Excalidraw JSON generation**: Build the diagram as an `.excalidraw` JSON file using the same Python approach as the PBI-Prototyping workflow (see `copilot-instructions.md`). Elements: `rectangle` (page boxes), `text` (labels), `arrow` (navigation links), `ellipse` (measure nodes). Color coding by page level/category.
-* **Embed in notebook**: Display the generated Excalidraw JSON inline using an `ipywidgets.HTML` widget with an embedded Excalidraw viewer (if feasible), or save to the lakehouse and provide a download link + open-in-VS-Code button.
-* **Export options**:
-  + Save as `.excalidraw` file to lakehouse Files (openable in VS Code with Excalidraw extension).
-  + Save as `.png` screenshot (render via Excalidraw's export API if available).
-  + Save alongside the report in `PBI-Prototyping/<Report Name>/` folder structure.
-* **Before/After comparison**: If the report has been modified by fixers, generate a "before" snapshot on load and an "after" snapshot after fixes, side by side.
-* **Leverages existing workflow**: Reuse the Excalidraw JSON generation patterns from the PBI-Prototyping projects (element creation, layout algorithms, color schemes, base64 image embedding).
+
+#### Excalidraw JSON Generation
+
+* Build the diagram as an `.excalidraw` JSON file using the PBI-Prototyping Python approach.
+* Elements: `image` (page screenshots), `text` (labels), `arrow` (navigation links), `rectangle` (category headers), `ellipse` (measure nodes).
+* Color coding by page level/category (teal L1, blue L2, purple L3, orange L4, etc.).
+
+#### Export Options
+
+* Save as `.excalidraw` file to lakehouse Files (openable in VS Code with Excalidraw extension).
+* Save page screenshots to `PBI-Prototyping/<Report Name>/screenshots/` folder.
+* **Before/After comparison**: Generate a "before" snapshot on load and an "after" snapshot after fixes, side by side.
+
+#### Fallback (No Export API)
+
+If the Export API is unavailable (e.g. shared capacity), fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
 
 ### Phase 39 — AI Assistant (Planned)
 
