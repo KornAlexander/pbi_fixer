@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.121"
+__version__ = "1.2.122"
 
 import ipywidgets as widgets
 import io
@@ -1993,32 +1993,26 @@ def pbi_fixer(
 
     def _clone_semantic_model_impl(ds, ws):
         """Clone a semantic model by name."""
-        from sempy_labs._helper_functions import resolve_workspace_name_and_id, _base_api
+        from sempy_labs._helper_functions import get_item_definition
         from sempy_labs._generate_semantic_model import create_semantic_model_from_bim
-        import json, base64
-        _, ws_id = resolve_workspace_name_and_id(ws)
-        import sempy.fabric as fabric
-        df = fabric.list_datasets(workspace=ws_id, mode="rest")
-        df_filt = df[df["Dataset Name"] == ds]
-        if df_filt.empty:
-            raise ValueError(f"Model '{ds}' not found.")
-        ds_id = str(df_filt.iloc[0]["Dataset Id"])
-        url = f"v1/workspaces/{ws_id}/semanticModels/{ds_id}/getDefinition"
-        resp = _base_api(request=url, method="post", lro_return_status_code=True, status_codes=[200, 202])
-        if resp.status_code == 202:
-            import time as _t
-            loc = resp.headers.get("Location", "")
-            retry = int(resp.headers.get("Retry-After", "5"))
-            _t.sleep(retry + 2)
-            resp = _base_api(request=f"{loc}/result", method="get")
-        result = resp.json()
+        import json
+
+        # Get the model definition using the proper LRO-handling helper
+        result = get_item_definition(item=ds, type="SemanticModel", workspace=ws, decode=True)
+
+        # Find model.bim part
         bim_part = None
         for part in result.get("definition", {}).get("parts", []):
-            if part.get("path", "").endswith("model.bim"):
-                bim_part = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+            path = part.get("path", "")
+            payload = part.get("payload", "")
+            if path.endswith("model.bim"):
+                if isinstance(payload, str):
+                    bim_part = json.loads(payload)
+                elif isinstance(payload, dict):
+                    bim_part = payload
                 break
         if bim_part is None:
-            raise ValueError("Could not extract model.bim.")
+            raise ValueError("Could not extract model.bim from definition.")
         create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
 
     def _on_clone_both(_):
