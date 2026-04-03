@@ -663,9 +663,9 @@ Each page is rendered as an **actual PNG screenshot** using the Power BI Export 
 * Save page screenshots to `PBI-Prototyping/<Report Name>/screenshots/` folder.
 * **Before/After comparison**: Generate a "before" snapshot on load and an "after" snapshot after fixes, side by side.
 
-#### Fallback (No Export API)
+#### Fallback (Export API Failure)
 
-If the Export API is unavailable (e.g. shared capacity), fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
+Since the PBI Fixer already runs in a Fabric Notebook (which requires Fabric capacity), and the Export API also requires Fabric/Premium capacity on the report's workspace, there is **no additional capacity requirement** for page screenshots. The fallback is only needed if the Export API fails for other reasons (permissions, timeouts, service issues). In that case, fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
 
 ### Phase 39 — AI Assistant (Planned)
 
