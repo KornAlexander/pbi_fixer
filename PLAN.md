@@ -353,6 +353,7 @@ Replace the current free-text-only Report/SM input with a **combo widget** (`wid
 * If left **blank** → load **all** items in the workspace (current behavior, unchanged).
 * Deduplicate by display name (case-insensitive), keeping both item types internally for the load logic.
 * Implementation: `widgets.Combobox` with `options` populated after workspace is set. For multi-select, consider a `SelectMultiple` or `TagsInput` widget alongside the Combobox.
+* **Layout fix**: the "📋 List Items" button should be placed on the **Report** input row (next to the Combobox), not on the Workspace row. The input label should read just **"Report"** (omit "/ SM").
 
 ### Phase 13 — Clone Report + Semantic Model (v1.2.107) ✅
 
@@ -419,7 +420,45 @@ Replace the custom inline BPA and Memory Analyzer tab implementations with the *
 * **Maintain fix button wiring** — the fix buttons must still reference the `_fix_map` and `_apply_fix` functions from the BPA tab. Augment the native HTML with fix button columns or overlay ipywidgets buttons alongside the HTML output.
 * **`IPython.display` vs `ipywidgets.HTML`** — the upstream functions use `display(HTML(...))` which renders directly in notebook output. For the PBI Fixer, capture the HTML string (not the display call) and inject it into an `ipywidgets.HTML` widget inside the tab panel. Use the `return_dataframe=True` path for BPA and the dict return for vertipaq_analyzer to get data, then apply the copied formatting logic to produce the HTML string.
 
-### Phase 17 — Advanced Features (Planned)
+### Phase 17 — Additional BPA Fix Scripts (Planned)
+
+Expand the auto-fix coverage from the current 7 BPA fixers to cover all rules where a safe, deterministic fix is possible. The upstream SLL `_model_bpa_rules.py` defines **60 rules total**. Of these, the following are already auto-fixable (Phases 9+14):
+
+| # | BPA Rule | Standalone File | Status |
+|---|----------|-----------------|--------|
+| 1 | Do not use floating point data types | `_Fix_FloatingPointDataType.py` | ✅ Done |
+| 7 | Set IsAvailableInMdx to false | `_Fix_IsAvailableInMdx.py` | ✅ Done |
+| 45 | Visible objects with no description (Measures) | `_Fix_MeasureDescriptions.py` | ✅ Done |
+| 46 | Provide format string for 'Date' columns | `_Fix_DateColumnFormat.py` | ✅ Done |
+| 56 | Provide format string for 'Month' columns | `_Fix_MonthColumnFormat.py` | ✅ Done |
+| 48 | Provide format string for measures | `_Fix_MeasureFormat.py` | ✅ Done |
+| 52 | Hide foreign keys | `_Fix_HideForeignKeys.py` | ✅ Done |
+
+The following **12 additional rules** should get standalone fix scripts in this phase:
+
+| # | BPA Rule | Proposed File | Fix Action |
+|---|----------|---------------|------------|
+| 37 | Use the DIVIDE function for division | `_Fix_UseDivideFunction.py` | Regex-replace `] / ` and `) / ` patterns in measure expressions with `DIVIDE(numerator, denominator)`. Only fix simple single-level divisions; skip nested/complex cases. Use DAX Formatter after fix to clean up. |
+| 14 | Avoid adding 0 to a measure | `_Fix_AvoidAdding0.py` | Strip `0+` or `0 +` prefix from measure expressions. |
+| 47 | Do not summarize numeric columns | `_Fix_DoNotSummarize.py` | Set `SummarizeBy = "None"` on all numeric data columns. |
+| 53 | Mark primary keys | `_Fix_MarkPrimaryKeys.py` | For each relationship's "To" column (the 1-side / primary key side), set `IsKey = True` on the column. Only apply when the column is not already a key and the table has no existing key column. |
+| 58 | Objects should not start or end with a space | `_Fix_TrimObjectNames.py` | Trim leading/trailing whitespace from object names (tables, columns, measures, hierarchies, partitions). |
+| 59 | First letter of objects must be capitalized | `_Fix_CapitalizeObjectNames.py` | Capitalize the first letter of object names. |
+| 50 | Percentages should be formatted with thousands separators | `_Fix_PercentageFormat.py` | Set format string to `#,0.0%;-#,0.0%;#,0.0%` on measures whose name contains `%`, `Percent`, or `Pct`. |
+| 51 | Whole numbers should be formatted with thousands separators | `_Fix_WholeNumberFormat.py` | Set format string to `#,0` on integer-typed measures without a format string. |
+| 57 | Format flag columns as Yes/No value strings | `_Fix_FlagColumnFormat.py` | For columns starting with `Is` or ending with `Flag` (integer type, visible), add a calculated column or set an appropriate format. |
+| 26 | Set IsAvailableInMdx to true on necessary columns | `_Fix_IsAvailableInMdxTrue.py` | Set `IsAvailableInMDX = True` on attribute/key columns that incorrectly have it set to False. |
+| 54 | Month (as a string) must be sorted | `_Fix_SortMonthColumn.py` | Set `SortByColumn` on month name columns to point to a corresponding month number column (auto-detect by naming convention). |
+| 49 | Add data category for columns | `_Fix_DataCategory.py` | Set appropriate `DataCategory` on columns based on naming conventions (e.g. columns named "City" → `DataCategory = "City"`, "Country" → "Country", "URL"/"Image" → "ImageUrl"/"WebUrl"). |
+
+Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_only)` with standalone `print()` output and `scan_only` support. All are wired into the BPA tab's `_fix_map` for auto-fix buttons and into the SM Explorer actions dropdown.
+
+**Out of scope** (not auto-fixable — require human judgment or are destructive):
+* Remove unnecessary columns (#41), Remove unnecessary measures (#42), Remove inactive relationships (#40), Remove calc groups with no items (#44) — these are **deletion** operations that risk breaking reports. Flag only.
+* Avoid using calculated columns (#2), Reduce calculated tables (#15) — require rewriting data pipeline. Flag only.
+* Rules involving RLS logic, DirectQuery tuning, star schema design — architectural decisions. Flag only.
+
+### Phase 18 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -433,7 +472,7 @@ Replace the custom inline BPA and Memory Analyzer tab implementations with the *
 * **Extended SM Explorer properties**: add more properties to the SM Explorer properties panel. For **columns**: show encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category. For **tables**: show mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag. For **measures**: show is-hidden, lineage tag, KPI properties (if any). For **relationships**: show cross-filter direction, security filtering, is-active, rely-on-referential-integrity. All additional properties should be read from the TOM `_model_data` cache (extend `_load_model_data_fast` / `_load_model_data_tom` to capture them).
 * **Editable Report Explorer properties**: make Report Explorer visual/page properties editable via `connect_report`. For **pages**: allow editing display name, width, height, background color, hidden flag. For **visuals**: allow editing position (x, y), size (width, height), title text, hidden flag. Show editable `widgets.Text` / `widgets.IntText` fields in the properties panel (same pattern as SM Explorer's editable properties). Add a Save button with dirty-state tracking. Writes go through `connect_report` in read-write mode to update the PBIR page/visual definitions.
 
-### Phase 18 — Report Visual Layout & Theming (Planned)
+### Phase 19 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -496,7 +535,7 @@ Replace the custom inline BPA and Memory Analyzer tab implementations with the *
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 19 — Workspace Report Format Overview (Planned)
+### Phase 20 — Workspace Report Format Overview (Planned)
 
 Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
 
@@ -506,7 +545,7 @@ Add a **report format overview** panel or subtab (e.g. in the Report tab or as a
 * Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
 * This provides a quick workspace-level health check before loading individual reports.
 
-### Phase 20 — Model Diagram Tab (Planned)
+### Phase 21 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -526,7 +565,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 21 — AI Assistant (Planned)
+### Phase 22 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
