@@ -445,7 +445,17 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 16 — Model Diagram Tab (Planned)
+### Phase 16 — Workspace Report Format Overview (Planned)
+
+Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
+
+* Use `sempy_labs.report.list_reports()` to fetch the full report list including the `Format` column.
+* Display a DataFrame table showing `Report Name`, `Report Id`, and `Format` (PBIR / PBIRLegacy / etc.).
+* Color-code or badge: PBIR = green, PBIRLegacy = orange/warning, other = grey.
+* Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
+* This provides a quick workspace-level health check before loading individual reports.
+
+### Phase 17 — Model Diagram Tab (Planned)
 
 Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
 
@@ -465,7 +475,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 17 — AI Assistant (Planned)
+### Phase 18 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
