@@ -332,7 +332,7 @@ These fixers have separate files with full `scan_only` support but are **deprior
 
 ## Remaining Work
 
-### Phase 11 — UI Alignment & Consistency Fix (Planned)
+### Phase 11 — UI Alignment & Consistency Fix (v1.2.105) ✅
 
 Fix visual inconsistencies in the three-panel layout across all tabs:
 
@@ -342,7 +342,7 @@ Fix visual inconsistencies in the three-panel layout across all tabs:
 * **Header alignment**: "REPORT STRUCTURE", "PROPERTIES", "PREVIEW" headers should be at the same vertical position and use the same font size, weight, and color as the corresponding headers in the SM Explorer.
 * **Full-width stretch**: ensure the three-panel HBox fills the full available width consistently, with no gap between the outer panels and the tab container edge.
 
-### Phase 12 — Dropdown Item Selector (Planned)
+### Phase 12 — Dropdown Item Selector (v1.2.106) ✅
 
 Replace the current free-text-only Report/SM input with a **combo widget** (`widgets.Combobox`) that supports both dropdown selection and free text entry:
 
@@ -354,7 +354,7 @@ Replace the current free-text-only Report/SM input with a **combo widget** (`wid
 * Deduplicate by display name (case-insensitive), keeping both item types internally for the load logic.
 * Implementation: `widgets.Combobox` with `options` populated after workspace is set. For multi-select, consider a `SelectMultiple` or `TagsInput` widget alongside the Combobox.
 
-### Phase 13 — Clone Report + Semantic Model (Planned)
+### Phase 13 — Clone Report + Semantic Model (v1.2.107) ✅
 
 Add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
 
@@ -364,7 +364,7 @@ Add an action (button or dropdown entry) that clones the currently loaded report
 * Shows progress and confirms both items were created successfully.
 * Useful for creating dev/test copies, versioning before applying fixers, or templating.
 
-### Phase 14 — Extract BPA Fixers to Standalone Files
+### Phase 14 — Extract BPA Fixers to Standalone Files (v1.2.108) ✅
 
 The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
 
