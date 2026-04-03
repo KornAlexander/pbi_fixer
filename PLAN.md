@@ -332,7 +332,19 @@ These fixers have separate files with full `scan_only` support but are **deprior
 
 ## Remaining Work
 
-### Phase 11 — Clone Report + Semantic Model (Planned)
+### Phase 11 — Dropdown Item Selector (Planned)
+
+Replace the current free-text-only Report/SM input with a **combo widget** (`widgets.Combobox`) that supports both dropdown selection and free text entry:
+
+* When the workspace is entered and the user clicks **Load** (or on workspace change), fetch the list of all reports and semantic models via the Fabric REST API (`GET /v1.0/myorg/groups/{ws}/reports` + `GET /v1.0/myorg/groups/{ws}/datasets`).
+* Populate the dropdown with a **deduplicated** combined list. If a report and semantic model share the same display name, show the name **only once** — the tool loads both the report and its underlying model regardless.
+* Items are prefixed with icons to distinguish types: `"📄 Report Name"` and `"📊 Model Name"`. Shared-name items show without prefix (or with a combined indicator).
+* The user can **select from the dropdown** (click to pick one or multiple items) or **type/paste free text** including comma-separated values. Free text takes precedence over dropdown selection.
+* If left **blank** → load **all** items in the workspace (current behavior, unchanged).
+* Deduplicate by display name (case-insensitive), keeping both item types internally for the load logic.
+* Implementation: `widgets.Combobox` with `options` populated after workspace is set. For multi-select, consider a `SelectMultiple` or `TagsInput` widget alongside the Combobox.
+
+### Phase 12 — Clone Report + Semantic Model (Planned)
 
 Add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
 
@@ -342,7 +354,7 @@ Add an action (button or dropdown entry) that clones the currently loaded report
 * Shows progress and confirms both items were created successfully.
 * Useful for creating dev/test copies, versioning before applying fixers, or templating.
 
-### Phase 12 — Extract BPA Fixers to Standalone Files
+### Phase 13 — Extract BPA Fixers to Standalone Files
 
 The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
 
@@ -358,7 +370,7 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 13 — Advanced Features (Planned)
+### Phase 14 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -370,7 +382,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
 * **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
 
-### Phase 14 — Report Visual Layout & Theming (Planned)
+### Phase 15 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -433,7 +445,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
 
-### Phase 15 — AI Assistant (Planned)
+### Phase 16 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
