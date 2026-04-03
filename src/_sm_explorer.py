@@ -546,6 +546,58 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
 
     # -- expression panel --
     preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="160px", font_family="monospace"))
+
+    # Table data preview (HTML, shown when a table node is selected)
+    table_preview_html = widgets.HTML(value="", layout=widgets.Layout(width="100%", display="none"))
+    table_row_dropdown = widgets.Dropdown(
+        options=[("Top 10", 10), ("Top 100", 100), ("All", 0)],
+        value=10,
+        layout=widgets.Layout(width="100px", display="none"),
+    )
+    _table_preview_name = [None]  # track which table is previewed
+    _table_preview_ds = [None]    # track which dataset
+
+    def _load_table_preview(ds_name, table_name, top_n=10):
+        """Load top N rows of a table via DAX and render as HTML."""
+        try:
+            import sempy.fabric as fabric
+            ws = workspace_input.value.strip() if workspace_input else None
+            ws = ws or None
+            if top_n > 0:
+                dax = f"EVALUATE TOPN({top_n}, '{table_name}')"
+            else:
+                dax = f"EVALUATE '{table_name}'"
+            df = fabric.evaluate_dax(dataset=ds_name, dax_string=dax, workspace=ws)
+            if df is None or len(df) == 0:
+                return '<div style="color:#999; font-size:12px;">No rows returned.</div>'
+            # Strip table prefix from column names
+            df.columns = [c.split("[")[-1].rstrip("]") if "[" in c else c for c in df.columns]
+            html = '<div style="overflow-x:auto; max-height:250px; overflow-y:auto;">'
+            html += '<table style="border-collapse:collapse; font-size:11px; font-family:monospace; width:100%;">'
+            html += '<tr style="background:#f5f5f5; position:sticky; top:0;">'
+            for col in df.columns:
+                html += f'<th style="padding:3px 6px; border-bottom:2px solid #e0e0e0; text-align:left; white-space:nowrap;">{col}</th>'
+            html += '</tr>'
+            for _, row in df.iterrows():
+                html += '<tr>'
+                for col in df.columns:
+                    val = row[col]
+                    if val is None or (isinstance(val, float) and val != val):
+                        val = ""
+                    html += f'<td style="padding:2px 6px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{val}</td>'
+                html += '</tr>'
+            html += f'</table></div>'
+            html += f'<div style="font-size:10px; color:#999; margin-top:2px;">{len(df)} row(s) shown</div>'
+            return html
+        except Exception as e:
+            return f'<div style="color:#ff3b30; font-size:12px;">Error: {str(e)[:100]}</div>'
+
+    def _on_table_row_change(change):
+        if _table_preview_name[0] and _table_preview_ds[0]:
+            table_preview_html.value = '<div style="color:#999; font-size:12px;">Loading\u2026</div>'
+            table_preview_html.value = _load_table_preview(_table_preview_ds[0], _table_preview_name[0], change.get("new", 10))
+
+    table_row_dropdown.observe(_on_table_row_change, names="value")
     fmt_long_btn = widgets.Button(description="Format Long", layout=widgets.Layout(width="110px"))
     fmt_short_btn = widgets.Button(description="Format Short", layout=widgets.Layout(width="110px"))
 
@@ -642,7 +694,7 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    preview_box = panel_box([preview_label, preview, format_row], flex="1")
+    preview_box = panel_box([preview_label, table_row_dropdown, preview, table_preview_html, format_row], flex="1")
 
     # -- editable properties --
     props_label = widgets.HTML(
@@ -1064,6 +1116,41 @@ def sm_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=Non
             preview.value = _get_preview_text(_model_data, key)
             preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
             _populate_props(key)
+
+        # Table data preview: show HTML table for table nodes, hide for others
+        node_type = key.split(":")[0]
+        if node_type == "table":
+            raw_table = key.split(":", 1)[1]
+            if "\x1f" in raw_table:
+                ds_name, table_name = raw_table.split("\x1f", 1)
+            else:
+                ds_name = _model_data.get("_dataset_name", "")
+                table_name = raw_table
+            if ds_name and table_name:
+                _table_preview_ds[0] = ds_name
+                _table_preview_name[0] = table_name
+                table_preview_html.value = '<div style="color:#999; font-size:12px;">Loading preview\u2026</div>'
+                preview.layout.display = "none"
+                table_preview_html.layout.display = ""
+                table_row_dropdown.layout.display = ""
+                format_row.layout.display = "none"
+                preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Table Preview</div>'
+                table_preview_html.value = _load_table_preview(ds_name, table_name, table_row_dropdown.value)
+            else:
+                _table_preview_name[0] = None
+                preview.layout.display = ""
+                table_preview_html.layout.display = "none"
+                table_row_dropdown.layout.display = "none"
+                format_row.layout.display = ""
+                preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
+        else:
+            _table_preview_name[0] = None
+            preview.layout.display = ""
+            table_preview_html.layout.display = "none"
+            table_row_dropdown.layout.display = "none"
+            format_row.layout.display = ""
+            preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
+
         # Enable copy ref button for measures and columns
         copy_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
         if key.split(":")[0] not in ("measure", "column"):
