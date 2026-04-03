@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.111"
+__version__ = "1.2.113"
 
 import ipywidgets as widgets
 import io
@@ -378,6 +378,10 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             except Exception as e:
                 set_status(conn_status, f"Error loading '{ds}': {e}", "#ff3b30")
         _build_tree()
+        # Populate model dropdown
+        if _vp_data:
+            model_dropdown.options = list(_vp_data.keys())
+            model_dropdown.value = _current_model[0] or next(iter(_vp_data))
         _render_subtab()
         total_models = len(_vp_data)
         set_status(conn_status, f"\u2713 Loaded memory stats for {total_models} model(s).", "#34c759")
@@ -510,14 +514,109 @@ def _bpa_tab(workspace_input=None, report_input=None):
     _fix_hide_foreign_key = _fix_hide_foreign_key_inline
 
     # Map BPA Rule Names to fix functions (lowercase keys for fuzzy matching)
+    # Each fix fn takes (ds, ws, table_name, object_name) and fixes one object.
+
+    def _fix_trim_name(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            if table and obj:
+                # Try column, then measure
+                try:
+                    c = tom.model.Tables[table].Columns[obj]
+                    c.Name = c.Name.strip()
+                except Exception:
+                    try:
+                        m = tom.model.Tables[table].Measures[obj]
+                        m.Name = m.Name.strip()
+                    except Exception:
+                        pass
+            elif obj:
+                try:
+                    t = tom.model.Tables[obj]
+                    t.Name = t.Name.strip()
+                except Exception:
+                    pass
+            tom.model.SaveChanges()
+        return f"Trimmed '{obj}'"
+
+    def _fix_capitalize_name(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            if table and obj:
+                try:
+                    c = tom.model.Tables[table].Columns[obj]
+                    c.Name = c.Name[0].upper() + c.Name[1:]
+                except Exception:
+                    try:
+                        m = tom.model.Tables[table].Measures[obj]
+                        m.Name = m.Name[0].upper() + m.Name[1:]
+                    except Exception:
+                        pass
+            elif obj:
+                try:
+                    t = tom.model.Tables[obj]
+                    t.Name = t.Name[0].upper() + t.Name[1:]
+                except Exception:
+                    pass
+            tom.model.SaveChanges()
+        return f"Capitalized '{obj}'"
+
+    def _fix_do_not_summarize(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            import Microsoft.AnalysisServices.Tabular as TOM
+            col = tom.model.Tables[table].Columns[obj]
+            col.SummarizeBy = TOM.AggregateFunction.Default
+            tom.model.SaveChanges()
+        return f"Set SummarizeBy=None on '{table}'[{obj}]"
+
+    def _fix_mark_pk(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.IsKey = True
+            tom.model.SaveChanges()
+        return f"Marked '{table}'[{obj}] as primary key"
+
+    def _fix_pct_format(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            m = tom.model.Tables[table].Measures[obj]
+            m.FormatString = "#,0.0%;-#,0.0%;#,0.0%"
+            tom.model.SaveChanges()
+        return f"Set percentage format on [{obj}]"
+
+    def _fix_flag_format(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.FormatString = '"Yes";"Yes";"No"'
+            tom.model.SaveChanges()
+        return f"Set Yes/No format on '{table}'[{obj}]"
+
+    def _fix_mdx_true(ds, ws, table, obj):
+        from sempy_labs.tom import connect_semantic_model
+        with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+            col = tom.model.Tables[table].Columns[obj]
+            col.IsAvailableInMDX = True
+            tom.model.SaveChanges()
+        return f"Set IsAvailableInMDX=True on '{table}'[{obj}]"
+
     _fix_map_raw = {
         "Do not use floating point data types": _fix_floating_point,
         "Do not use floating point data type": _fix_floating_point,
         "Set IsAvailableInMdx to false on non-attribute columns": _fix_isavailableinmdx,
+        "Set IsAvailableInMdx to true on necessary columns": _fix_mdx_true,
         "Provide format string for 'Date' columns": _fix_date_format,
         "Provide format string for 'Month' columns": _fix_month_format,
         "Provide format string for measures": _fix_integer_format,
         "Hide foreign keys": _fix_hide_foreign_key,
+        "Objects should not start or end with a space": _fix_trim_name,
+        "First letter of objects must be capitalized": _fix_capitalize_name,
+        "Do not summarize numeric columns": _fix_do_not_summarize,
+        "Mark primary keys": _fix_mark_pk,
+        "Percentages should be formatted with thousands separators and 1 decimal": _fix_pct_format,
+        "Format flag columns as Yes/No value strings": _fix_flag_format,
     }
     _fix_map = {k.lower().strip(): v for k, v in _fix_map_raw.items()}
     _desc_fix_rule = "visible objects with no description"
@@ -2354,15 +2453,55 @@ def pbi_fixer(
     _bpa_fix_month = _lazy_import("sempy_labs.semantic_model._Fix_MonthColumnFormat", "fix_month_column_format")
     _bpa_fix_fmt = _lazy_import("sempy_labs.semantic_model._Fix_MeasureFormat", "fix_measure_format")
     _bpa_fix_fk = _lazy_import("sempy_labs.semantic_model._Fix_HideForeignKeys", "fix_hide_foreign_keys")
+    # Phase 18 fixers
+    _bpa_fix_divide = _lazy_import("sempy_labs.semantic_model._Fix_UseDivideFunction", "fix_use_divide_function")
+    _bpa_fix_zero = _lazy_import("sempy_labs.semantic_model._Fix_AvoidAdding0", "fix_avoid_adding_zero")
+    _bpa_fix_summarize = _lazy_import("sempy_labs.semantic_model._Fix_DoNotSummarize", "fix_do_not_summarize")
+    _bpa_fix_pk = _lazy_import("sempy_labs.semantic_model._Fix_MarkPrimaryKeys", "fix_mark_primary_keys")
+    _bpa_fix_trim = _lazy_import("sempy_labs.semantic_model._Fix_TrimObjectNames", "fix_trim_object_names")
+    _bpa_fix_cap = _lazy_import("sempy_labs.semantic_model._Fix_CapitalizeObjectNames", "fix_capitalize_object_names")
+    _bpa_fix_pct = _lazy_import("sempy_labs.semantic_model._Fix_PercentageFormat", "fix_percentage_format")
+    _bpa_fix_whole = _lazy_import("sempy_labs.semantic_model._Fix_WholeNumberFormat", "fix_whole_number_format")
+    _bpa_fix_flag = _lazy_import("sempy_labs.semantic_model._Fix_FlagColumnFormat", "fix_flag_column_format")
+    _bpa_fix_mdx_true = _lazy_import("sempy_labs.semantic_model._Fix_IsAvailableInMdxTrue", "fix_isavailable_in_mdx_true")
+    _bpa_fix_sort_month = _lazy_import("sempy_labs.semantic_model._Fix_SortMonthColumn", "fix_sort_month_column")
+    _bpa_fix_data_cat = _lazy_import("sempy_labs.semantic_model._Fix_DataCategory", "fix_data_category")
+
+    def _sm_action(fn):
+        return lambda **kw: fn(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     if _bpa_fix_floating is not None:
-        _sm_fixer_cbs["Fix Floating Point Types"] = lambda **kw: _bpa_fix_floating(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+        _sm_fixer_cbs["Fix Floating Point Types"] = _sm_action(_bpa_fix_floating)
     if _bpa_fix_mdx is not None:
-        _sm_fixer_cbs["Fix IsAvailableInMDX"] = lambda **kw: _bpa_fix_mdx(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+        _sm_fixer_cbs["Fix IsAvailableInMDX (False)"] = _sm_action(_bpa_fix_mdx)
     if _bpa_fix_desc is not None:
-        _sm_fixer_cbs["Fix Measure Descriptions"] = lambda **kw: _bpa_fix_desc(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+        _sm_fixer_cbs["Fix Measure Descriptions"] = _sm_action(_bpa_fix_desc)
     if _bpa_fix_fk is not None:
-        _sm_fixer_cbs["Hide Foreign Keys"] = lambda **kw: _bpa_fix_fk(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
+        _sm_fixer_cbs["Hide Foreign Keys"] = _sm_action(_bpa_fix_fk)
+    if _bpa_fix_divide is not None:
+        _sm_fixer_cbs["Fix DIVIDE Function"] = _sm_action(_bpa_fix_divide)
+    if _bpa_fix_zero is not None:
+        _sm_fixer_cbs["Fix Avoid Adding 0"] = _sm_action(_bpa_fix_zero)
+    if _bpa_fix_summarize is not None:
+        _sm_fixer_cbs["Fix Do Not Summarize"] = _sm_action(_bpa_fix_summarize)
+    if _bpa_fix_pk is not None:
+        _sm_fixer_cbs["Mark Primary Keys"] = _sm_action(_bpa_fix_pk)
+    if _bpa_fix_trim is not None:
+        _sm_fixer_cbs["Trim Object Names"] = _sm_action(_bpa_fix_trim)
+    if _bpa_fix_cap is not None:
+        _sm_fixer_cbs["Capitalize Object Names"] = _sm_action(_bpa_fix_cap)
+    if _bpa_fix_pct is not None:
+        _sm_fixer_cbs["Fix Percentage Format"] = _sm_action(_bpa_fix_pct)
+    if _bpa_fix_whole is not None:
+        _sm_fixer_cbs["Fix Whole Number Format"] = _sm_action(_bpa_fix_whole)
+    if _bpa_fix_flag is not None:
+        _sm_fixer_cbs["Fix Flag Column Format"] = _sm_action(_bpa_fix_flag)
+    if _bpa_fix_mdx_true is not None:
+        _sm_fixer_cbs["Fix IsAvailableInMDX (True)"] = _sm_action(_bpa_fix_mdx_true)
+    if _bpa_fix_sort_month is not None:
+        _sm_fixer_cbs["Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
+    if _bpa_fix_data_cat is not None:
+        _sm_fixer_cbs["Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
 
     # -- Clone callbacks (for action dropdowns — reuse shared impl) --
     def _clone_report(**kw):
