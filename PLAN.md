@@ -344,27 +344,7 @@ Replace the current free-text-only Report/SM input with a **combo widget** (`wid
 * Deduplicate by display name (case-insensitive), keeping both item types internally for the load logic.
 * Implementation: `widgets.Combobox` with `options` populated after workspace is set. For multi-select, consider a `SelectMultiple` or `TagsInput` widget alongside the Combobox.
 
-### Phase 12 — Model Diagram Tab (Planned)
-
-Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
-
-* **Diagram rendering**: render relationship lines between table boxes using inline HTML/SVG in an `ipywidgets.HTML` widget. Each table is a box showing the table name and key columns; relationship lines connect foreign key → primary key with cardinality labels (1:*, *:1, 1:1, *:*).
-* **Data source**: use the already-loaded TOM model relationships (`tm.model.Relationships`) from the SM Explorer — no additional API calls needed.
-* **Layout algorithm**: automatic layout using a simple force-directed or layered approach:
-  + Place fact tables (tables with the most relationships) in the center.
-  + Dimension tables radiate outward.
-  + Minimize crossing lines.
-  + Allow manual repositioning via drag (if feasible in ipywidgets; otherwise fixed layout with zoom/pan via CSS `transform`).
-* **Subtab per model**: if multiple semantic models are loaded, show a subtab selector (like Memory Analyzer) to switch between models.
-* **Filtering**: option to show only tables related to a selected table (click a table in the diagram or select from tree → highlight its neighborhood).
-* **SM Explorer integration — Create Diagram action**: in the SM Explorer actions dropdown, add a **"🗺 Create Diagram"** action. When triggered on a selected table:
-  + Automatically select the table and all directly related tables (via relationships).
-  + Generate a **TMDL diagram file** saved to the model's TMDL definition if supported by the TMDL format. TMDL diagram files (`.tmdl` in the `diagrams/` folder) store layout metadata: which tables are included, their x/y positions, and relationship line routing.
-  + If TMDL diagram persistence is not supported (TMDL format does not have a `diagrams/` concept), fall back to saving diagram layout as a JSON file alongside the model definition or in the lakehouse.
-  + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
-* **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
-
-### Phase 13 — Clone Report + Semantic Model (Planned)
+### Phase 12 — Clone Report + Semantic Model (Planned)
 
 Add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
 
@@ -374,7 +354,7 @@ Add an action (button or dropdown entry) that clones the currently loaded report
 * Shows progress and confirms both items were created successfully.
 * Useful for creating dev/test copies, versioning before applying fixers, or templating.
 
-### Phase 14 — Extract BPA Fixers to Standalone Files
+### Phase 13 — Extract BPA Fixers to Standalone Files
 
 The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
 
@@ -390,7 +370,7 @@ The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency wit
 
 Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
 
-### Phase 15 — Advanced Features (Planned)
+### Phase 14 — Advanced Features (Planned)
 
 * **Table data preview** in SM Explorer: when a table node is selected in the tree, automatically show the top 10 rows as a preview in the properties/preview panel. Add a toggle or dropdown to switch between Top 10 / Top 100 / All rows. Use `fabric.evaluate_dax()` or `TOPN()` DAX query against the semantic model to fetch the data. Render as an HTML table in the properties panel.
 * `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer
@@ -402,7 +382,7 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration)
 * **Incremental refresh setup** in SM Explorer: when a table is selected, offer a one-click action (via the actions dropdown or a dedicated button in the properties panel) to configure an incremental refresh policy on that table. The implementation should mirror the Tabular Editor C# approach for setting `RefreshPolicy` on a table (RangeStart/RangeEnd parameters, rolling window, incremental detection expression, pollingExpression, etc.) — research the exact TE C# / TOM API calls needed before implementation. The UI should present a simple form: date column picker, lookback window (e.g. 30 days / 1 year / custom), incremental rows count, and a confirm button that writes the policy via XMLA. Note: SLL already has `add_incremental_refresh_policy()` and `update_incremental_refresh_policy()` — evaluate whether these can be used directly or if lower-level TOM access is needed for the full feature set.
 
-### Phase 16 — Report Visual Layout & Theming (Planned)
+### Phase 15 — Report Visual Layout & Theming (Planned)
 
 * **Fix Visual Alignment & Size** in Report Explorer: a new fixer (or action in the Report Explorer dropdown) that detects and corrects misaligned or undersized chart visuals on a page. Proposed approach:
   + Scan all visuals on a page and identify **chart-type visuals** (bar, column, line, area, combo, scatter, waterfall — exclude cards, slicers, tables, textboxes, shapes, images).
@@ -464,6 +444,26 @@ Each should follow the standard pattern: `(dataset, workspace, scan_only)` with 
     - **Treemap**: area-based proportional visualization.
   + **Technical approach**: the preview mockups are generated as inline HTML/SVG in `ipywidgets.HTML`, not live Power BI embeds (which would be too slow). Use simple colored rectangles, labels, and arrows to represent the chart style. The actual fix applies the selected preset's formatting rules to the PBIR visual definition. Store preset definitions as dicts in the fixer file (e.g. `PRESETS = {"ibcs_standard": {...}, "traffic_light": {...}}`).
   + **Extensibility**: the preview framework should be generic enough that future fixers can register their own presets. A helper function `show_design_preview(presets, on_select)` in `_ui_components.py` handles rendering the preview grid and returning the user's choice.
+
+### Phase 16 — Model Diagram Tab (Planned)
+
+Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
+
+* **Diagram rendering**: render relationship lines between table boxes using inline HTML/SVG in an `ipywidgets.HTML` widget. Each table is a box showing the table name and key columns; relationship lines connect foreign key → primary key with cardinality labels (1:*, *:1, 1:1, *:*).
+* **Data source**: use the already-loaded TOM model relationships (`tm.model.Relationships`) from the SM Explorer — no additional API calls needed.
+* **Layout algorithm**: automatic layout using a simple force-directed or layered approach:
+  + Place fact tables (tables with the most relationships) in the center.
+  + Dimension tables radiate outward.
+  + Minimize crossing lines.
+  + Allow manual repositioning via drag (if feasible in ipywidgets; otherwise fixed layout with zoom/pan via CSS `transform`).
+* **Subtab per model**: if multiple semantic models are loaded, show a subtab selector (like Memory Analyzer) to switch between models.
+* **Filtering**: option to show only tables related to a selected table (click a table in the diagram or select from tree → highlight its neighborhood).
+* **SM Explorer integration — Create Diagram action**: in the SM Explorer actions dropdown, add a **"🗺 Create Diagram"** action. When triggered on a selected table:
+  + Automatically select the table and all directly related tables (via relationships).
+  + Generate a **TMDL diagram file** saved to the model's TMDL definition if supported by the TMDL format. TMDL diagram files (`.tmdl` in the `diagrams/` folder) store layout metadata: which tables are included, their x/y positions, and relationship line routing.
+  + If TMDL diagram persistence is not supported (TMDL format does not have a `diagrams/` concept), fall back to saving diagram layout as a JSON file alongside the model definition or in the lakehouse.
+  + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
+* **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
 ### Phase 17 — AI Assistant (Planned)
 
