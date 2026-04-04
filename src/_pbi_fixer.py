@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.124"
+__version__ = "1.2.125"
 
 import ipywidgets as widgets
 import io
@@ -751,48 +751,69 @@ def _bpa_tab(workspace_input=None, report_input=None):
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Run BPA to scan.</div>'
     )]
 
-    # Native HTML display area (shows upstream's styled BPA output)
+    # Native BPA display: category selector + per-category HTML
+    _bpa_categories = {}  # {category: html_string}
+    bpa_cat_selector = widgets.ToggleButtons(
+        options=["(run BPA first)"],
+        value="(run BPA first)",
+        layout=widgets.Layout(width="100%"),
+        style={"button_width": "auto", "font_weight": "bold"},
+    )
     native_html_box = widgets.HTML(value="")
+
+    def _on_bpa_cat_change(change):
+        cat = change.get("new", "")
+        if cat in _bpa_categories:
+            native_html_box.value = _bpa_categories[cat]
+
+    bpa_cat_selector.observe(_on_bpa_cat_change, names="value")
 
     _all_findings = []  # [(ds, rule_name, category, obj_name, obj_type, severity), ...]
 
-    def _capture_native_bpa_html(ds, ws):
-        """Run BPA and capture the native HTML output string."""
-        captured = []
-        import IPython.display as _ipd
-        import IPython.core.display_functions as _idf
-        _orig1 = _ipd.display
-        _orig2 = getattr(_idf, 'display', None)
-        def _cap(*args, **kwargs):
-            for a in args:
-                if hasattr(a, 'data') and isinstance(a.data, str):
-                    captured.append(a.data)
-                elif hasattr(a, '_repr_html_'):
-                    captured.append(a._repr_html_())
-        _ipd.display = _cap
-        if _orig2:
-            _idf.display = _cap
-        try:
-            import sempy_labs._model_bpa as _bpa_mod
-            _orig_bpa = getattr(_bpa_mod, 'display', None)
-            _bpa_mod.display = _cap
-        except Exception:
-            _bpa_mod = None
-            _orig_bpa = None
-        import io as _io
-        from contextlib import redirect_stdout as _redirect
-        try:
-            buf = _io.StringIO()
-            with _redirect(buf):
-                from sempy_labs import run_model_bpa
-                run_model_bpa(dataset=ds, workspace=ws)
-        finally:
-            _ipd.display = _orig1
-            if _orig2:
-                _idf.display = _orig2
-            if _bpa_mod and _orig_bpa:
-                _bpa_mod.display = _orig_bpa
-        return "\n".join(captured) if captured else ""
+    def _render_native_bpa(findings):
+        """Render BPA findings as native-style HTML tables grouped by category."""
+        from collections import OrderedDict
+        cats = OrderedDict()
+        for ds, rule_name, category, obj_name, obj_type, severity in findings:
+            if rule_name.startswith("ERROR"):
+                cats.setdefault("Errors", []).append((ds, rule_name, obj_type, obj_name, severity))
+                continue
+            cats.setdefault(category, []).append((ds, rule_name, obj_type, obj_name, severity))
+
+        _bpa_categories.clear()
+        cat_labels = []
+        for cat_name, items in cats.items():
+            sev_counts = {}
+            for _, _, _, _, sev in items:
+                sev_counts[sev] = sev_counts.get(sev, 0) + 1
+            sev_badge = " + ".join(f"\u26a0 ({v})" if k in ("2", "3") else f"\u2139 ({v})" for k, v in sorted(sev_counts.items()))
+            cat_labels.append(f"{cat_name}\n{sev_badge}")
+
+            # Build per-category table (matching upstream style)
+            html = '<table border="1" style="border-collapse:collapse; width:100%; font-size:12px;">'
+            html += '<tr><th style="padding:4px 8px; text-align:left;">Rule Name</th><th style="padding:4px 8px;">Object Type</th><th style="padding:4px 8px;">Object Name</th><th style="padding:4px 8px; text-align:center;">Severity</th></tr>'
+            for ds, rule_name, obj_type, obj_name, severity in items:
+                if rule_name.startswith("ERROR"):
+                    html += f'<tr><td colspan="4" style="color:#ff3b30; padding:4px 8px;">\u274c {ds}: {rule_name}</td></tr>'
+                    continue
+                sev_icon = "\u26a0\ufe0f" if severity in ("2", "3") else "\u2139\ufe0f"
+                has_fix = _is_fixable(rule_name, obj_type)
+                fix_badge = ' <span style="color:#34c759; font-size:10px;">[fixable]</span>' if has_fix else ''
+                html += f'<tr><td style="padding:4px 8px; color:{ICON_ACCENT};">{rule_name}{fix_badge}</td>'
+                html += f'<td style="padding:4px 8px;">{obj_type}</td>'
+                html += f'<td style="padding:4px 8px;">{obj_name}</td>'
+                html += f'<td style="padding:4px 8px; text-align:center;">{sev_icon}</td></tr>'
+            html += '</table>'
+            _bpa_categories[f"{cat_name}\n{sev_badge}"] = html
+
+        # Update category selector
+        if cat_labels:
+            bpa_cat_selector.options = cat_labels
+            bpa_cat_selector.value = cat_labels[0]
+            native_html_box.value = _bpa_categories.get(cat_labels[0], "")
+        else:
+            bpa_cat_selector.options = ["(no findings)"]
+            native_html_box.value = ""
 
     def on_load(_):
         nonlocal _all_findings
@@ -811,17 +832,10 @@ def _bpa_tab(workspace_input=None, report_input=None):
         _orig_display = _ipd.display
 
         _all_findings = []
-        all_native_html = []
 
         for i, ds in enumerate(items):
             set_status(conn_status, f"BPA {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
-                # Capture native HTML
-                native = _capture_native_bpa_html(ds, ws)
-                if native:
-                    all_native_html.append(f'<h4 style="color:{ICON_ACCENT}; margin:8px 0 4px;">{ds}</h4>' + native if len(items) > 1 else native)
-
-                # Also get DataFrame for fix buttons
                 buf = _io.StringIO()
                 _ipd.display = lambda *a, **kw: None
                 try:
@@ -842,11 +856,8 @@ def _bpa_tab(workspace_input=None, report_input=None):
             except Exception as e:
                 _all_findings.append((ds, f"ERROR: {e}", "Error", "", "", "3"))
 
-        # Show native HTML
-        if all_native_html:
-            native_html_box.value = "\n".join(all_native_html)
-        else:
-            native_html_box.value = ""
+        # Render native-style HTML with ipywidgets category tabs
+        _render_native_bpa(_all_findings)
 
         _update_rule_dropdown()
         n = len([f for f in _all_findings if not f[1].startswith("ERROR")])
@@ -1114,12 +1125,12 @@ def _bpa_tab(workspace_input=None, report_input=None):
     native_html_container = widgets.VBox(
         [native_html_box],
         layout=widgets.Layout(
-            max_height="500px", overflow_y="auto",
+            max_height="400px", overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
             padding="8px", background_color=SECTION_BG,
         ),
     )
-    widget = widgets.VBox([nav_row, fix_row, header_label, native_html_container, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, fix_row, header_label, bpa_cat_selector, native_html_container, results_box, bpa_output], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 
