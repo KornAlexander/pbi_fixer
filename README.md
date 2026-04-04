@@ -282,6 +282,17 @@ fix_data_category(dataset="My Model", workspace="My Workspace", scan_only=True)
 - **XMLA endpoint** enabled on the capacity (required for semantic model fixes)
 - A Fabric Notebook to run the code
 
+### Tenant Settings (Admin Portal)
+
+Some features require specific tenant settings to be **enabled** by a Fabric admin:
+
+| Feature | Tenant Setting | Path in Admin Portal |
+|---------|---------------|---------------------|
+| **Prototype screenshots** | Export reports as image files | Admin Portal → Tenant settings → Export and sharing → "Export reports as image files" |
+| **Download .pbix** | Download reports | Admin Portal → Tenant settings → Export and sharing → "Download reports" |
+
+If "Export reports as image files" is **disabled** (the default in many tenants), the Prototype tab will show text-only page boxes instead of screenshots. The setting may take a few minutes to propagate after enabling.
+
 ---
 
 ## Project Structure
