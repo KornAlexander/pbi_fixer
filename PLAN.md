@@ -629,7 +629,7 @@ Add a new **🗺 Model Diagram** tab that visualizes relationships between table
   + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
 * **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
 
-### Phase 38 — Report Prototyping with Excalidraw (Planned)
+### Phase 38 — Report Prototyping with Excalidraw (v1.2.123) ✅
 
 Add a **📐 Report Prototype** tab (or action) that generates an Excalidraw diagram of the loaded report, showing all pages as **actual rendered screenshots**, navigation dependencies, and measure/table usage as a complete visual map.
 
