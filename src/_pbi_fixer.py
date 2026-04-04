@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.122"
+__version__ = "1.2.123"
 
 import ipywidgets as widgets
 import io
@@ -1540,6 +1540,304 @@ def _check_report_format(report_name, workspace):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Report Prototype tab (inline)
+# ---------------------------------------------------------------------------
+def _prototype_tab(workspace_input=None, report_input=None):
+    """Build the Report Prototype tab that generates an SVG diagram of all report pages."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    generate_btn = widgets.Button(description="\U0001F4D0 Generate Prototype", button_style="primary", layout=widgets.Layout(width="200px"))
+    export_excalidraw_btn = widgets.Button(description="\u2B07 Save .excalidraw", layout=widgets.Layout(width="150px", display="none"))
+    export_svg_btn = widgets.Button(description="\u2B07 Save .svg", layout=widgets.Layout(width="120px", display="none"))
+    conn_status = status_html()
+
+    nav_row = widgets.HBox(
+        [generate_btn, export_excalidraw_btn, export_svg_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    svg_display = widgets.HTML(value=f'<div style="padding:20px; color:{GRAY_COLOR}; font-size:14px; font-family:{FONT_FAMILY}; text-align:center; font-style:italic;">Click "Generate Prototype" to create a visual map of the report pages.</div>')
+    svg_container = widgets.VBox(
+        [svg_display],
+        layout=widgets.Layout(
+            overflow_x="auto", overflow_y="auto",
+            max_height="600px",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color="#fff",
+        ),
+    )
+
+    _svg_cache = [None]
+    _excalidraw_cache = [None]
+    _page_images = {}  # page_name -> base64 png
+
+    # Layout constants
+    _THUMB_W = 480
+    _THUMB_H = 270
+    _PAD_X = 40
+    _PAD_Y = 60
+    _COLS = 4
+    _HEADER_H = 30
+    _FOOTER_H = 25
+
+    def _generate(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        rpt_input = report_input.value.strip() if report_input else ""
+        if not rpt_input:
+            set_status(conn_status, "Enter a report name.", "#ff3b30")
+            return
+        rpt = rpt_input.split(",")[0].strip()
+        # Strip icon prefix
+        for pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            if rpt.startswith(pfx):
+                rpt = rpt[len(pfx):]
+
+        generate_btn.disabled = True
+        generate_btn.description = "Generating\u2026"
+        _page_images.clear()
+
+        try:
+            import base64
+            set_status(conn_status, "Loading page list\u2026", GRAY_COLOR)
+
+            # Get page metadata via connect_report
+            from sempy_labs.report import connect_report
+            pages_data = []
+            with connect_report(report=rpt, readonly=True, workspace=ws) as rw:
+                pages_df = rw.list_pages()
+                for _, row in pages_df.iterrows():
+                    pages_data.append({
+                        "name": str(row.get("Page Name", "")),
+                        "display_name": str(row.get("Page Display Name", "")),
+                        "hidden": bool(row.get("Hidden", False)),
+                        "width": int(row.get("Width", 1280)),
+                        "height": int(row.get("Height", 720)),
+                        "drillthrough": bool(row.get("Drillthrough Target Page", False)),
+                        "visual_count": int(row.get("Visual Count", 0)),
+                        "data_visual_count": int(row.get("Data Visual Count", 0)),
+                    })
+
+            if not pages_data:
+                set_status(conn_status, "No pages found.", "#ff9500")
+                generate_btn.disabled = False
+                generate_btn.description = "\U0001F4D0 Generate Prototype"
+                return
+
+            # Try to export each page as PNG
+            total = len(pages_data)
+            for idx, pg in enumerate(pages_data):
+                if pg["hidden"]:
+                    continue
+                set_status(conn_status, f"Exporting page {idx+1}/{total}: '{pg['display_name']}'\u2026", GRAY_COLOR)
+                try:
+                    import io as _io
+                    from contextlib import redirect_stdout as _redirect
+                    import IPython.display as _ipd
+                    _orig = _ipd.display
+                    _ipd.display = lambda *a, **kw: None
+                    buf = _io.StringIO()
+                    try:
+                        with _redirect(buf):
+                            from sempy_labs.report import export_report
+                            export_report(
+                                report=rpt,
+                                export_format="PNG",
+                                file_name=f"_prototype_{idx:02d}.png",
+                                page_name=pg["name"],
+                                workspace=ws,
+                            )
+                    finally:
+                        _ipd.display = _orig
+
+                    # Read back from lakehouse
+                    try:
+                        from sempy_labs._helper_functions import _mount
+                        local_path = _mount()
+                        png_path = f"{local_path}/Files/_prototype_{idx:02d}.png"
+                        import os
+                        if os.path.exists(png_path):
+                            with open(png_path, "rb") as f:
+                                png_bytes = f.read()
+                            _page_images[pg["name"]] = base64.b64encode(png_bytes).decode("ascii")
+                            os.remove(png_path)  # cleanup
+                    except Exception:
+                        pass
+                except Exception:
+                    pass  # page export failed, will use text fallback
+
+            # Build SVG
+            set_status(conn_status, "Building diagram\u2026", GRAY_COLOR)
+            svg, excalidraw = _build_diagram(pages_data, _page_images)
+            _svg_cache[0] = svg
+            _excalidraw_cache[0] = excalidraw
+            svg_display.value = svg
+            export_excalidraw_btn.layout.display = ""
+            export_svg_btn.layout.display = ""
+            set_status(conn_status, f"\u2713 Prototype generated: {total} pages ({len(_page_images)} screenshots).", "#34c759")
+
+        except Exception as e:
+            set_status(conn_status, f"Error: {str(e)[:100]}", "#ff3b30")
+        finally:
+            generate_btn.disabled = False
+            generate_btn.description = "\U0001F4D0 Generate Prototype"
+
+    def _build_diagram(pages, images):
+        """Build SVG + Excalidraw JSON from page metadata and images."""
+        import json, uuid, base64
+
+        visible = [p for p in pages if not p["hidden"]]
+        n = len(visible)
+        cols = min(_COLS, n)
+        rows_count = (n + cols - 1) // cols
+
+        svg_w = cols * (_THUMB_W + _PAD_X) + _PAD_X
+        svg_h = rows_count * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y) + _PAD_Y
+
+        svg_parts = [f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">']
+        svg_parts.append(f'<rect width="{svg_w}" height="{svg_h}" fill="#ffffff"/>')
+
+        # Excalidraw structure
+        exc_elements = []
+        exc_files = {}
+
+        # Color map for page types
+        _COLORS = {
+            "normal": {"bg": "#dbeafe", "stroke": "#2563eb", "text": "#1e40af"},
+            "drillthrough": {"bg": "#ffedd5", "stroke": "#c2410c", "text": "#9a3412"},
+            "hidden": {"bg": "#f3f4f6", "stroke": "#9ca3af", "text": "#6b7280"},
+        }
+
+        for idx, pg in enumerate(visible):
+            col = idx % cols
+            row = idx // cols
+            x = _PAD_X + col * (_THUMB_W + _PAD_X)
+            y = _PAD_Y + row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y)
+
+            ptype = "drillthrough" if pg["drillthrough"] else "normal"
+            colors = _COLORS[ptype]
+
+            # Header background
+            svg_parts.append(f'<rect x="{x}" y="{y}" width="{_THUMB_W}" height="{_HEADER_H}" rx="6" ry="6" fill="{colors["bg"]}" stroke="{colors["stroke"]}" stroke-width="1.5"/>')
+            # Header text
+            label = pg["display_name"][:35]
+            if pg["drillthrough"]:
+                label = f"\u2192 {label}"
+            svg_parts.append(f'<text x="{x + 10}" y="{y + 20}" font-family="{FONT_FAMILY}" font-size="13" font-weight="600" fill="{colors["text"]}">{label}</text>')
+            # Visual count badge
+            badge_text = f'{pg["visual_count"]}v / {pg["data_visual_count"]}d'
+            svg_parts.append(f'<text x="{x + _THUMB_W - 10}" y="{y + 20}" font-family="{FONT_FAMILY}" font-size="11" fill="{colors["text"]}" text-anchor="end">{badge_text}</text>')
+
+            img_y = y + _HEADER_H
+
+            # Screenshot or placeholder
+            if pg["name"] in images:
+                b64 = images[pg["name"]]
+                svg_parts.append(f'<image x="{x}" y="{img_y}" width="{_THUMB_W}" height="{_THUMB_H}" href="data:image/png;base64,{b64}" preserveAspectRatio="xMidYMid meet" style="border:1px solid #e0e0e0;"/>')
+                # Also add to Excalidraw files
+                file_id = str(uuid.uuid4())
+                exc_files[file_id] = {"mimeType": "image/png", "id": file_id, "dataURL": f"data:image/png;base64,{b64}"}
+                exc_elements.append({
+                    "type": "image", "id": str(uuid.uuid4()), "x": x, "y": img_y,
+                    "width": _THUMB_W, "height": _THUMB_H, "fileId": file_id,
+                    "status": "saved", "scale": [1, 1],
+                })
+            else:
+                svg_parts.append(f'<rect x="{x}" y="{img_y}" width="{_THUMB_W}" height="{_THUMB_H}" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>')
+                svg_parts.append(f'<text x="{x + _THUMB_W // 2}" y="{img_y + _THUMB_H // 2}" font-family="{FONT_FAMILY}" font-size="14" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">{pg["display_name"]}</text>')
+                svg_parts.append(f'<text x="{x + _THUMB_W // 2}" y="{img_y + _THUMB_H // 2 + 20}" font-family="{FONT_FAMILY}" font-size="11" fill="#d1d5db" text-anchor="middle">(no screenshot)</text>')
+
+            # Excalidraw rectangle for page
+            exc_elements.append({
+                "type": "rectangle", "id": str(uuid.uuid4()), "x": x, "y": y,
+                "width": _THUMB_W, "height": _HEADER_H,
+                "backgroundColor": colors["bg"], "strokeColor": colors["stroke"],
+                "fillStyle": "solid", "strokeWidth": 1, "roundness": {"type": 3},
+            })
+            exc_elements.append({
+                "type": "text", "id": str(uuid.uuid4()), "x": x + 10, "y": y + 5,
+                "text": label, "fontSize": 14, "fontFamily": 1,
+                "textAlign": "left", "verticalAlign": "top",
+            })
+
+            # Footer: page size
+            footer_y = img_y + _THUMB_H + 3
+            svg_parts.append(f'<text x="{x + 5}" y="{footer_y + 14}" font-family="{FONT_FAMILY}" font-size="10" fill="#9ca3af">{pg["width"]}\u00d7{pg["height"]}</text>')
+            dt_label = "Drillthrough" if pg["drillthrough"] else ""
+            svg_parts.append(f'<text x="{x + _THUMB_W - 5}" y="{footer_y + 14}" font-family="{FONT_FAMILY}" font-size="10" fill="{colors["text"]}" text-anchor="end">{dt_label}</text>')
+
+        # Draw navigation arrows for drillthrough pages
+        dt_pages = {p["name"]: i for i, p in enumerate(visible) if p["drillthrough"]}
+        non_dt = [i for i, p in enumerate(visible) if not p["drillthrough"]]
+        for src_idx in non_dt:
+            for dt_name, dt_idx in dt_pages.items():
+                # Draw arrow from first non-dt page to each dt page (simplified)
+                if src_idx == 0:
+                    src_col = src_idx % cols
+                    src_row = src_idx // cols
+                    dst_col = dt_idx % cols
+                    dst_row = dt_idx // cols
+                    x1 = _PAD_X + src_col * (_THUMB_W + _PAD_X) + _THUMB_W // 2
+                    y1 = _PAD_Y + src_row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y) + _HEADER_H + _THUMB_H + _FOOTER_H
+                    x2 = _PAD_X + dst_col * (_THUMB_W + _PAD_X) + _THUMB_W // 2
+                    y2 = _PAD_Y + dst_row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y)
+                    svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead)"/>')
+
+        # Arrow marker definition
+        svg_parts.insert(1, '<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#c2410c"/></marker></defs>')
+
+        svg_parts.append('</svg>')
+        svg_str = "\n".join(svg_parts)
+
+        # Excalidraw JSON
+        excalidraw_json = {
+            "type": "excalidraw",
+            "version": 2,
+            "source": "pbi_fixer",
+            "elements": exc_elements,
+            "files": exc_files,
+        }
+
+        return svg_str, json.dumps(excalidraw_json, indent=2)
+
+    def _on_export_excalidraw(_):
+        if not _excalidraw_cache[0]:
+            return
+        try:
+            from sempy_labs._helper_functions import _mount
+            local_path = _mount()
+            path = f"{local_path}/Files/report_prototype.excalidraw"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(_excalidraw_cache[0])
+            set_status(conn_status, "\u2713 Saved report_prototype.excalidraw to lakehouse Files.", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error saving: {e}", "#ff3b30")
+
+    def _on_export_svg(_):
+        if not _svg_cache[0]:
+            return
+        try:
+            from sempy_labs._helper_functions import _mount
+            local_path = _mount()
+            path = f"{local_path}/Files/report_prototype.svg"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(_svg_cache[0])
+            set_status(conn_status, "\u2713 Saved report_prototype.svg to lakehouse Files.", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error saving: {e}", "#ff3b30")
+
+    generate_btn.on_click(_generate)
+    export_excalidraw_btn.on_click(_on_export_excalidraw)
+    export_svg_btn.on_click(_on_export_svg)
+
+    widget = widgets.VBox([nav_row, svg_container], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
+
+
 def pbi_fixer(
     workspace: Optional[str | UUID] = None,
     report: Optional[str | UUID] = None,
@@ -2080,6 +2378,7 @@ def pbi_fixer(
     _tab_options.append("\U0001F4CB BPA")
     _tab_options.append("\U0001F4C4 Report BPA")
     _tab_options.append("\U0001F4D0 Delta Analyzer")
+    _tab_options.append("\U0001F4D0 Prototype")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -2758,6 +3057,12 @@ def pbi_fixer(
         workspace_input=workspace_input, report_input=report_input
     )
     tab_panels.append(da_content)
+
+    # Prototype tab
+    proto_content = _prototype_tab(
+        workspace_input=workspace_input, report_input=report_input
+    )
+    tab_panels.append(proto_content)
 
     # About tab
     about_content = widgets.HTML(
