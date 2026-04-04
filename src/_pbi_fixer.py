@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.125"
+__version__ = "1.2.126"
 
 import ipywidgets as widgets
 import io
@@ -28,309 +28,134 @@ def _lazy_import(module_path, name):
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# Vertipaq Analyzer tab (inline â€” no external file dependency)
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Vertipaq Analyzer tab - native DataFrame rendering
 # ---------------------------------------------------------------------------
 def _vertipaq_tab(workspace_input=None, report_input=None):
-    """Build the Vertipaq Analyzer tab with full DataFrame subtabs."""
+    """Build the Memory Analyzer tab with native DataFrame rendering."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
-        ICONS, EXPANDED, COLLAPSED, build_tree_items, status_html, set_status, panel_box,
+        status_html, set_status,
     )
 
-    _vp_data = {}  # {model_name: dict_of_dataframes}
-    _key_map = {}
-    _expanded = set()
-    _current_key = [None]
-    _current_model = [None]  # track which model is selected for subtabs
+    _vp_data = {}
+    _current_model = [None]
 
     load_btn = widgets.Button(description="Load Memory", button_style="primary", layout=widgets.Layout(width="120px"))
-    expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
-    collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
     conn_status = status_html()
 
-    nav_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, conn_status],
-        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    model_dropdown = widgets.Dropdown(
+        options=["(no models loaded)"],
+        value="(no models loaded)",
+        layout=widgets.Layout(width="300px"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="350px", height="450px", font_family="monospace"))
-
-    def _fmt_bytes(n):
-        try:
-            if n is None or (isinstance(n, float) and n != n):
-                return "\u2014"
-            n = int(n)
-        except (TypeError, ValueError):
-            return "\u2014"
-        if n < 1024:
-            return f"{n} B"
-        if n < 1024 * 1024:
-            return f"{n / 1024:.1f} KB"
-        if n < 1024 * 1024 * 1024:
-            return f"{n / (1024 * 1024):.1f} MB"
-        return f"{n / (1024 * 1024 * 1024):.2f} GB"
-
-    def _fmt_int(n):
-        try:
-            if n is None or (isinstance(n, float) and n != n):
-                return "\u2014"
-            return f"{int(n):,}"
-        except (TypeError, ValueError):
-            return "\u2014"
-
-    def _fmt_val(val, col_name):
-        """Format a cell value based on column name."""
-        if val is None or (isinstance(val, float) and val != val):
-            return "\u2014"
-        if "Size" in col_name:
-            return _fmt_bytes(val)
-        if "%" in col_name:
-            try:
-                return f"{float(val):.1f}%"
-            except (TypeError, ValueError):
-                return "\u2014"
-        if isinstance(val, (int, float)):
-            if isinstance(val, float) and val == int(val):
-                return _fmt_int(int(val))
-            if isinstance(val, float):
-                return f"{val:,.1f}"
-            return _fmt_int(val)
-        return str(val)
-
-    def _build_tree():
-        nonlocal _key_map
-        items = []
-        for m_name in sorted(_vp_data):
-            dfs = _vp_data[m_name]
-            tables_df = dfs.get("Tables")
-            is_model_exp = m_name in _expanded
-            marker = EXPANDED if is_model_exp else COLLAPSED
-            model_df = dfs.get("Model")
-            total_size = ""
-            if model_df is not None and "Total Size" in model_df.columns and len(model_df) > 0:
-                total_size = f" ({_fmt_bytes(model_df.iloc[0].get('Total Size', 0))})"
-            t_count = len(tables_df) if tables_df is not None else 0
-            items.append((0, "calc_group", f"{marker} {m_name}{total_size}  [{t_count} tables]", f"model:{m_name}"))
-            if not is_model_exp or tables_df is None:
-                continue
-            for _, row in tables_df.sort_values("Total Size", ascending=False).iterrows():
-                t_name = row.get("Table Name", "")
-                t_size = _fmt_bytes(row.get("Total Size", 0))
-                t_rows = _fmt_int(row.get("Row Count", 0))
-                t_pct = f"{row.get('% DB', 0):.1f}%" if row.get("% DB") else ""
-                full_key = f"{m_name}\x1f{t_name}"
-                is_t_exp = full_key in _expanded
-                t_marker = EXPANDED if is_t_exp else COLLAPSED
-                items.append((1, "table", f"{t_marker} {t_name}  [{t_size}, {t_rows} rows, {t_pct}]", f"table:{full_key}"))
-                if not is_t_exp:
-                    continue
-                cols_df = dfs.get("Columns")
-                if cols_df is not None:
-                    t_cols = cols_df[cols_df["Table Name"] == t_name].sort_values("Total Size", ascending=False)
-                    for _, crow in t_cols.iterrows():
-                        c_name = crow.get("Column Name", "")
-                        c_size = _fmt_bytes(crow.get("Total Size", 0))
-                        c_card = _fmt_int(crow.get("Cardinality", 0))
-                        c_enc = crow.get("Encoding", "")
-                        items.append((2, "column", f"{c_name}  [{c_size}, card {c_card}, {c_enc}]", f"col:{full_key}:{c_name}"))
-        options, _key_map = build_tree_items(items)
-        tree.unobserve(on_select, names="value")
-        tree.options = options
-        tree.value = ()
-        tree.observe(on_select, names="value")
-
-    # -- DataFrame subtabs --
-    _DF_TABS = ["Model Summary", "Tables", "Partitions", "Columns", "Relationships", "Hierarchies"]
+    _SUBTABS = ["Model Summary", "Tables", "Partitions", "Columns", "Relationships", "Hierarchies"]
     _DF_KEY_MAP = {
-        "Model Summary": "Model",
-        "Tables": "Tables",
-        "Partitions": "Partitions",
-        "Columns": "Columns",
-        "Relationships": "Relationships",
-        "Hierarchies": "Hierarchies",
+        "Model Summary": "Model", "Tables": "Tables", "Partitions": "Partitions",
+        "Columns": "Columns", "Relationships": "Relationships", "Hierarchies": "Hierarchies",
     }
 
     subtab_selector = widgets.ToggleButtons(
-        options=_DF_TABS,
-        value="Model Summary",
+        options=_SUBTABS, value="Model Summary",
         layout=widgets.Layout(width="100%"),
         style={"button_width": "auto", "font_weight": "bold"},
     )
+
     df_html = widgets.HTML(
-        value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Click Load Memory to analyze model sizes.</div>',
+        value=f'<div style="padding:20px; color:{GRAY_COLOR}; font-size:14px; font-family:{FONT_FAMILY}; text-align:center; font-style:italic;">Click Load Memory to analyze.</div>',
     )
     df_container = widgets.VBox(
         [df_html],
         layout=widgets.Layout(
-            max_height="420px", overflow_y="auto", overflow_x="auto",
+            max_height="500px", overflow_y="auto", overflow_x="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
             padding="8px", background_color=SECTION_BG,
         ),
     )
 
-    # Detail panel for tree clicks
-    detail_label = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Details</div>'
-    )
-    detail_html = widgets.HTML(
-        value=f'<div style="padding:8px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select a tree item for details</div>',
-    )
-    detail_container = widgets.VBox(
-        [detail_html],
-        layout=widgets.Layout(
-            max_height="300px", overflow_y="auto",
-            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
-            padding="8px", background_color=SECTION_BG,
-        ),
-    )
+    def _fmt_val(val, col_name):
+        if val is None or (isinstance(val, float) and val != val):
+            return "\u2014"
+        if "Size" in col_name and isinstance(val, (int, float)):
+            n = int(val)
+            if n < 1024: return f"{n} B"
+            if n < 1024**2: return f"{n/1024:.1f} KB"
+            if n < 1024**3: return f"{n/1024**2:.1f} MB"
+            return f"{n/1024**3:.2f} GB"
+        if "%" in col_name:
+            try: return f"{float(val):.1f}%"
+            except: return str(val)
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and val == int(val): return f"{int(val):,}"
+            if isinstance(val, float): return f"{val:,.1f}"
+            return f"{val:,}"
+        return str(val)
 
-    def _df_to_html(df, highlight_col=None, highlight_val=None, sort_by=None):
-        """Convert a DataFrame to a styled HTML table."""
+    def _df_to_html(df, sort_by=None):
         if df is None or len(df) == 0:
-            return f'<div style="color:{GRAY_COLOR}; font-size:13px;">No data available.</div>'
+            return f'<div style="color:{GRAY_COLOR};">No data.</div>'
         if sort_by and sort_by in df.columns:
             df = df.sort_values(sort_by, ascending=False)
-        html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse; min-width:100%; font-size:11px; font-family:monospace;">'
+        html = '<table style="border-collapse:collapse; width:100%; font-size:12px; font-family:monospace;">'
         html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
         for col in df.columns:
-            align = "right" if any(k in col for k in ("Size", "Count", "%", "Cardinality", "Rows", "Temperature", "Segment", "Max", "Missing")) else "left"
-            html += f'<th style="text-align:{align}; padding:4px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{col}</th>'
+            a = "right" if any(k in col for k in ("Size","Count","%","Cardinality","Rows","Temperature","Segment","Max","Missing")) else "left"
+            html += f'<th style="text-align:{a}; padding:5px 8px; border-bottom:2px solid {BORDER_COLOR}; white-space:nowrap;">{col}</th>'
         html += '</tr>'
         for _, row in df.iterrows():
-            is_hl = highlight_col and highlight_val and str(row.get(highlight_col, "")) == str(highlight_val)
-            bg = "background:#fff3cd;" if is_hl else ""
-            html += f'<tr style="{bg}">'
+            html += '<tr>'
             for col in df.columns:
                 val = row.get(col, "")
-                align = "right" if any(k in col for k in ("Size", "Count", "%", "Cardinality", "Rows", "Temperature", "Segment", "Max", "Missing")) else "left"
-                formatted = _fmt_val(val, col)
-                extra = ""
+                a = "right" if any(k in col for k in ("Size","Count","%","Cardinality","Rows","Temperature","Segment","Max","Missing")) else "left"
+                fmt = _fmt_val(val, col)
+                ex = ""
                 if "% DB" in col or "% Table" in col:
                     try:
-                        pct_val = float(val) if val == val else 0
-                        bar_color = "#ff3b30" if pct_val > 30 else "#ff9500" if pct_val > 10 else "#34c759"
-                        extra = f'<div style="height:3px; width:{min(pct_val * 2, 100):.0f}%; background:{bar_color}; border-radius:1px; margin-top:1px;"></div>'
-                    except (TypeError, ValueError):
-                        pass
-                html += f'<td style="text-align:{align}; padding:3px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{formatted}{extra}</td>'
+                        p = float(val) if val == val else 0
+                        bc = "#ff3b30" if p > 30 else "#ff9500" if p > 10 else "#34c759"
+                        ex = f'<div style="height:3px; width:{min(p*2,100):.0f}%; background:{bc}; border-radius:1px; margin-top:1px;"></div>'
+                    except: pass
+                html += f'<td style="text-align:{a}; padding:4px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{fmt}{ex}</td>'
             html += '</tr>'
-        html += '</table></div>'
+        html += '</table>'
         return html
 
-    def _render_subtab(tab_name=None, highlight_col=None, highlight_val=None):
-        """Render the selected DataFrame subtab."""
+    def _render_subtab(tab_name=None):
         tab_name = tab_name or subtab_selector.value
-        m_name = _current_model[0]
-        if not m_name and _vp_data:
-            m_name = next(iter(_vp_data))
-        if not m_name or m_name not in _vp_data:
+        m = _current_model[0]
+        if not m or m not in _vp_data:
             df_html.value = f'<div style="color:{GRAY_COLOR};">No data loaded.</div>'
             return
-        dfs = _vp_data[m_name]
+        dfs = _vp_data[m]
         df_key = _DF_KEY_MAP.get(tab_name, tab_name)
         df = dfs.get(df_key)
-        # Model Summary: render as vertical key-value table
         if tab_name == "Model Summary" and df is not None and len(df) > 0:
             r = df.iloc[0]
             html = f'<table style="border-collapse:collapse; font-size:13px; font-family:{FONT_FAMILY}; width:100%;">'
             for col in df.columns:
                 val = _fmt_val(r.get(col, ""), col)
-                html += f'<tr><td style="padding:6px 12px; font-weight:600; color:#555; border-bottom:1px solid #f0f0f0; white-space:nowrap; width:200px;">{col}</td>'
-                html += f'<td style="padding:6px 12px; border-bottom:1px solid #f0f0f0;">{val}</td></tr>'
+                html += f'<tr><td style="padding:6px 12px; font-weight:600; color:#555; border-bottom:1px solid #f0f0f0; width:200px;">{col}</td><td style="padding:6px 12px; border-bottom:1px solid #f0f0f0;">{val}</td></tr>'
             html += '</table>'
             df_html.value = html
             return
         sort_by = "Total Size" if df is not None and "Total Size" in df.columns else None
-        df_html.value = _df_to_html(df, highlight_col=highlight_col, highlight_val=highlight_val, sort_by=sort_by)
+        df_html.value = _df_to_html(df, sort_by=sort_by)
 
     def on_subtab_change(change):
         _render_subtab(change.get("new"))
-
     subtab_selector.observe(on_subtab_change, names="value")
 
-    def _prop_row(label, value):
-        return f'<tr><td style="padding:2px 10px 2px 0; font-weight:600; color:#555; white-space:nowrap;">{label}</td><td style="padding:2px 0;">{value}</td></tr>'
-
-    def _show_detail(key):
-        """Show detail for a tree item + switch subtab + highlight."""
-        parts = key.split(":", 2)
-        node_type = parts[0]
-        if node_type == "model":
-            m_name = parts[1]
-            _current_model[0] = m_name
-            dfs = _vp_data.get(m_name, {})
-            model_df = dfs.get("Model")
-            if model_df is not None and len(model_df) > 0:
-                r = model_df.iloc[0]
-                rows = ""
-                for col in model_df.columns:
-                    rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
-                detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
-            subtab_selector.value = "Model Summary"
-            _render_subtab("Model Summary")
-        elif node_type == "table":
-            raw = parts[1]
-            m_name, t_name = raw.split("\x1f", 1) if "\x1f" in raw else (raw, "")
-            _current_model[0] = m_name
-            dfs = _vp_data.get(m_name, {})
-            tables_df = dfs.get("Tables")
-            if tables_df is not None:
-                t_row = tables_df[tables_df["Table Name"] == t_name]
-                if len(t_row) > 0:
-                    r = t_row.iloc[0]
-                    rows = ""
-                    for col in tables_df.columns:
-                        rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
-                    detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
-            subtab_selector.value = "Tables"
-            _render_subtab("Tables", highlight_col="Table Name", highlight_val=t_name)
-        elif node_type == "col":
-            raw_table = parts[1]
-            c_name = parts[2] if len(parts) > 2 else ""
-            m_name, t_name = raw_table.split("\x1f", 1) if "\x1f" in raw_table else (raw_table, "")
-            _current_model[0] = m_name
-            dfs = _vp_data.get(m_name, {})
-            cols_df = dfs.get("Columns")
-            if cols_df is not None:
-                c_row = cols_df[(cols_df["Table Name"] == t_name) & (cols_df["Column Name"] == c_name)]
-                if len(c_row) > 0:
-                    r = c_row.iloc[0]
-                    rows = ""
-                    for col in cols_df.columns:
-                        rows += _prop_row(col, _fmt_val(r.get(col, ""), col))
-                    detail_html.value = f'<table style="font-size:13px; font-family:{FONT_FAMILY}; border-collapse:collapse; width:100%;">{rows}</table>'
-            subtab_selector.value = "Columns"
-            _render_subtab("Columns", highlight_col="Column Name", highlight_val=c_name)
-
-    def on_select(change):
-        selected = change.get("new", ())
-        if not selected:
-            return
-        last = selected[-1]
-        if last not in _key_map:
-            return
-        key = _key_map[last]
-        _current_key[0] = key
-        if len(selected) == 1:
-            if key.startswith("model:"):
-                m_name = key.split(":", 1)[1]
-                if m_name in _expanded:
-                    _expanded.discard(m_name)
-                else:
-                    _expanded.add(m_name)
-                _build_tree()
-            if key.startswith("table:"):
-                t_name = key.split(":", 1)[1]
-                if t_name in _expanded:
-                    _expanded.discard(t_name)
-                else:
-                    _expanded.add(t_name)
-                _build_tree()
-        _show_detail(key)
+    def on_model_change(change):
+        m = change.get("new", "")
+        if m and m != "(no models loaded)" and m in _vp_data:
+            _current_model[0] = m
+            _render_subtab()
+    model_dropdown.observe(on_model_change, names="value")
 
     def on_load(_):
         nonlocal _vp_data
-        _expanded.clear()
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds_input = report_input.value.strip() if report_input else ""
@@ -346,162 +171,45 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         for i, ds in enumerate(items):
             set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
-                buf = _io.StringIO()
-                # Suppress ALL display paths: module-level, core, and vertipaq's own imported display
                 import IPython.display as _ipd
-                _orig_display = _ipd.display
+                _orig = _ipd.display
                 _ipd.display = lambda *a, **kw: None
                 try:
                     import IPython.core.display_functions as _idf
-                    _orig_display2 = _idf.display
+                    _orig2 = _idf.display
                     _idf.display = lambda *a, **kw: None
-                except Exception:
-                    _idf = None
-                    _orig_display2 = None
-                # Patch the display imported directly in _vertipaq module
+                except: _idf = None; _orig2 = None
                 import sempy_labs._vertipaq as _vp_mod
-                _orig_vp_display = getattr(_vp_mod, 'display', None)
+                _orig_vp = getattr(_vp_mod, 'display', None)
                 _vp_mod.display = lambda *a, **kw: None
                 try:
+                    buf = _io.StringIO()
                     with _redirect(buf):
                         from sempy_labs import vertipaq_analyzer
                         result = vertipaq_analyzer(dataset=ds, workspace=ws)
                 finally:
-                    _ipd.display = _orig_display
-                    if _idf is not None and _orig_display2 is not None:
-                        _idf.display = _orig_display2
-                    if _orig_vp_display is not None:
-                        _vp_mod.display = _orig_vp_display
+                    _ipd.display = _orig
+                    if _idf and _orig2: _idf.display = _orig2
+                    if _orig_vp: _vp_mod.display = _orig_vp
                 _vp_data[ds] = result
-                _expanded.add(ds)
                 _current_model[0] = ds
             except Exception as e:
                 set_status(conn_status, f"Error loading '{ds}': {e}", "#ff3b30")
-        _build_tree()
-        # Populate model dropdown
         if _vp_data:
             model_dropdown.options = list(_vp_data.keys())
             model_dropdown.value = _current_model[0] or next(iter(_vp_data))
         _render_subtab()
-        total_models = len(_vp_data)
-        set_status(conn_status, f"\u2713 Loaded memory stats for {total_models} model(s).", "#34c759")
+        set_status(conn_status, f"\u2713 Loaded {len(_vp_data)} model(s).", "#34c759")
         load_btn.disabled = False
         load_btn.description = "Load Memory"
 
-    def on_expand_all(_):
-        for m_name, dfs in _vp_data.items():
-            _expanded.add(m_name)
-            tables_df = dfs.get("Tables")
-            if tables_df is not None:
-                for t_name in tables_df["Table Name"]:
-                    _expanded.add(f"{m_name}\x1f{t_name}")
-        _build_tree()
-
-    def on_collapse_all(_):
-        _expanded.clear()
-        _build_tree()
-
     load_btn.on_click(on_load)
-    tree.observe(on_select, names="value")
-    expand_btn.on_click(on_expand_all)
-    collapse_btn.on_click(on_collapse_all)
 
-    # Native HTML display for vertipaq
-    vp_native_html = widgets.HTML(value="")
-    vp_show_native_btn = widgets.Button(description="\U0001F4CB Show Native", layout=widgets.Layout(width="120px"))
-
-    def _capture_vp_native_html(ds, ws):
-        """Capture the native vertipaq_analyzer HTML output."""
-        captured = []
-        import IPython.display as _ipd
-        import IPython.core.display_functions as _idf
-        _orig1 = _ipd.display
-        _orig2 = getattr(_idf, 'display', None)
-        def _cap(*args, **kwargs):
-            for a in args:
-                if hasattr(a, 'data') and isinstance(a.data, str):
-                    captured.append(a.data)
-                elif hasattr(a, '_repr_html_'):
-                    captured.append(a._repr_html_())
-        _ipd.display = _cap
-        if _orig2:
-            _idf.display = _cap
-        try:
-            import sempy_labs._vertipaq as _vp_mod
-            _orig_vp = getattr(_vp_mod, 'display', None)
-            _vp_mod.display = _cap
-        except Exception:
-            _vp_mod = None
-            _orig_vp = None
-        import io as _io
-        from contextlib import redirect_stdout as _redirect
-        try:
-            buf = _io.StringIO()
-            with _redirect(buf):
-                from sempy_labs import vertipaq_analyzer
-                vertipaq_analyzer(dataset=ds, workspace=ws)
-        finally:
-            _ipd.display = _orig1
-            if _orig2:
-                _idf.display = _orig2
-            if _vp_mod and _orig_vp:
-                _vp_mod.display = _orig_vp
-        return "\n".join(captured) if captured else ""
-
-    def on_show_vp_native(_):
-        """Show native vertipaq HTML for the current model."""
-        m = _current_model[0]
-        if not m:
-            set_status(conn_status, "No model loaded.", "#ff3b30")
-            return
-        ws = workspace_input.value.strip() if workspace_input else None
-        ws = ws or None
-        vp_show_native_btn.disabled = True
-        vp_show_native_btn.description = "Loading\u2026"
-        try:
-            html = _capture_vp_native_html(m, ws)
-            vp_native_html.value = html if html else "<div>No native output captured.</div>"
-        except Exception as e:
-            vp_native_html.value = f'<div style="color:#ff3b30;">Error: {e}</div>'
-        vp_show_native_btn.disabled = False
-        vp_show_native_btn.description = "\U0001F4CB Show Native"
-
-    vp_show_native_btn.on_click(on_show_vp_native)
-
-    tree_header = widgets.HTML(
-        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Tables &amp; Columns by Size</div>'
-    )
-    # Model selector dropdown for multi-model switching
-    model_dropdown = widgets.Dropdown(
-        options=["(no models loaded)"],
-        value="(no models loaded)",
-        layout=widgets.Layout(width="300px"),
-    )
-
-    def on_model_change(change):
-        m = change.get("new", "")
-        if m and m != "(no models loaded)" and m in _vp_data:
-            _current_model[0] = m
-            _render_subtab()
-
-    model_dropdown.observe(on_model_change, names="value")
-
-    right_panel = widgets.VBox([model_dropdown, subtab_selector, df_container, detail_label, detail_container], layout=widgets.Layout(flex="1", gap="4px"))
-    panels = widgets.HBox([tree, right_panel], layout=widgets.Layout(width="100%", gap="8px"))
-    vp_native_container = widgets.VBox(
-        [vp_native_html],
-        layout=widgets.Layout(
-            max_height="500px", overflow_y="auto",
-            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
-            padding="8px", background_color=SECTION_BG,
-        ),
-    )
-    nav_row_full = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, vp_show_native_btn, conn_status],
+    nav_row = widgets.HBox(
+        [load_btn, model_dropdown, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
-
-    widget = widgets.VBox([nav_row_full, tree_header, panels, vp_native_container], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, subtab_selector, df_container], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget
 
 
