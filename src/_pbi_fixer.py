@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.123"
+__version__ = "1.2.124"
 
 import ipywidgets as widgets
 import io
@@ -2295,8 +2295,8 @@ def pbi_fixer(
         from sempy_labs._generate_semantic_model import create_semantic_model_from_bim
         import json
 
-        # Get the model definition using the proper LRO-handling helper
-        result = get_item_definition(item=ds, type="SemanticModel", workspace=ws, decode=True)
+        # Request TMSL format to get model.bim (default may return TMDL which has no model.bim)
+        result = get_item_definition(item=ds, type="SemanticModel", workspace=ws, decode=True, format="TMSL")
 
         # Find model.bim part
         bim_part = None
@@ -2304,13 +2304,16 @@ def pbi_fixer(
             path = part.get("path", "")
             payload = part.get("payload", "")
             if path.endswith("model.bim"):
-                if isinstance(payload, str):
-                    bim_part = json.loads(payload)
-                elif isinstance(payload, dict):
+                if isinstance(payload, dict):
                     bim_part = payload
+                elif isinstance(payload, str):
+                    bim_part = json.loads(payload)
+                elif isinstance(payload, bytes):
+                    bim_part = json.loads(payload.decode("utf-8"))
                 break
         if bim_part is None:
-            raise ValueError("Could not extract model.bim from definition.")
+            raise ValueError(f"Could not extract model.bim. Got {len(result.get('definition', {}).get('parts', []))} part(s): {[p.get('path') for p in result.get('definition', {}).get('parts', [])]}")
+        create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
         create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
 
     def _on_clone_both(_):
