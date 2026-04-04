@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.126"
+__version__ = "1.2.127"
 
 import ipywidgets as widgets
 import io
@@ -1349,6 +1349,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
 
             # Try to export each page as PNG
             total = len(pages_data)
+            export_errors = []
             for idx, pg in enumerate(pages_data):
                 if pg["hidden"]:
                     continue
@@ -1374,20 +1375,19 @@ def _prototype_tab(workspace_input=None, report_input=None):
                         _ipd.display = _orig
 
                     # Read back from lakehouse
-                    try:
-                        from sempy_labs._helper_functions import _mount
-                        local_path = _mount()
-                        png_path = f"{local_path}/Files/_prototype_{idx:02d}.png"
-                        import os
-                        if os.path.exists(png_path):
-                            with open(png_path, "rb") as f:
-                                png_bytes = f.read()
-                            _page_images[pg["name"]] = base64.b64encode(png_bytes).decode("ascii")
-                            os.remove(png_path)  # cleanup
-                    except Exception:
-                        pass
-                except Exception:
-                    pass  # page export failed, will use text fallback
+                    from sempy_labs._helper_functions import _mount
+                    local_path = _mount()
+                    png_path = f"{local_path}/Files/_prototype_{idx:02d}.png"
+                    import os
+                    if os.path.exists(png_path):
+                        with open(png_path, "rb") as f:
+                            png_bytes = f.read()
+                        _page_images[pg["name"]] = base64.b64encode(png_bytes).decode("ascii")
+                        os.remove(png_path)  # cleanup
+                    else:
+                        export_errors.append(f"'{pg['display_name']}': file not found at {png_path}")
+                except Exception as e:
+                    export_errors.append(f"'{pg['display_name']}': {str(e)[:80]}")
 
             # Build SVG
             set_status(conn_status, "Building diagram\u2026", GRAY_COLOR)
@@ -1397,7 +1397,8 @@ def _prototype_tab(workspace_input=None, report_input=None):
             svg_display.value = svg
             export_excalidraw_btn.layout.display = ""
             export_svg_btn.layout.display = ""
-            set_status(conn_status, f"\u2713 Prototype generated: {total} pages ({len(_page_images)} screenshots).", "#34c759")
+            err_msg = f" Export errors: {'; '.join(export_errors[:3])}" if export_errors else ""
+            set_status(conn_status, f"\u2713 Prototype: {total} pages, {len(_page_images)} screenshots.{err_msg}", "#34c759" if not export_errors else "#ff9500")
 
         except Exception as e:
             set_status(conn_status, f"Error: {str(e)[:100]}", "#ff3b30")
