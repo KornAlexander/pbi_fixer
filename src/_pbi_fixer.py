@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.127"
+__version__ = "1.2.141"
 
 import ipywidgets as widgets
 import io
@@ -223,7 +223,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         status_html, set_status,
     )
 
-    # BPA fix functions â€” imported from standalone files (with inline fallbacks)
+    # BPA fix functions — imported from standalone files (with inline fallbacks)
     def _make_bpa_fixer(module_path, func_name, inline_fn):
         """Try to import standalone fixer; fall back to inline function."""
         fn = _lazy_import(module_path, func_name)
@@ -409,7 +409,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
         m = re.match(r"'([^']+)'\[([^\]]+)\]", obj_name)
         if m:
             return m.group(1), m.group(2)
-        # Measure or table â€” just the name
+        # Measure or table — just the name
         return "", obj_name
 
     def _is_fixable(rule_name, obj_type):
@@ -846,7 +846,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
 # Report BPA tab (inline)
 # ---------------------------------------------------------------------------
 def _report_bpa_tab(workspace_input=None, report_input=None):
-    """Build the Report BPA tab â€” runs run_report_bpa and shows results."""
+    """Build the Report BPA tab — runs run_report_bpa and shows results."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
         status_html, set_status,
@@ -1117,7 +1117,7 @@ def _delta_analyzer_tab(workspace_input=None, report_input=None):
     def _render_subtab(tab_name=None):
         tab_name = tab_name or subtab_selector.value
         df = _da_data.get(tab_name)
-        # Summary is single-row â€” render vertically
+        # Summary is single-row — render vertically
         if tab_name == "Summary" and df is not None and len(df) > 0:
             r = df.iloc[0]
             html = f'<table style="border-collapse:collapse; font-size:13px; font-family:{FONT_FAMILY}; width:100%;">'
@@ -1270,12 +1270,20 @@ def _prototype_tab(workspace_input=None, report_input=None):
     )
 
     generate_btn = widgets.Button(description="\U0001F4D0 Generate Prototype", button_style="primary", layout=widgets.Layout(width="200px"))
+    stop_proto_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
+    _cancel_proto = [False]
+    screenshots_cb = widgets.Checkbox(value=False, description="Screenshots", indent=False, layout=widgets.Layout(width="auto"))
+    hidden_cb = widgets.Checkbox(value=False, description="Include hidden pages", indent=False, layout=widgets.Layout(width="auto"))
     export_excalidraw_btn = widgets.Button(description="\u2B07 Save .excalidraw", layout=widgets.Layout(width="150px", display="none"))
     export_svg_btn = widgets.Button(description="\u2B07 Save .svg", layout=widgets.Layout(width="120px", display="none"))
     conn_status = status_html()
 
+    def _on_stop_proto(_):
+        _cancel_proto[0] = True
+    stop_proto_btn.on_click(_on_stop_proto)
+
     nav_row = widgets.HBox(
-        [generate_btn, export_excalidraw_btn, export_svg_btn, conn_status],
+        [generate_btn, stop_proto_btn, screenshots_cb, hidden_cb, export_excalidraw_btn, export_svg_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -1293,6 +1301,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
     _svg_cache = [None]
     _excalidraw_cache = [None]
     _page_images = {}  # page_name -> base64 png
+    _rpt_name = [None]  # cached report name for export filenames
 
     # Layout constants
     _THUMB_W = 480
@@ -1318,211 +1327,44 @@ def _prototype_tab(workspace_input=None, report_input=None):
 
         generate_btn.disabled = True
         generate_btn.description = "Generating\u2026"
+        stop_proto_btn.layout.display = ""
+        _cancel_proto[0] = False
         _page_images.clear()
+        _rpt_name[0] = rpt
 
         try:
-            import base64
-            set_status(conn_status, "Loading page list\u2026", GRAY_COLOR)
+            set_status(conn_status, "Generating prototype\u2026", GRAY_COLOR)
 
-            # Get page metadata via connect_report
-            from sempy_labs.report import connect_report
-            pages_data = []
-            with connect_report(report=rpt, readonly=True, workspace=ws) as rw:
-                pages_df = rw.list_pages()
-                for _, row in pages_df.iterrows():
-                    pages_data.append({
-                        "name": str(row.get("Page Name", "")),
-                        "display_name": str(row.get("Page Display Name", "")),
-                        "hidden": bool(row.get("Hidden", False)),
-                        "width": int(row.get("Width", 1280)),
-                        "height": int(row.get("Height", 720)),
-                        "drillthrough": bool(row.get("Drillthrough Target Page", False)),
-                        "visual_count": int(row.get("Visual Count", 0)),
-                        "data_visual_count": int(row.get("Data Visual Count", 0)),
-                    })
+            # Use standalone module
+            from sempy_labs.report._report_prototype import generate_report_prototype
+            result = generate_report_prototype(
+                report=rpt,
+                workspace=ws,
+                screenshots=screenshots_cb.value,
+                include_hidden=hidden_cb.value,
+            )
 
-            if not pages_data:
-                set_status(conn_status, "No pages found.", "#ff9500")
-                generate_btn.disabled = False
-                generate_btn.description = "\U0001F4D0 Generate Prototype"
-                return
+            svg = result["svg"]
+            excalidraw = result["excalidraw"]
+            total = len(result["pages"])
+            n_screenshots = result["screenshots"]
+            export_errors = result["errors"]
 
-            # Try to export each page as PNG
-            total = len(pages_data)
-            export_errors = []
-            for idx, pg in enumerate(pages_data):
-                if pg["hidden"]:
-                    continue
-                set_status(conn_status, f"Exporting page {idx+1}/{total}: '{pg['display_name']}'\u2026", GRAY_COLOR)
-                try:
-                    import io as _io
-                    from contextlib import redirect_stdout as _redirect
-                    import IPython.display as _ipd
-                    _orig = _ipd.display
-                    _ipd.display = lambda *a, **kw: None
-                    buf = _io.StringIO()
-                    try:
-                        with _redirect(buf):
-                            from sempy_labs.report import export_report
-                            export_report(
-                                report=rpt,
-                                export_format="PNG",
-                                file_name=f"_prototype_{idx:02d}.png",
-                                page_name=pg["name"],
-                                workspace=ws,
-                            )
-                    finally:
-                        _ipd.display = _orig
-
-                    # Read back from lakehouse
-                    from sempy_labs._helper_functions import _mount
-                    local_path = _mount()
-                    png_path = f"{local_path}/Files/_prototype_{idx:02d}.png"
-                    import os
-                    if os.path.exists(png_path):
-                        with open(png_path, "rb") as f:
-                            png_bytes = f.read()
-                        _page_images[pg["name"]] = base64.b64encode(png_bytes).decode("ascii")
-                        os.remove(png_path)  # cleanup
-                    else:
-                        export_errors.append(f"'{pg['display_name']}': file not found at {png_path}")
-                except Exception as e:
-                    export_errors.append(f"'{pg['display_name']}': {str(e)[:80]}")
-
-            # Build SVG
-            set_status(conn_status, "Building diagram\u2026", GRAY_COLOR)
-            svg, excalidraw = _build_diagram(pages_data, _page_images)
             _svg_cache[0] = svg
             _excalidraw_cache[0] = excalidraw
             svg_display.value = svg
             export_excalidraw_btn.layout.display = ""
             export_svg_btn.layout.display = ""
-            err_msg = f" Export errors: {'; '.join(export_errors[:3])}" if export_errors else ""
-            set_status(conn_status, f"\u2713 Prototype: {total} pages, {len(_page_images)} screenshots.{err_msg}", "#34c759" if not export_errors else "#ff9500")
+            err_msg = f" Export errors: {'; '.join(export_errors[:2])}" if export_errors else ""
+            set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots.{err_msg}", "#34c759" if not export_errors else "#ff9500")
 
         except Exception as e:
             set_status(conn_status, f"Error: {str(e)[:100]}", "#ff3b30")
         finally:
             generate_btn.disabled = False
             generate_btn.description = "\U0001F4D0 Generate Prototype"
-
-    def _build_diagram(pages, images):
-        """Build SVG + Excalidraw JSON from page metadata and images."""
-        import json, uuid, base64
-
-        visible = [p for p in pages if not p["hidden"]]
-        n = len(visible)
-        cols = min(_COLS, n)
-        rows_count = (n + cols - 1) // cols
-
-        svg_w = cols * (_THUMB_W + _PAD_X) + _PAD_X
-        svg_h = rows_count * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y) + _PAD_Y
-
-        svg_parts = [f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">']
-        svg_parts.append(f'<rect width="{svg_w}" height="{svg_h}" fill="#ffffff"/>')
-
-        # Excalidraw structure
-        exc_elements = []
-        exc_files = {}
-
-        # Color map for page types
-        _COLORS = {
-            "normal": {"bg": "#dbeafe", "stroke": "#2563eb", "text": "#1e40af"},
-            "drillthrough": {"bg": "#ffedd5", "stroke": "#c2410c", "text": "#9a3412"},
-            "hidden": {"bg": "#f3f4f6", "stroke": "#9ca3af", "text": "#6b7280"},
-        }
-
-        for idx, pg in enumerate(visible):
-            col = idx % cols
-            row = idx // cols
-            x = _PAD_X + col * (_THUMB_W + _PAD_X)
-            y = _PAD_Y + row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y)
-
-            ptype = "drillthrough" if pg["drillthrough"] else "normal"
-            colors = _COLORS[ptype]
-
-            # Header background
-            svg_parts.append(f'<rect x="{x}" y="{y}" width="{_THUMB_W}" height="{_HEADER_H}" rx="6" ry="6" fill="{colors["bg"]}" stroke="{colors["stroke"]}" stroke-width="1.5"/>')
-            # Header text
-            label = pg["display_name"][:35]
-            if pg["drillthrough"]:
-                label = f"\u2192 {label}"
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 20}" font-family="{FONT_FAMILY}" font-size="13" font-weight="600" fill="{colors["text"]}">{label}</text>')
-            # Visual count badge
-            badge_text = f'{pg["visual_count"]}v / {pg["data_visual_count"]}d'
-            svg_parts.append(f'<text x="{x + _THUMB_W - 10}" y="{y + 20}" font-family="{FONT_FAMILY}" font-size="11" fill="{colors["text"]}" text-anchor="end">{badge_text}</text>')
-
-            img_y = y + _HEADER_H
-
-            # Screenshot or placeholder
-            if pg["name"] in images:
-                b64 = images[pg["name"]]
-                svg_parts.append(f'<image x="{x}" y="{img_y}" width="{_THUMB_W}" height="{_THUMB_H}" href="data:image/png;base64,{b64}" preserveAspectRatio="xMidYMid meet" style="border:1px solid #e0e0e0;"/>')
-                # Also add to Excalidraw files
-                file_id = str(uuid.uuid4())
-                exc_files[file_id] = {"mimeType": "image/png", "id": file_id, "dataURL": f"data:image/png;base64,{b64}"}
-                exc_elements.append({
-                    "type": "image", "id": str(uuid.uuid4()), "x": x, "y": img_y,
-                    "width": _THUMB_W, "height": _THUMB_H, "fileId": file_id,
-                    "status": "saved", "scale": [1, 1],
-                })
-            else:
-                svg_parts.append(f'<rect x="{x}" y="{img_y}" width="{_THUMB_W}" height="{_THUMB_H}" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>')
-                svg_parts.append(f'<text x="{x + _THUMB_W // 2}" y="{img_y + _THUMB_H // 2}" font-family="{FONT_FAMILY}" font-size="14" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">{pg["display_name"]}</text>')
-                svg_parts.append(f'<text x="{x + _THUMB_W // 2}" y="{img_y + _THUMB_H // 2 + 20}" font-family="{FONT_FAMILY}" font-size="11" fill="#d1d5db" text-anchor="middle">(no screenshot)</text>')
-
-            # Excalidraw rectangle for page
-            exc_elements.append({
-                "type": "rectangle", "id": str(uuid.uuid4()), "x": x, "y": y,
-                "width": _THUMB_W, "height": _HEADER_H,
-                "backgroundColor": colors["bg"], "strokeColor": colors["stroke"],
-                "fillStyle": "solid", "strokeWidth": 1, "roundness": {"type": 3},
-            })
-            exc_elements.append({
-                "type": "text", "id": str(uuid.uuid4()), "x": x + 10, "y": y + 5,
-                "text": label, "fontSize": 14, "fontFamily": 1,
-                "textAlign": "left", "verticalAlign": "top",
-            })
-
-            # Footer: page size
-            footer_y = img_y + _THUMB_H + 3
-            svg_parts.append(f'<text x="{x + 5}" y="{footer_y + 14}" font-family="{FONT_FAMILY}" font-size="10" fill="#9ca3af">{pg["width"]}\u00d7{pg["height"]}</text>')
-            dt_label = "Drillthrough" if pg["drillthrough"] else ""
-            svg_parts.append(f'<text x="{x + _THUMB_W - 5}" y="{footer_y + 14}" font-family="{FONT_FAMILY}" font-size="10" fill="{colors["text"]}" text-anchor="end">{dt_label}</text>')
-
-        # Draw navigation arrows for drillthrough pages
-        dt_pages = {p["name"]: i for i, p in enumerate(visible) if p["drillthrough"]}
-        non_dt = [i for i, p in enumerate(visible) if not p["drillthrough"]]
-        for src_idx in non_dt:
-            for dt_name, dt_idx in dt_pages.items():
-                # Draw arrow from first non-dt page to each dt page (simplified)
-                if src_idx == 0:
-                    src_col = src_idx % cols
-                    src_row = src_idx // cols
-                    dst_col = dt_idx % cols
-                    dst_row = dt_idx // cols
-                    x1 = _PAD_X + src_col * (_THUMB_W + _PAD_X) + _THUMB_W // 2
-                    y1 = _PAD_Y + src_row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y) + _HEADER_H + _THUMB_H + _FOOTER_H
-                    x2 = _PAD_X + dst_col * (_THUMB_W + _PAD_X) + _THUMB_W // 2
-                    y2 = _PAD_Y + dst_row * (_THUMB_H + _HEADER_H + _FOOTER_H + _PAD_Y)
-                    svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead)"/>')
-
-        # Arrow marker definition
-        svg_parts.insert(1, '<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#c2410c"/></marker></defs>')
-
-        svg_parts.append('</svg>')
-        svg_str = "\n".join(svg_parts)
-
-        # Excalidraw JSON
-        excalidraw_json = {
-            "type": "excalidraw",
-            "version": 2,
-            "source": "pbi_fixer",
-            "elements": exc_elements,
-            "files": exc_files,
-        }
-
-        return svg_str, json.dumps(excalidraw_json, indent=2)
+            stop_proto_btn.layout.display = "none"
+            _cancel_proto[0] = False
 
     def _on_export_excalidraw(_):
         if not _excalidraw_cache[0]:
@@ -1530,10 +1372,12 @@ def _prototype_tab(workspace_input=None, report_input=None):
         try:
             from sempy_labs._helper_functions import _mount
             local_path = _mount()
-            path = f"{local_path}/Files/report_prototype.excalidraw"
+            safe_name = (_rpt_name[0] or "report").replace(" ", "_").replace("/", "_")
+            fname = f"{safe_name}_prototype.excalidraw"
+            path = f"{local_path}/Files/{fname}"
             with open(path, "w", encoding="utf-8") as f:
                 f.write(_excalidraw_cache[0])
-            set_status(conn_status, "\u2713 Saved report_prototype.excalidraw to lakehouse Files.", "#34c759")
+            set_status(conn_status, f"\u2713 Saved {fname} to lakehouse Files.", "#34c759")
         except Exception as e:
             set_status(conn_status, f"Error saving: {e}", "#ff3b30")
 
@@ -1543,10 +1387,12 @@ def _prototype_tab(workspace_input=None, report_input=None):
         try:
             from sempy_labs._helper_functions import _mount
             local_path = _mount()
-            path = f"{local_path}/Files/report_prototype.svg"
+            safe_name = (_rpt_name[0] or "report").replace(" ", "_").replace("/", "_")
+            fname = f"{safe_name}_prototype.svg"
+            path = f"{local_path}/Files/{fname}"
             with open(path, "w", encoding="utf-8") as f:
                 f.write(_svg_cache[0])
-            set_status(conn_status, "\u2713 Saved report_prototype.svg to lakehouse Files.", "#34c759")
+            set_status(conn_status, f"\u2713 Saved {fname} to lakehouse Files.", "#34c759")
         except Exception as e:
             set_status(conn_status, f"Error saving: {e}", "#ff3b30")
 
@@ -1584,7 +1430,7 @@ def pbi_fixer(
     """
 
     # ---------------------------------------------------------------------------
-    # Lazy imports â€” deferred to function call time to avoid circular imports.
+    # Lazy imports — deferred to function call time to avoid circular imports.
     # Each fixer is optional; the UI degrades gracefully if not available.
     # ---------------------------------------------------------------------------
     fix_piecharts = _lazy_import("sempy_labs.report._Fix_PieChart", "fix_piecharts")
@@ -1876,7 +1722,7 @@ def pbi_fixer(
                     new_opts.append(f"{prefix}{opt}")
             report_input.options = new_opts
         else:
-            # No comma â€” restore base options
+            # No comma — restore base options
             report_input.options = _base_options
 
     report_input.observe(_on_report_input_change, names="value")
@@ -2085,7 +1931,7 @@ def pbi_fixer(
     )
 
     # -----------------------------
-    # TAB SELECTOR (ToggleButtons â€” more reliable than widgets.Tab in Fabric)
+    # TAB SELECTOR (ToggleButtons — more reliable than widgets.Tab in Fabric)
     # -----------------------------
     _fixer_visible = show_fixer_tab
     _tab_options = []
@@ -2134,7 +1980,7 @@ def pbi_fixer(
         )
 
     # -----------------------------
-    # REPORT FIXERS â€” VISUALS
+    # REPORT FIXERS — VISUALS
     # -----------------------------
     cb_pie = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_bar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
@@ -2147,15 +1993,15 @@ def pbi_fixer(
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     bar_row = widgets.HBox(
-        [cb_bar, _fixer_label("Fix Bar Charts", "remove axis titles/values Â· add data labels Â· remove gridlines")],
+        [cb_bar, _fixer_label("Fix Bar Charts", "remove axis titles/values · add data labels · remove gridlines")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     col_row = widgets.HBox(
-        [cb_col, _fixer_label("Fix Column Charts", "remove axis titles/values Â· add data labels Â· remove gridlines")],
+        [cb_col, _fixer_label("Fix Column Charts", "remove axis titles/values · add data labels · remove gridlines")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     page_size_row = widgets.HBox(
-        [cb_page_size, _fixer_label("Fix Page Size", "changes default 720Ã—1280 pages to 1080Ã—1920 (Full HD)")],
+        [cb_page_size, _fixer_label("Fix Page Size", "changes default 720×1280 pages to 1080×1920 (Full HD)")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     hide_filters_row = widgets.HBox(
@@ -2170,7 +2016,7 @@ def pbi_fixer(
     )
 
     # Only show rows for available fixers
-    _report_fixer_rows = [_section_heading("Report â€” Visuals")]
+    _report_fixer_rows = [_section_heading("Report — Visuals")]
     if fix_upgrade_to_pbir is not None:
         _report_fixer_rows.append(upgrade_row)
     if fix_piecharts is not None:
@@ -2206,7 +2052,7 @@ def pbi_fixer(
     cb_time_intel = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_measure_tbl = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
-    # datasource_version_row removed â€” requires Large SM storage format enabled first
+    # datasource_version_row removed — requires Large SM storage format enabled first
     calendar_row = widgets.HBox(
         [cb_calendar, _fixer_label("Add Calendar Table", "adds \"CalcCalendar\" calculated table if no table has been \"marked\" as a date table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
@@ -2220,11 +2066,11 @@ def pbi_fixer(
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     units_row = widgets.HBox(
-        [cb_units, _fixer_label("Add Units Calc Group", "Thousand &amp; Million items Â· skips % / ratio measures Â· âš¡ can impact report performance")],
+        [cb_units, _fixer_label("Add Units Calc Group", "Thousand &amp; Million items · skips % / ratio measures · ⚡ can impact report performance")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     time_intel_row = widgets.HBox(
-        [cb_time_intel, _fixer_label("Add Time Intelligence Calc Group", "AC Â· Y-1/Y-2/Y-3 Â· YTD Â· abs/rel/achiev. variances Â· requires calendar table")],
+        [cb_time_intel, _fixer_label("Add Time Intelligence Calc Group", "AC · Y-1/Y-2/Y-3 · YTD · abs/rel/achiev. variances · requires calendar table")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     measure_tbl_row = widgets.HBox(
@@ -2232,14 +2078,14 @@ def pbi_fixer(
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
 
-    # XMLA warning + confirmation â€” shown only when â‰¥1 SM fixer is checked
+    # XMLA warning + confirmation — shown only when ≥1 SM fixer is checked
     cb_sm_confirm = widgets.Checkbox(
         value=False, indent=False, layout=widgets.Layout(width="22px"),
     )
     sm_warning_text = widgets.HTML(
         value=f'<span style="font-size:12px; color:#856404; '
         f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
-        f'âš ï¸ <b>XMLA write</b> â€” Semantic model fixers use the XMLA endpoint. '
+        f'⚠️ <b>XMLA write</b> — Semantic model fixers use the XMLA endpoint. '
         f'Once modified, the model can no longer be downloaded as a .pbix with embedded data. '
         f'This is irreversible. <b>Tick to confirm.</b></span>'
     )
@@ -2320,7 +2166,7 @@ def pbi_fixer(
     # RUN HANDLER
     # -----------------------------
     report_fixers = [
-        # (checkbox, label, callable) â€” Upgrade to PBIR runs first
+        # (checkbox, label, callable) — Upgrade to PBIR runs first
         x for x in [
             (cb_upgrade, "Upgrade to PBIR", lambda r, p, w, s: fix_upgrade_to_pbir(report=r, page_name=p, workspace=w, scan_only=s)) if fix_upgrade_to_pbir else None,
             (cb_pie, "Fix Pie Charts", lambda r, p, w, s: fix_piecharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_piecharts else None,
@@ -2358,7 +2204,7 @@ def pbi_fixer(
         status.value = ""
         run_btn.disabled = True
         god_btn.disabled = True
-        run_btn.description = "Runningâ€¦"
+        run_btn.description = "Running…"
 
         rpt_selected = [(cb, label, fn) for cb, label, fn in report_fixers if cb.value]
         sm_selected  = [(cb, label, fn) for cb, label, fn in sm_fixers if cb.value]
@@ -2374,7 +2220,7 @@ def pbi_fixer(
         # Require confirmation when SM fixers are selected in a mode that writes
         if sm_selected and mode != "Scan" and not cb_sm_confirm.value:
             show_status(
-                "âš ï¸  Please tick the XMLA confirmation checkbox before running semantic model fixers.",
+                "⚠️  Please tick the XMLA confirmation checkbox before running semantic model fixers.",
                 "#ff9500",
             )
             run_btn.disabled = False
@@ -2400,7 +2246,7 @@ def pbi_fixer(
                         + "</div>"
                     )
 
-                _log(f"{total_fixers} Fixer(s) Ã— {len(items)} Item(s) = {total} total  [Mode: {mode}]")
+                _log(f"{total_fixers} Fixer(s) × {len(items)} Item(s) = {total} total  [Mode: {mode}]")
                 _log()
                 _log(f"  Workspace: {ws or 'Notebook workspace'}")
                 _log(f"  Items:     {', '.join(items)}")
@@ -2414,7 +2260,7 @@ def pbi_fixer(
                 def _check_timeout():
                     nonlocal timed_out
                     if time.time() - start_time > _TOTAL_TIMEOUT:
-                        _log(f"â±ï¸  5-minute timeout reached ({int(time.time() - start_time)}s). Aborting.")
+                        _log(f"⏱️  5-minute timeout reached ({int(time.time() - start_time)}s). Aborting.")
                         timed_out = True
                         return True
                     return False
@@ -2425,7 +2271,7 @@ def pbi_fixer(
 
                 def _run_report_fixers(scan: bool):
                     nonlocal idx, errors
-                    prefix = "ðŸ”" if scan else "â–¶"
+                    prefix = "🔍" if scan else "▶"
                     for item in items:
                         if _check_timeout():
                             return
@@ -2433,7 +2279,7 @@ def pbi_fixer(
                         if not scan and non_upgrade_rpt:
                             fmt = _check_report_format(item, ws)
                             if fmt == "PBIRLegacy" and not upgrade_selected:
-                                _log(f"âš ï¸  '{item}' is in PBIRLegacy format â€” skipping report fixers.")
+                                _log(f"⚠️  '{item}' is in PBIRLegacy format — skipping report fixers.")
                                 _log(f"    â†’ Enable 'Upgrade to PBIR' to convert automatically.")
                                 _log()
                                 idx += len(rpt_selected)
@@ -2460,7 +2306,7 @@ def pbi_fixer(
 
                 def _run_sm_fixers(scan: bool):
                     nonlocal idx, errors
-                    prefix = "ðŸ”" if scan else "â–¶"
+                    prefix = "🔍" if scan else "▶"
                     for item in items:
                         if _check_timeout():
                             return
@@ -2505,20 +2351,20 @@ def pbi_fixer(
                 elapsed = int(time.time() - start_time)
                 if timed_out:
                     show_status(
-                        f"â±ï¸  Timed out after {elapsed}s. {idx}/{total} run(s), {errors} error(s).",
+                        f"⏱️  Timed out after {elapsed}s. {idx}/{total} run(s), {errors} error(s).",
                         "#ff9500",
                     )
                 elif errors > 0:
                     show_status(
-                        f"âš ï¸  Completed with {errors} error(s) out of {total} run(s) in {elapsed}s.",
+                        f"⚠️  Completed with {errors} error(s) out of {total} run(s) in {elapsed}s.",
                         "#ff9500",
                     )
                 elif mode == "Scan":
-                    show_status(f"âœ“  Scan complete â€” {total} run(s) in {elapsed}s.", "#007aff")
+                    show_status(f"✓  Scan complete — {total} run(s) in {elapsed}s.", "#007aff")
                 elif mode == "Fix":
-                    show_status(f"âœ“  All {total} run(s) completed in {elapsed}s.", "#34c759")
+                    show_status(f"✓  All {total} run(s) completed in {elapsed}s.", "#34c759")
                 else:
-                    show_status(f"âœ“  Scan + Fix complete â€” {total} run(s) in {elapsed}s.", "#34c759")
+                    show_status(f"✓  Scan + Fix complete — {total} run(s) in {elapsed}s.", "#34c759")
 
             except Exception as e:
                 show_status(f"Error: {e}", "#ff3b30")
@@ -2629,7 +2475,7 @@ def pbi_fixer(
 
     _model_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
 
-    # BPA standalone fixers â€” also available as Model Explorer actions
+    # BPA standalone fixers — also available as Model Explorer actions
     _bpa_fix_floating = _lazy_import("sempy_labs.semantic_model._Fix_FloatingPointDataType", "fix_floating_point_datatype")
     _bpa_fix_mdx = _lazy_import("sempy_labs.semantic_model._Fix_IsAvailableInMdx", "fix_isavailable_in_mdx")
     _bpa_fix_desc = _lazy_import("sempy_labs.semantic_model._Fix_MeasureDescriptions", "fix_measure_descriptions")
@@ -2687,7 +2533,7 @@ def pbi_fixer(
     if _bpa_fix_data_cat is not None:
         _model_fixer_cbs["Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
 
-    # -- Clone callbacks (for action dropdowns â€” reuse shared impl) --
+    # -- Clone callbacks (for action dropdowns — reuse shared impl) --
     def _clone_report(**kw):
         """Clone the report (appends '_copy' to the name)."""
         rpt = kw.get("report", "")
@@ -2701,7 +2547,7 @@ def pbi_fixer(
         _clone_rpt(report=rpt, cloned_report=cloned_name, workspace=ws)
         print(f"\u2713 Report cloned as '{cloned_name}'.")
 
-    # Clone Report removed from dropdown â€” available as top-level button
+    # Clone Report removed from dropdown — available as top-level button
 
     def _clone_semantic_model(**kw):
         """Clone the semantic model via shared impl."""
@@ -2714,7 +2560,7 @@ def pbi_fixer(
         _clone_semantic_model_impl(ds, ws)
         print(f"\u2713 Semantic model cloned as '{ds}_copy'.")
 
-    # Clone Model removed from dropdown â€” available as top-level button
+    # Clone Model removed from dropdown — available as top-level button
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []

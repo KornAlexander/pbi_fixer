@@ -369,18 +369,33 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="450px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="420px", font_family="monospace"))
+    tree_search = widgets.Text(placeholder="\U0001F50D Filter tree\u2026", layout=widgets.Layout(width="320px"))
+    _all_tree_options = []
 
     def _refresh_tree():
         nonlocal _key_map
         options, _key_map = _build_tree(_report_data, _expanded, _scan_results)
+        _all_tree_options.clear()
+        _all_tree_options.extend(options)
+        _apply_tree_filter()
+
+    def _apply_tree_filter(query=None):
+        query = (query or tree_search.value).lower().strip()
         tree.unobserve(on_select, names="value")
-        tree.options = options
+        if query:
+            tree.options = [o for o in _all_tree_options if query in o.lower()]
+        else:
+            tree.options = _all_tree_options
         try:
             tree.value = ()
         except Exception:
             pass
         tree.observe(on_select, names="value")
+
+    def _on_tree_search(change):
+        _apply_tree_filter(change.get("new", ""))
+    tree_search.observe(_on_tree_search, names="value")
 
     # -- preview (top-right, powerbiclient Report widget) --
     preview_label = widgets.HTML(
@@ -458,9 +473,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         ),
     )
 
-    # Three-column layout: Tree | Properties | Preview (side by side)
+    # Three-column layout: Tree (with search) | Properties | Preview (side by side)
+    tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", gap="2px"))
     panels = widgets.HBox(
-        [tree, props_box, preview_box],
+        [tree_col, props_box, preview_box],
         layout=widgets.Layout(width="100%", gap="8px"),
     )
     tree_header = widgets.HTML(
