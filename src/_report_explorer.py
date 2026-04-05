@@ -445,19 +445,21 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     # Editable property inputs (for pages and visuals)
     def _rprop(label_text, width="100%", disabled=False):
-        lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
-        inp = widgets.Text(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
-        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
+        lbl = widgets.HTML(value=f'<span style="font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; white-space:nowrap;">{label_text}</span>',
+                           layout=widgets.Layout(width="75px", min_width="75px"))
+        inp = widgets.Text(layout=widgets.Layout(width="auto", flex="1", height="26px"), disabled=disabled)
+        row = widgets.HBox([lbl, inp], layout=widgets.Layout(gap="4px", align_items="center", margin="0"))
         return inp, row
 
     def _rprop_int(label_text, width="100%", disabled=False):
-        lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
-        inp = widgets.IntText(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
-        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
+        lbl = widgets.HTML(value=f'<span style="font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; white-space:nowrap;">{label_text}</span>',
+                           layout=widgets.Layout(width="75px", min_width="75px"))
+        inp = widgets.IntText(layout=widgets.Layout(width="auto", flex="1", height="26px"), disabled=disabled)
+        row = widgets.HBox([lbl, inp], layout=widgets.Layout(gap="4px", align_items="center", margin="0"))
         return inp, row
 
     def _rprop_bool(label_text):
-        cb = widgets.Checkbox(value=False, description=label_text, indent=False, layout=widgets.Layout(width="auto", height="28px"))
+        cb = widgets.Checkbox(value=False, description=label_text, indent=False, layout=widgets.Layout(width="auto", height="24px"))
         return cb
 
     rp_display_name, rp_display_name_row = _rprop("Display Name")
@@ -477,17 +479,17 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _undo_stack = []  # list of _rp_pending snapshots
     _redo_stack = []
 
-    undo_btn = widgets.Button(description="↩ Undo", layout=widgets.Layout(width="70px"), disabled=True)
-    redo_btn = widgets.Button(description="↪ Redo", layout=widgets.Layout(width="70px"), disabled=True)
-    save_btn = widgets.Button(description="✓ No changes", button_style="success", disabled=True, layout=widgets.Layout(width="180px"))
-    discard_btn = widgets.Button(description="✘ Discard", button_style="warning", layout=widgets.Layout(width="90px", display="none"))
+    undo_btn = widgets.Button(description="↩", tooltip="Undo", layout=widgets.Layout(width="32px"), disabled=True)
+    redo_btn = widgets.Button(description="↪", tooltip="Redo", layout=widgets.Layout(width="32px"), disabled=True)
+    save_btn = widgets.Button(description="✓ No changes", button_style="success", disabled=True, layout=widgets.Layout(width="140px"))
+    discard_btn = widgets.Button(description="✘", tooltip="Discard all", button_style="warning", layout=widgets.Layout(width="32px", display="none"))
     save_status = status_html()
-    save_row = widgets.HBox([undo_btn, redo_btn, save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="4px", margin="4px 0 0 0"))
+    save_row = widgets.HBox([undo_btn, redo_btn, save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="2px", margin="2px 0 0 0"))
 
     # Page-specific props container
-    page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+    page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="1px", display="none"))
     # Visual-specific props container
-    visual_props = widgets.VBox([rp_type_row, rp_internal_name_row, rp_page_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+    visual_props = widgets.VBox([rp_type_row, rp_internal_name_row, rp_page_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="1px", display="none"))
 
     def _update_undo_redo_btns():
         undo_btn.disabled = len(_undo_stack) == 0
