@@ -372,13 +372,15 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         [load_btn, stop_btn, expand_btn, collapse_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
+
+    # --- God Mode (Fix All) panel ---
+    godmode_btn = widgets.Button(description="\u26A1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
+
     action_row = widgets.HBox(
         [scan_btn, fixer_dropdown, tolerance_input, run_action_btn, godmode_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    # --- God Mode (Fix All) panel ---
-    godmode_btn = widgets.Button(description="\u26A1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
     godmode_tree = widgets.SelectMultiple(options=[], rows=14, layout=widgets.Layout(width="100%", height="350px", font_family="monospace"))
     godmode_fix_btn = widgets.Button(description="\u2705 Fix Selected", button_style="success", layout=widgets.Layout(width="140px"))
     godmode_select_all_btn = widgets.Button(description="Select All", layout=widgets.Layout(width="100px"))
