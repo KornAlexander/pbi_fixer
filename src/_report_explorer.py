@@ -474,20 +474,32 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _rp_pending = {}  # {key: {field: value, ...}}
     _rp_suppressing = [False]
     _rp_dirty = [False]
+    _undo_stack = []  # list of _rp_pending snapshots
+    _redo_stack = []
 
+    undo_btn = widgets.Button(description="↩ Undo", layout=widgets.Layout(width="70px"), disabled=True)
+    redo_btn = widgets.Button(description="↪ Redo", layout=widgets.Layout(width="70px"), disabled=True)
     save_btn = widgets.Button(description="✓ No changes", button_style="success", disabled=True, layout=widgets.Layout(width="180px"))
     discard_btn = widgets.Button(description="✘ Discard", button_style="warning", layout=widgets.Layout(width="90px", display="none"))
     save_status = status_html()
-    save_row = widgets.HBox([save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="6px", margin="4px 0 0 0"))
+    save_row = widgets.HBox([undo_btn, redo_btn, save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="4px", margin="4px 0 0 0"))
 
     # Page-specific props container
     page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
     # Visual-specific props container
     visual_props = widgets.VBox([rp_type_row, rp_internal_name_row, rp_page_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
 
+    def _update_undo_redo_btns():
+        undo_btn.disabled = len(_undo_stack) == 0
+        redo_btn.disabled = len(_redo_stack) == 0
+
     def _rp_mark_dirty(*_):
         if _rp_suppressing[0]:
             return
+        # Snapshot before this change
+        import copy
+        _undo_stack.append(copy.deepcopy(_rp_pending))
+        _redo_stack.clear()
         _rp_dirty[0] = True
         # Capture current values
         key = _current_key[0]
@@ -514,15 +526,82 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         save_btn.button_style = "danger"
         save_btn.disabled = False
         discard_btn.layout.display = ""
+        _update_undo_redo_btns()
 
     def _rp_mark_clean():
         _rp_dirty[0] = False
         _rp_pending.clear()
+        _undo_stack.clear()
+        _redo_stack.clear()
         save_btn.description = "✓ No changes"
         save_btn.button_style = "success"
         save_btn.disabled = True
         discard_btn.layout.display = "none"
         save_status.value = ""
+        _update_undo_redo_btns()
+
+    def _restore_pending(snapshot):
+        """Restore _rp_pending from snapshot and update UI inputs."""
+        import copy
+        _rp_pending.clear()
+        _rp_pending.update(copy.deepcopy(snapshot))
+        n = len(_rp_pending)
+        if n == 0:
+            _rp_dirty[0] = False
+            save_btn.description = "✓ No changes"
+            save_btn.button_style = "success"
+            save_btn.disabled = True
+            discard_btn.layout.display = "none"
+        else:
+            _rp_dirty[0] = True
+            save_btn.description = f"⚠️ {n} unsaved change(s)"
+            save_btn.button_style = "danger"
+            save_btn.disabled = False
+            discard_btn.layout.display = ""
+        # Refresh current key inputs
+        key = _current_key[0]
+        if key and key in _rp_pending:
+            _rp_suppressing[0] = True
+            vals = _rp_pending[key]
+            node_type = key.split(":")[0]
+            if node_type == "page":
+                rp_display_name.value = vals.get("display_name", rp_display_name.value)
+                rp_width.value = vals.get("width", rp_width.value)
+                rp_height.value = vals.get("height", rp_height.value)
+                rp_hidden.value = vals.get("hidden", rp_hidden.value)
+            elif node_type == "visual":
+                rp_title.value = vals.get("title", rp_title.value)
+                rp_x.value = vals.get("x", rp_x.value)
+                rp_y.value = vals.get("y", rp_y.value)
+                rp_width.value = vals.get("width", rp_width.value)
+                rp_height.value = vals.get("height", rp_height.value)
+                rp_hidden.value = vals.get("hidden", rp_hidden.value)
+            _rp_suppressing[0] = False
+        elif key and key not in _rp_pending:
+            # Key was undone — reload original values
+            _rp_suppressing[0] = True
+            _populate_report_props(key)
+            _rp_suppressing[0] = False
+        _update_undo_redo_btns()
+
+    def on_undo(_):
+        if not _undo_stack:
+            return
+        import copy
+        _redo_stack.append(copy.deepcopy(_rp_pending))
+        snapshot = _undo_stack.pop()
+        _restore_pending(snapshot)
+
+    def on_redo(_):
+        if not _redo_stack:
+            return
+        import copy
+        _undo_stack.append(copy.deepcopy(_rp_pending))
+        snapshot = _redo_stack.pop()
+        _restore_pending(snapshot)
+
+    undo_btn.on_click(on_undo)
+    redo_btn.on_click(on_redo)
 
     for w in [rp_display_name, rp_width, rp_height, rp_title, rp_x, rp_y]:
         w.observe(_rp_mark_dirty, names="value")

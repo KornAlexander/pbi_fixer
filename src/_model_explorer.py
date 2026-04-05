@@ -821,10 +821,14 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     _pending_changes = {}  # key -> {expression, name, format_string, display_folder, description}
     _suppressing_observe = [False]  # prevent observe triggers during programmatic updates
     _tree_stale = [False]  # set when pending_changes updated, cleared after tree refresh
+    _undo_stack = []  # list of _pending_changes snapshots
+    _redo_stack = []
+    undo_btn = widgets.Button(description="\u21a9 Undo", layout=widgets.Layout(width="70px"), disabled=True)
+    redo_btn = widgets.Button(description="\u21aa Redo", layout=widgets.Layout(width="70px"), disabled=True)
     save_btn = widgets.Button(description="\u2713 No changes", button_style="success", disabled=True, layout=widgets.Layout(width="200px"))
     discard_btn = widgets.Button(description="\u2718 Discard", button_style="warning", layout=widgets.Layout(width="100px", display="none"))
     save_status = status_html()
-    save_row = widgets.HBox([save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="8px", margin="8px 0 0 0"))
+    save_row = widgets.HBox([undo_btn, redo_btn, save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="4px", margin="8px 0 0 0"))
 
     # Refresh controls
     refresh_type_dd = widgets.Dropdown(
@@ -916,9 +920,17 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                     "description": prop_description.value,
                 }
 
+    def _update_undo_redo_btns():
+        undo_btn.disabled = len(_undo_stack) == 0
+        redo_btn.disabled = len(_redo_stack) == 0
+
     def _mark_dirty(*_):
         if _suppressing_observe[0]:
             return
+        # Snapshot before this change
+        import copy
+        _undo_stack.append(copy.deepcopy(_pending_changes))
+        _redo_stack.clear()
         if not _is_dirty[0]:
             _is_dirty[0] = True
         # Capture changes immediately
@@ -929,16 +941,73 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         save_btn.button_style = "danger"
         save_btn.disabled = False
         discard_btn.layout.display = ""
+        _update_undo_redo_btns()
 
     def _mark_clean():
         _is_dirty[0] = False
         _pending_changes.clear()
+        _undo_stack.clear()
+        _redo_stack.clear()
         _tree_stale[0] = True
         save_btn.description = "\u2713 No changes"
         save_btn.button_style = "success"
         save_btn.disabled = True
         discard_btn.layout.display = "none"
         save_status.value = ""
+        _update_undo_redo_btns()
+
+    def _restore_pending(snapshot):
+        """Restore _pending_changes from snapshot and update UI."""
+        import copy
+        _pending_changes.clear()
+        _pending_changes.update(copy.deepcopy(snapshot))
+        _tree_stale[0] = True
+        n = len(_pending_changes)
+        if n == 0:
+            _is_dirty[0] = False
+            save_btn.description = "\u2713 No changes"
+            save_btn.button_style = "success"
+            save_btn.disabled = True
+            discard_btn.layout.display = "none"
+        else:
+            _is_dirty[0] = True
+            save_btn.description = f"\u26a0\ufe0f {n} unsaved change(s)"
+            save_btn.button_style = "danger"
+            save_btn.disabled = False
+            discard_btn.layout.display = ""
+        # Refresh inputs for current key
+        key = _current_key[0]
+        _suppressing_observe[0] = True
+        if key and key in _pending_changes:
+            vals = _pending_changes[key]
+            preview.value = vals.get("expression", preview.value)
+            prop_name.value = vals.get("name", prop_name.value)
+            prop_format_str.value = vals.get("format_string", prop_format_str.value)
+            prop_display_folder.value = vals.get("display_folder", prop_display_folder.value)
+            prop_description.value = vals.get("description", prop_description.value)
+        elif key and key not in _pending_changes:
+            preview.value = _get_preview_text(_model_data, key)
+            _populate_props(key)
+        _suppressing_observe[0] = False
+        _refresh_tree()
+        _update_undo_redo_btns()
+
+    def on_undo(_):
+        if not _undo_stack:
+            return
+        import copy
+        _redo_stack.append(copy.deepcopy(_pending_changes))
+        _restore_pending(_undo_stack.pop())
+
+    def on_redo(_):
+        if not _redo_stack:
+            return
+        import copy
+        _undo_stack.append(copy.deepcopy(_pending_changes))
+        _restore_pending(_redo_stack.pop())
+
+    undo_btn.on_click(on_undo)
+    redo_btn.on_click(on_redo)
 
     def on_discard(_):
         """Discard all pending changes and reload current item from cache."""
