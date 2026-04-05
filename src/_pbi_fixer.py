@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.181"
+__version__ = "1.2.182"
 
 import ipywidgets as widgets
 import io
@@ -3471,6 +3471,7 @@ def pbi_fixer(
 
     # -- Build tab panels (show/hide via layout.display) --
     tab_panels = []
+    _rpt_format_container = None
 
     if model_explorer_tab is not None:
         model_result = model_explorer_tab(
@@ -3500,6 +3501,8 @@ def pbi_fixer(
         else:
             rpt_content = rpt_result
         tab_panels.append(rpt_content)
+        # Extract format container for placement below the main UI
+        _rpt_format_container = getattr(rpt_content, '_format_container', None)
 
     if _fixer_visible:
         tab_panels.append(fixer_content)
@@ -3557,8 +3560,13 @@ def pbi_fixer(
     tab_selector.observe(_switch_tab, names="value")
     _switch_tab()  # set initial visibility
 
+    # Collect extra widgets to place below the main container
+    _below_widgets = []
+    if _rpt_format_container is not None:
+        _below_widgets.append(_rpt_format_container)
+
     container = widgets.VBox(
-        [header, shared_inputs_box, download_row, tab_selector] + tab_panels + [version_footer],
+        [header, shared_inputs_box, download_row, tab_selector] + tab_panels + [version_footer] + _below_widgets,
         layout=widgets.Layout(
             width="100%",
             padding="20px",
@@ -3642,9 +3650,9 @@ def pbi_fixer(
             children = list(container.children)
             # Remove loading_status
             children = [c for c in children if c is not loading_status]
-            # Rebuild: header stuff + tab_selector + all tab_panels + version_footer
+            # Rebuild: header stuff + tab_selector + all tab_panels + version_footer + below widgets
             fixed_prefix = [header, shared_inputs_box, download_row, tab_selector]
-            container.children = tuple(fixed_prefix + tab_panels + [version_footer])
+            container.children = tuple(fixed_prefix + tab_panels + [version_footer] + _below_widgets)
 
             loading_status.close()
             _switch_tab()

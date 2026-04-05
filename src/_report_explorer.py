@@ -238,12 +238,7 @@ def _get_properties_html(report_data, key):
     if node_type == "page":
         p = _resolve_page(report_data, parts[1]) or {}
         display_name = parts[1].split("\x1f")[-1] if "\x1f" in parts[1] else parts[1]
-        rows = _prop_row("Display Name", p.get("display_name", display_name))
-        rows += _prop_row("Internal Name", display_name)
-        rows += _prop_row("Width", str(p.get("width", 0)))
-        rows += _prop_row("Height", str(p.get("height", 0)))
-        rows += _prop_row("Size", f"{p.get('width', 0)} \u00d7 {p.get('height', 0)}")
-        rows += _prop_row("Hidden", str(p.get("hidden", False)))
+        rows = _prop_row("Internal Name", display_name)
         rows += _prop_row("Visual Count", str(len(p.get("visuals", {}))))
         type_counts = {}
         for v in p.get("visuals", {}).values():
@@ -259,16 +254,10 @@ def _get_properties_html(report_data, key):
         v_name = parts[2] if len(parts) > 2 else ""
         p = _resolve_page(report_data, p_key) or {}
         v = p.get("visuals", {}).get(v_name, {})
-        rows = _prop_row("Type", v.get("type", ""))
-        rows += _prop_row("Display Type", v.get("display_type", ""))
-        if v.get("title"):
-            rows += _prop_row("Title", v["title"])
+        rows = _prop_row("Display Type", v.get("display_type", ""))
         rows += _prop_row("Internal Name", v_name)
         p_display = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
         rows += _prop_row("Page", p.get("display_name", p_display))
-        rows += _prop_row("Position", f"x={v.get('x', 0)}, y={v.get('y', 0)}")
-        rows += _prop_row("Size", f"{v.get('width', 0)} \u00d7 {v.get('height', 0)}")
-        rows += _prop_row("Hidden", str(v.get("hidden", False)))
 
         # Show used semantic model objects
         p_name_raw = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
@@ -448,27 +437,257 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     refresh_btn.on_click(on_refresh)
 
-    # -- properties (bottom-right) --
+    # -- editable properties (bottom-right) --
     props_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Properties</div>'
     )
     props_html = widgets.HTML(
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
     )
+
+    # Editable property inputs (for pages and visuals)
+    def _rprop(label_text, width="100%", disabled=False):
+        lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
+        inp = widgets.Text(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
+        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
+        return inp, row
+
+    def _rprop_int(label_text, width="100%", disabled=False):
+        lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
+        inp = widgets.IntText(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
+        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
+        return inp, row
+
+    def _rprop_bool(label_text):
+        cb = widgets.Checkbox(value=False, description=label_text, indent=False, layout=widgets.Layout(width="auto", height="28px"))
+        return cb
+
+    rp_display_name, rp_display_name_row = _rprop("Display Name")
+    rp_type, rp_type_row = _rprop("Type", disabled=True)
+    rp_width, rp_width_row = _rprop_int("Width")
+    rp_height, rp_height_row = _rprop_int("Height")
+    rp_x, rp_x_row = _rprop_int("X Position")
+    rp_y, rp_y_row = _rprop_int("Y Position")
+    rp_title, rp_title_row = _rprop("Title")
+    rp_hidden = _rprop_bool("Hidden")
+
+    _rp_pending = {}  # {key: {field: value, ...}}
+    _rp_suppressing = [False]
+    _rp_dirty = [False]
+
+    save_btn = widgets.Button(description="✓ No changes", button_style="success", disabled=True, layout=widgets.Layout(width="180px"))
+    discard_btn = widgets.Button(description="✘ Discard", button_style="warning", layout=widgets.Layout(width="90px", display="none"))
+    save_status = status_html()
+    save_row = widgets.HBox([save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="6px", margin="4px 0 0 0"))
+
+    # Page-specific props container
+    page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+    # Visual-specific props container
+    visual_props = widgets.VBox([rp_type_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+
+    def _rp_mark_dirty(*_):
+        if _rp_suppressing[0]:
+            return
+        _rp_dirty[0] = True
+        # Capture current values
+        key = _current_key[0]
+        if key:
+            node_type = key.split(":")[0]
+            if node_type == "page":
+                _rp_pending[key] = {
+                    "display_name": rp_display_name.value,
+                    "width": rp_width.value,
+                    "height": rp_height.value,
+                    "hidden": rp_hidden.value,
+                }
+            elif node_type == "visual":
+                _rp_pending[key] = {
+                    "title": rp_title.value,
+                    "x": rp_x.value,
+                    "y": rp_y.value,
+                    "width": rp_width.value,
+                    "height": rp_height.value,
+                    "hidden": rp_hidden.value,
+                }
+        n = len(_rp_pending)
+        save_btn.description = f"⚠️ {n} unsaved change(s)"
+        save_btn.button_style = "danger"
+        save_btn.disabled = False
+        discard_btn.layout.display = ""
+
+    def _rp_mark_clean():
+        _rp_dirty[0] = False
+        _rp_pending.clear()
+        save_btn.description = "✓ No changes"
+        save_btn.button_style = "success"
+        save_btn.disabled = True
+        discard_btn.layout.display = "none"
+        save_status.value = ""
+
+    for w in [rp_display_name, rp_width, rp_height, rp_title, rp_x, rp_y]:
+        w.observe(_rp_mark_dirty, names="value")
+    rp_hidden.observe(_rp_mark_dirty, names="value")
+
+    def _populate_report_props(key):
+        """Fill editable property widgets from report data."""
+        _rp_suppressing[0] = True
+        node_type = key.split(":")[0]
+        page_props.layout.display = "none"
+        visual_props.layout.display = "none"
+
+        if node_type == "page":
+            p_name = key.split(":", 1)[1]
+            if "\x1f" in p_name:
+                _, p_name = p_name.split("\x1f", 1)
+            pages = _report_data.get("pages", {})
+            if not pages and _report_data.get("reports"):
+                for rd in _report_data["reports"].values():
+                    pages.update(rd.get("pages", {}))
+            p = pages.get(p_name, {})
+            rp_display_name.value = p.get("display_name", p_name)
+            rp_type.value = "Page"
+            rp_width.value = int(p.get("width", 1280))
+            rp_height.value = int(p.get("height", 720))
+            rp_hidden.value = bool(p.get("hidden", False))
+            page_props.layout.display = ""
+
+        elif node_type == "visual":
+            parts = key.split(":", 2)
+            p_key = parts[1] if len(parts) > 1 else ""
+            v_name = parts[2] if len(parts) > 2 else ""
+            pages = _report_data.get("pages", {})
+            if not pages and _report_data.get("reports"):
+                for rd in _report_data["reports"].values():
+                    pages.update(rd.get("pages", {}))
+            v = {}
+            # resolve page via _resolve_page-style lookup
+            p = None
+            if "\x1f" in p_key:
+                _, raw_pname = p_key.split("\x1f", 1)
+                p = pages.get(raw_pname, {})
+            else:
+                p = pages.get(p_key, {})
+            if p:
+                v = p.get("visuals", {}).get(v_name, {})
+            if not v:
+                for p_data in pages.values():
+                    if v_name in p_data.get("visuals", {}):
+                        v = p_data["visuals"][v_name]
+                        break
+            rp_type.value = v.get("type", "")
+            rp_title.value = v.get("title", "")
+            rp_x.value = int(v.get("x", 0))
+            rp_y.value = int(v.get("y", 0))
+            rp_width.value = int(v.get("width", 0))
+            rp_height.value = int(v.get("height", 0))
+            rp_hidden.value = bool(v.get("hidden", False))
+            visual_props.layout.display = ""
+
+        _rp_suppressing[0] = False
+
+    def on_rp_save(_):
+        if not _rp_pending:
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        rpt_input = report_input.value.strip() if report_input else ""
+        rpt = rpt_input.split(",")[0].strip()
+        for pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            if rpt.startswith(pfx):
+                rpt = rpt[len(pfx):]
+        if not rpt:
+            set_status(save_status, "No report loaded.", "#ff3b30")
+            return
+        save_btn.disabled = True
+        save_btn.description = "Saving…"
+        set_status(save_status, f"Writing {len(_rp_pending)} change(s) via connect_report…", GRAY_COLOR)
+
+        def _save_bg():
+            try:
+                from sempy_labs.report import connect_report
+                import sys, io as _sio
+                _old = sys.stdout; sys.stdout = _sio.StringIO()
+                try:
+                    with connect_report(report=rpt, readonly=False, workspace=ws) as rw:
+                        for key, changes in _rp_pending.items():
+                            node_type = key.split(":")[0]
+                            if node_type == "page":
+                                p_name = key.split(":", 1)[1]
+                                if "\x1f" in p_name:
+                                    _, p_name = p_name.split("\x1f", 1)
+                                pages_df = rw.list_pages()
+                                for _, row in pages_df.iterrows():
+                                    if str(row.get("Page Name", "")) == p_name or str(row.get("Page Display Name", "")) == p_name:
+                                        page_name = str(row.get("Page Name", ""))
+                                        if "display_name" in changes:
+                                            rw.set_page_property(page_name=page_name, property_name="displayName", property_value=changes["display_name"])
+                                        if "width" in changes:
+                                            rw.set_page_property(page_name=page_name, property_name="width", property_value=changes["width"])
+                                        if "height" in changes:
+                                            rw.set_page_property(page_name=page_name, property_name="height", property_value=changes["height"])
+                                        if "hidden" in changes:
+                                            rw.set_page_property(page_name=page_name, property_name="visibility", property_value=1 if changes["hidden"] else 0)
+                                        break
+                            elif node_type == "visual":
+                                v_raw = key.split(":", 1)[1]
+                                v_parts = v_raw.rsplit("\x1f", 1)
+                                v_name = v_parts[-1]
+                                # Find page for this visual
+                                p_name = None
+                                pages_df = rw.list_pages()
+                                visuals_df = rw.list_visuals()
+                                for _, vr in visuals_df.iterrows():
+                                    if str(vr.get("Visual Name", "")) == v_name:
+                                        p_name = str(vr.get("Page Name", ""))
+                                        break
+                                if p_name and v_name:
+                                    if "x" in changes:
+                                        rw.set_visual_property(page_name=p_name, visual_name=v_name, property_name="x", property_value=changes["x"])
+                                    if "y" in changes:
+                                        rw.set_visual_property(page_name=p_name, visual_name=v_name, property_name="y", property_value=changes["y"])
+                                    if "width" in changes:
+                                        rw.set_visual_property(page_name=p_name, visual_name=v_name, property_name="width", property_value=changes["width"])
+                                    if "height" in changes:
+                                        rw.set_visual_property(page_name=p_name, visual_name=v_name, property_name="height", property_value=changes["height"])
+                finally:
+                    sys.stdout = _old
+                _rp_mark_clean()
+                set_status(save_status, f"✓ Saved {len(_rp_pending)} change(s).", "#34c759")
+            except Exception as e:
+                set_status(save_status, f"Error: {str(e)[:200]}", "#ff3b30")
+            finally:
+                save_btn.disabled = False
+                if _rp_dirty[0]:
+                    n = len(_rp_pending)
+                    save_btn.description = f"⚠️ {n} unsaved change(s)"
+                    save_btn.button_style = "danger"
+                else:
+                    save_btn.description = "✓ No changes"
+                    save_btn.button_style = "success"
+
+        import threading
+        threading.Thread(target=_save_bg, daemon=True).start()
+
+    def on_rp_discard(_):
+        _rp_mark_clean()
+        key = _current_key[0]
+        if key:
+            _populate_report_props(key)
+
+    save_btn.on_click(on_rp_save)
+    discard_btn.on_click(on_rp_discard)
     # Violations panel (shown below properties when scan results exist)
     violations_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
     # Navigation panel for visual → SM object linking
     nav_objects_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px"))
     props_box = widgets.VBox(
-        [props_label, props_html, violations_box, nav_objects_box],
+        [props_label, props_html, page_props, visual_props, save_row, violations_box, nav_objects_box],
         layout=widgets.Layout(
-            flex="0 0 220px",
+            flex="0 0 240px",
             min_height="450px",
-            max_height="450px",
-            overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}",
             border_radius="8px",
-            padding="8px",
+            padding="6px",
             background_color=SECTION_BG,
         ),
     )
@@ -564,11 +783,9 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
         try:
             if len(items) == 1:
-                # Single report: load into flat structure
                 _report_data = _load_with_pbir_gate(rpt_name=items[0], ws=ws)
                 loaded = 1
             else:
-                # Multi-report: load each into grouped structure
                 merged = {"pages": {}, "reports": {}, "report_id": "", "workspace_id": ""}
                 for i, rpt in enumerate(items):
                     if _cancel_load[0]:
@@ -590,7 +807,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                         set_status(conn_status, f"Report {i+1}/{len(items)}: '{rpt}' failed", "#ff9500")
                 _report_data = merged
 
-            # Auto-expand all items after load
             if _report_data.get("reports"):
                 for r_name, r_data in _report_data["reports"].items():
                     _expanded.add(r_name)
@@ -601,7 +817,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
             _refresh_tree()
 
-            # Compute stats
             total_pages = 0
             total_visuals = 0
             if _report_data.get("reports"):
@@ -616,7 +831,6 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             err_str = f", {errors} error(s)" if errors else ""
             set_status(conn_status, f"Loaded {loaded}/{len(items)}: {total_pages} pages, {total_visuals} visuals ({elapsed}s{err_str})", "#34c759")
 
-            # Initialize preview for first report
             report_id = _report_data.get("report_id", "")
             workspace_id = _report_data.get("workspace_id", "")
             if not report_id and _report_data.get("reports"):
@@ -661,6 +875,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 _refresh_tree()
         # Update properties + preview navigation
         props_html.value = _get_properties_html(_report_data, key)
+        _populate_report_props(key)
 
         # Show violation details with Fix buttons if scan results exist
         details = _scan_details.get(key, [])
@@ -951,5 +1166,94 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     scan_btn.on_click(on_scan)
     run_action_btn.on_click(on_run_action)
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels], layout=widgets.Layout(padding="12px", gap="4px"))
+    # --- PBIR Status panel (rendered below PBI Fixer container) ---
+    format_btn = widgets.Button(description="\U0001F4CB PBIR Status", layout=widgets.Layout(width="130px"))
+    convert_all_btn = widgets.Button(description="\u26A1 Convert All Legacy", button_style="danger", layout=widgets.Layout(width="180px", display="none"))
+    format_html = widgets.HTML(value="")
+    format_container = widgets.VBox(
+        [format_html],
+        layout=widgets.Layout(
+            display="none", max_height="300px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+    _format_data = []  # [(name, report_id, format), ...]
+
+    def _on_format_overview(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        format_btn.disabled = True
+        format_btn.description = "Loading\u2026"
+        _format_data.clear()
+        try:
+            rpt_list = _list_workspace_reports(ws)
+            html = '<table style="border-collapse:collapse; font-size:12px; font-family:monospace;">'
+            html += '<tr style="background:#f5f5f5;"><th style="padding:3px 12px 3px 8px; text-align:left;">Report</th><th style="padding:3px 8px; text-align:left;">Format</th></tr>'
+            n_legacy = 0
+            for name, fmt in rpt_list:
+                _format_data.append((name, fmt))
+                if fmt == "PBIR":
+                    badge = '<span style="color:#34c759; font-weight:600;">PBIR</span>'
+                elif "Legacy" in fmt:
+                    badge = f'<span style="color:#ff9500; font-weight:600;">{fmt} \u26a0\ufe0f</span>'
+                    n_legacy += 1
+                else:
+                    badge = f'<span style="color:#888;">{fmt or "unknown"}</span>'
+                html += f'<tr><td style="padding:2px 12px 2px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{name}</td>'
+                html += f'<td style="padding:2px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{badge}</td></tr>'
+            html += '</table>'
+            html += f'<div style="font-size:11px; color:#555; margin-top:4px;">{len(rpt_list)} report(s), {n_legacy} legacy</div>'
+            format_html.value = html
+            format_container.layout.display = ""
+            if n_legacy > 0:
+                convert_all_btn.layout.display = ""
+            else:
+                convert_all_btn.layout.display = "none"
+            set_status(conn_status, f"\u2713 {len(rpt_list)} reports, {n_legacy} PBIRLegacy.", "#34c759" if n_legacy == 0 else "#ff9500")
+        except Exception as e:
+            format_html.value = f'<div style="color:#ff3b30;">Error: {str(e)[:100]}</div>'
+            format_container.layout.display = ""
+        format_btn.disabled = False
+        format_btn.description = "\U0001F4CB PBIR Status"
+
+    def _on_convert_all(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        legacy = [name for name, fmt in _format_data if "Legacy" in fmt]
+        if not legacy:
+            return
+        convert_all_btn.disabled = True
+        convert_all_btn.description = "Converting\u2026"
+        converted = 0
+        for rpt in legacy:
+            try:
+                set_status(conn_status, f"Converting '{rpt}'\u2026", GRAY_COLOR)
+                try:
+                    import sempy_labs.report as _rep
+                    _rep.upgrade_to_pbir(report=rpt, workspace=ws)
+                    converted += 1
+                except Exception:
+                    from sempy_labs.report._Fix_UpgradeToPbir import fix_upgrade_to_pbir
+                    fix_upgrade_to_pbir(report=rpt, workspace=ws, scan_only=False)
+                    converted += 1
+            except Exception:
+                pass
+        set_status(conn_status, f"\u2713 Converted {converted}/{len(legacy)} reports.", "#34c759")
+        convert_all_btn.disabled = False
+        convert_all_btn.description = "\u26A1 Convert All Legacy"
+        # Refresh overview
+        _on_format_overview(None)
+
+    format_btn.on_click(_on_format_overview)
+    convert_all_btn.on_click(_on_convert_all)
+
+    format_row = widgets.HBox(
+        [format_btn, convert_all_btn],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="4px 0 0 0"),
+    )
+
+    widget = widgets.VBox([nav_row, action_row, tree_header, panels, format_row], layout=widgets.Layout(padding="12px", gap="4px"))
+    # Expose format_container for external placement (below the main PBI Fixer UI)
+    widget._format_container = format_container
     return widget, on_load
