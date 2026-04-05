@@ -24,6 +24,8 @@ ICONS = {
     "hierarchy": "\U0001F517",     # 🔗
     "calc_group": "\U0001F4CA",    # 📊
     "calc_item": "\u2022",         # •
+    "model": "\U0001F4C4",         # 📄 (document = semantic model)
+    "report": "\U0001F4CA",        # 📊 (chart = report)
     "page": "\U0001F4C4",         # 📄
     "visual": "\U0001F441",        # 👁
     "partition": "\U0001F4CE",     # 📎

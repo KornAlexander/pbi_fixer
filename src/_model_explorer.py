@@ -393,7 +393,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
             t_count = len(m_tables)
             model_findings = scan_results.get(f"model:{m_name}", 0)
             badge = f" \u26a0\ufe0f{model_findings}" if model_findings > 0 else ""
-            items.append((0, "calc_group", f"{marker} {m_name}  [{t_count} tables]{badge}", f"model:{m_name}"))
+            items.append((0, "model", f"{marker} {m_name}  [{t_count} tables]{badge}", f"model:{m_name}"))
             if not is_model_expanded:
                 continue
             for t_name in sorted(m_tables):
@@ -450,7 +450,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
         t_count = len(model_data.get("tables", {}))
         is_model_exp = ds_input in expanded_tables
         marker = EXPANDED if is_model_exp else COLLAPSED
-        items.append((0, "calc_group", f"{marker} {ds_input}{prop_str}  [{t_count} tables]", f"model:{ds_input}"))
+        items.append((0, "model", f"{marker} {ds_input}{prop_str}  [{t_count} tables]", f"model:{ds_input}"))
         if not is_model_exp:
             pass  # collapsed
         else:

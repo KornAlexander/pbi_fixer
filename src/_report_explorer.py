@@ -159,7 +159,7 @@ def _build_tree(report_data, expanded_pages, scan_results=None):
             # Count total violations for this report
             rpt_violations = sum(v for k, v in scan_results.items() if k.startswith(f"report:{r_name}") or k.startswith(f"page:{r_name}\x1f") or k.startswith(f"visual:{r_name}\x1f"))
             badge = f" \u26a0\ufe0f{rpt_violations}" if rpt_violations > 0 else ""
-            items.append((0, "page", f"{marker} {r_name}{fmt_str}  [{p_count} pages]{badge}", f"report:{r_name}"))
+            items.append((0, "report", f"{marker} {r_name}{fmt_str}  [{p_count} pages]{badge}", f"report:{r_name}"))
             if not is_rpt_expanded:
                 continue
             for p_name in sorted(r["pages"], key=lambda pn: r["pages"][pn].get("ordinal", 9999)):

@@ -149,8 +149,8 @@ Two conversion approaches exist in Semantic Link Labs:
 
 | Tab | Icon | Source | Description |
 | --- | --- | --- | --- |
-| Semantic Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
-| Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
+| Semantic Model | � | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
+| Report | 📊 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
 | Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
 | Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
 | Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats with model dropdown, subtab DataFrames |
