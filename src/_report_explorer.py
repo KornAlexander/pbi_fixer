@@ -1170,14 +1170,23 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     format_btn = widgets.Button(description="\U0001F4CB PBIR Status", layout=widgets.Layout(width="130px"))
     convert_all_btn = widgets.Button(description="\u26A1 Convert All Legacy", button_style="danger", layout=widgets.Layout(width="180px", display="none"))
     format_html = widgets.HTML(value="")
+    _fmt_close_btn = widgets.Button(
+        description="\u2715", layout=widgets.Layout(width="28px", height="28px"),
+        tooltip="Close",
+    )
+    _fmt_header = widgets.HBox(
+        [widgets.HTML(value=f'<b style="font-size:13px;">\U0001F4CB PBIR Status</b>'), _fmt_close_btn],
+        layout=widgets.Layout(justify_content="space-between", align_items="center"),
+    )
     format_container = widgets.VBox(
-        [format_html],
+        [_fmt_header, format_html],
         layout=widgets.Layout(
             display="none", max_height="300px", overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
             padding="8px", background_color=SECTION_BG,
         ),
     )
+    _fmt_close_btn.on_click(lambda _: setattr(format_container.layout, "display", "none"))
     _format_data = []  # [(name, report_id, format), ...]
 
     def _on_format_overview(_):
