@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.191"
+__version__ = "1.2.192"
 
 import ipywidgets as widgets
 import io
@@ -2251,12 +2251,7 @@ def pbi_fixer(
     >>> pbi_fixer(all_tabs=True, report="Sales") # All tabs, pre-filled report
     """
 
-    # Clean up stale widget comms from previous runs (prevents "No such comm" errors)
-    try:
-        import ipywidgets as _iw
-        _iw.Widget.close_all()
-    except Exception:
-        pass
+    # Suppress stale widget comm errors from previous runs (cosmetic log spam)
     try:
         import logging as _lg
         _lg.getLogger("ipykernel.comm").setLevel(_lg.CRITICAL)
