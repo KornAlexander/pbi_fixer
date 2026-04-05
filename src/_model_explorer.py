@@ -4,6 +4,7 @@
 
 import ipywidgets as widgets
 import time
+import threading
 
 from sempy_labs._ui_components import (
     FONT_FAMILY,
@@ -132,7 +133,29 @@ def _load_model_data_fast(dataset, workspace):
                 for h in table.Hierarchies:
                     t_info["hierarchies"][h.Name] = {"levels": [str(lvl.Name) for lvl in h.Levels]}
 
-            # Load relationships
+                # Augment column metadata from TOM (sort_by, is_key, data_category, etc.)
+                for col in table.Columns:
+                    c_name = str(col.Name)
+                    if c_name in t_info["columns"]:
+                        sort_by = ""
+                        try:
+                            if col.SortByColumn is not None:
+                                sort_by = str(col.SortByColumn.Name)
+                        except Exception:
+                            pass
+                        t_info["columns"][c_name]["is_key"] = bool(col.IsKey) if hasattr(col, "IsKey") else False
+                        t_info["columns"][c_name]["data_category"] = str(col.DataCategory) if hasattr(col, "DataCategory") and col.DataCategory else ""
+                        t_info["columns"][c_name]["sort_by_column"] = sort_by
+                        t_info["columns"][c_name]["encoding_hint"] = str(col.EncodingHint) if hasattr(col, "EncodingHint") else ""
+                        t_info["columns"][c_name]["is_nullable"] = bool(col.IsNullable) if hasattr(col, "IsNullable") else True
+
+                # Augment measure metadata from TOM
+                for m in table.Measures:
+                    m_name = str(m.Name)
+                    if m_name in t_info["measures"]:
+                        t_info["measures"][m_name]["is_hidden"] = bool(m.IsHidden) if hasattr(m, "IsHidden") else False
+
+            # Load relationships with extended props
             for rel in tm.model.Relationships:
                 try:
                     model_data["relationships"].append({
@@ -143,6 +166,8 @@ def _load_model_data_fast(dataset, workspace):
                         "cross_filter": str(rel.CrossFilteringBehavior) if hasattr(rel, "CrossFilteringBehavior") else "",
                         "is_active": bool(rel.IsActive) if hasattr(rel, "IsActive") else True,
                         "multiplicity": str(rel.FromCardinality) + " → " + str(rel.ToCardinality) if hasattr(rel, "FromCardinality") else "",
+                        "security_filtering": str(rel.SecurityFilteringBehavior) if hasattr(rel, "SecurityFilteringBehavior") else "",
+                        "rely_on_rri": bool(rel.RelyOnReferentialIntegrity) if hasattr(rel, "RelyOnReferentialIntegrity") else False,
                     })
                 except Exception:
                     pass
@@ -208,12 +233,23 @@ def _load_model_data_tom(dataset, workspace):
                     pass
                 t_info["partitions"] = partitions
             for col in table.Columns:
+                sort_by = ""
+                try:
+                    if col.SortByColumn is not None:
+                        sort_by = str(col.SortByColumn.Name)
+                except Exception:
+                    pass
                 t_info["columns"][col.Name] = {
                     "data_type": str(col.DataType) if hasattr(col, "DataType") else "",
                     "is_hidden": bool(col.IsHidden),
                     "expression": str(col.Expression) if hasattr(col, "Expression") and col.Expression else None,
                     "type": str(col.Type) if hasattr(col, "Type") else "",
                     "summarize_by": str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "",
+                    "is_key": bool(col.IsKey) if hasattr(col, "IsKey") else False,
+                    "data_category": str(col.DataCategory) if hasattr(col, "DataCategory") and col.DataCategory else "",
+                    "sort_by_column": sort_by,
+                    "encoding_hint": str(col.EncodingHint) if hasattr(col, "EncodingHint") else "",
+                    "is_nullable": bool(col.IsNullable) if hasattr(col, "IsNullable") else True,
                 }
             for m in table.Measures:
                 t_info["measures"][m.Name] = {
@@ -221,6 +257,7 @@ def _load_model_data_tom(dataset, workspace):
                     "format_string": str(m.FormatString) if m.FormatString else "",
                     "description": str(m.Description) if m.Description else "",
                     "display_folder": str(m.DisplayFolder) if m.DisplayFolder else "",
+                    "is_hidden": bool(m.IsHidden) if hasattr(m, "IsHidden") else False,
                 }
             for h in table.Hierarchies:
                 t_info["hierarchies"][h.Name] = {"levels": [str(lvl.Name) for lvl in h.Levels]}
@@ -241,7 +278,7 @@ def _load_model_data_tom(dataset, workspace):
             "default_mode": str(tm.model.DefaultMode) if hasattr(tm.model, "DefaultMode") else "",
         }
 
-        # Load relationships
+        # Load relationships with extended props
         for rel in tm.model.Relationships:
             try:
                 model_data["relationships"].append({
@@ -252,6 +289,8 @@ def _load_model_data_tom(dataset, workspace):
                     "cross_filter": str(rel.CrossFilteringBehavior) if hasattr(rel, "CrossFilteringBehavior") else "",
                     "is_active": bool(rel.IsActive) if hasattr(rel, "IsActive") else True,
                     "multiplicity": str(rel.FromCardinality) + " \u2192 " + str(rel.ToCardinality) if hasattr(rel, "FromCardinality") else "",
+                    "security_filtering": str(rel.SecurityFilteringBehavior) if hasattr(rel, "SecurityFilteringBehavior") else "",
+                    "rely_on_rri": bool(rel.RelyOnReferentialIntegrity) if hasattr(rel, "RelyOnReferentialIntegrity") else False,
                 })
             except Exception:
                 pass
@@ -268,10 +307,10 @@ def _table_summary(t):
 
 
 def _build_measures_with_folders(measures, table_key, base_indent, expanded, pending_changes):
-    """Build tree items for measures grouped by display folder.
+    """Build tree items for measures grouped by display folder (nested).
     Returns list of (indent, icon, label, key) tuples."""
     items = []
-    # Group measures by top-level display folder
+    # Group measures by display folder path
     folders = {}  # folder_path -> [measure_names]
     no_folder = []
     for mn in sorted(measures):
@@ -287,18 +326,55 @@ def _build_measures_with_folders(measures, table_key, base_indent, expanded, pen
         pfx = "\u270f " if mk in pending_changes else ""
         items.append((base_indent, "measure", f"{pfx}{mn}", mk))
 
-    # Measures in folders — grouped
+    # Collect all unique folder paths and build nested structure
+    # e.g. "Orders\PY" → ["Orders", "Orders\PY"]
+    all_folder_paths = set()
+    for folder_path in folders:
+        parts = folder_path.replace("/", "\\").split("\\")
+        for i in range(len(parts)):
+            all_folder_paths.add("\\".join(parts[: i + 1]))
+
+    # Count measures per folder (including nested — leaf folders only have direct measures)
+    def _count_under(prefix):
+        """Count measures in this folder and all subfolders."""
+        total = 0
+        for fp, ms in folders.items():
+            fp_norm = fp.replace("/", "\\")
+            if fp_norm == prefix or fp_norm.startswith(prefix + "\\"):
+                total += len(ms)
+        return total
+
+    # Build sorted unique folder paths and emit tree nodes
+    emitted_folders = set()
+
     for folder_path in sorted(folders):
-        folder_key = f"folder:{table_key}:{folder_path}"
-        is_exp = folder_key in expanded
-        marker = EXPANDED if is_exp else COLLAPSED
-        count = len(folders[folder_path])
-        items.append((base_indent, "folder", f"{marker} \U0001F4C1 {folder_path}  [{count}]", folder_key))
-        if is_exp:
+        parts = folder_path.replace("/", "\\").split("\\")
+        # Emit ancestor folders that haven't been emitted yet
+        for depth in range(len(parts)):
+            ancestor = "\\".join(parts[: depth + 1])
+            if ancestor not in emitted_folders:
+                emitted_folders.add(ancestor)
+                folder_key = f"folder:{table_key}:{ancestor}"
+                is_exp = folder_key in expanded
+                marker = EXPANDED if is_exp else COLLAPSED
+                count = _count_under(ancestor)
+                label_name = parts[depth]
+                items.append((base_indent + depth, "folder", f"{marker} \U0001F4C1 {label_name}  [{count}]", folder_key))
+
+        # Emit measures in this folder (only if deepest folder is expanded)
+        deepest_key = f"folder:{table_key}:{folder_path.replace('/', chr(92))}"
+        # Check if all ancestors + this folder are expanded
+        all_expanded = True
+        for depth in range(len(parts)):
+            ancestor = "\\".join(parts[: depth + 1])
+            if f"folder:{table_key}:{ancestor}" not in expanded:
+                all_expanded = False
+                break
+        if all_expanded:
             for mn in sorted(folders[folder_path]):
                 mk = f"measure:{table_key}:{mn}"
                 pfx = "\u270f " if mk in pending_changes else ""
-                items.append((base_indent + 1, "measure", f"{pfx}{mn}", mk))
+                items.append((base_indent + len(parts), "measure", f"{pfx}{mn}", mk))
 
     return items
 
@@ -472,7 +548,9 @@ def _get_preview_text(model_data, key):
                 f"To:   '{r['to_table']}'[{r['to_column']}]\n"
                 f"Multiplicity: {r.get('multiplicity', '')}\n"
                 f"Cross-filter: {r.get('cross_filter', '')}\n"
-                f"Active: {r.get('is_active', True)}"
+                f"Security filtering: {r.get('security_filtering', '')}\n"
+                f"Active: {r.get('is_active', True)}\n"
+                f"Rely on RRI: {r.get('rely_on_rri', False)}"
             )
         return ""
     if node_type == "measure":
@@ -708,16 +786,16 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    preview_box = panel_box([preview_label, table_row_dropdown, preview, table_preview_html, format_row], flex="1", min_height="450px")
+    preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html], flex="1", min_height="450px")
 
     # -- editable properties --
     props_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Properties</div>'
     )
     def _prop_input(label_text, width="100%", disabled=False):
-        lbl = widgets.HTML(value=f'<span style="font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
-        inp = widgets.Text(layout=widgets.Layout(width=width), disabled=disabled)
-        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px"))
+        lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
+        inp = widgets.Text(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
+        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
         return inp, row
 
     prop_name, prop_name_row = _prop_input("Name")
@@ -727,6 +805,16 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     prop_display_folder, prop_folder_row = _prop_input("Display Folder")
     prop_description, prop_desc_row = _prop_input("Description")
     prop_summarize_by, prop_summarize_row = _prop_input("Summarize By", disabled=True)
+    # Extended column properties (read-only, shown for columns)
+    prop_is_key, prop_is_key_row = _prop_input("Is Key", disabled=True)
+    prop_sort_by, prop_sort_by_row = _prop_input("Sort By Column", disabled=True)
+    prop_data_category, prop_data_cat_row = _prop_input("Data Category", disabled=True)
+    prop_encoding, prop_encoding_row = _prop_input("Encoding Hint", disabled=True)
+    prop_nullable, prop_nullable_row = _prop_input("Is Nullable", disabled=True)
+    # Extended measure property
+    prop_is_hidden, prop_is_hidden_row = _prop_input("Is Hidden", disabled=True)
+    # Extended relationship properties (shown in expression panel via _get_preview_text)
+    # These use the existing expression textarea, no new widgets needed
 
     # Unified save button with dirty state + pending changes buffer
     _is_dirty = [False]
@@ -819,7 +907,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         key = _current_key[0]
         if key and not _suppressing_observe[0]:
             node_type = key.split(":")[0]
-            if node_type in ("measure", "calc_item", "column", "table"):
+            if node_type in ("measure", "calc_item", "column", "table", "partition"):
                 _pending_changes[key] = {
                     "expression": preview.value,
                     "name": prop_name.value,
@@ -862,7 +950,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         if key:
             _suppressing_observe[0] = True
             preview.value = _get_preview_text(_model_data, key)
-            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel", "partition")
             _populate_props(key)
             _suppressing_observe[0] = False
 
@@ -876,8 +964,10 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     prop_description.observe(_mark_dirty, names="value")
 
     props_container = widgets.VBox(
-        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row, prop_summarize_row, prop_desc_row],
-        layout=widgets.Layout(gap="4px"),
+        [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row,
+         prop_summarize_row, prop_is_key_row, prop_sort_by_row, prop_data_cat_row,
+         prop_encoding_row, prop_nullable_row, prop_is_hidden_row, prop_desc_row],
+        layout=widgets.Layout(gap="2px"),
     )
     props_placeholder = widgets.HTML(
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
@@ -888,11 +978,9 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(
             flex="0 0 220px",
             min_height="450px",
-            max_height="450px",
-            overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}",
             border_radius="8px",
-            padding="8px",
+            padding="6px",
             background_color=SECTION_BG,
         ),
     )
@@ -915,6 +1003,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
         prop_summarize_row.layout.display = "none"
+        # Hide extended props by default
+        prop_is_key_row.layout.display = "none"
+        prop_sort_by_row.layout.display = "none"
+        prop_data_cat_row.layout.display = "none"
+        prop_encoding_row.layout.display = "none"
+        prop_nullable_row.layout.display = "none"
+        prop_is_hidden_row.layout.display = "none"
 
         # Strip model prefix from table key for display
         raw_table = parts[1] if len(parts) > 1 else ""
@@ -927,6 +1022,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_format_str.value = m.get("format_string", "")
             prop_display_folder.value = m.get("display_folder", "")
             prop_description.value = m.get("description", "")
+            prop_is_hidden.value = str(m.get("is_hidden", False))
+            prop_is_hidden_row.layout.display = ""
         elif node_type == "column":
             t = _resolve_table(_model_data, raw_table)
             c = t["columns"].get(parts[2], {}) if t else {}
@@ -937,6 +1034,17 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_format_row.layout.display = "none"
             prop_folder_row.layout.display = "none"
             prop_summarize_row.layout.display = ""
+            # Show extended column properties
+            prop_is_key.value = str(c.get("is_key", False))
+            prop_is_key_row.layout.display = ""
+            prop_sort_by.value = c.get("sort_by_column", "") or "—"
+            prop_sort_by_row.layout.display = ""
+            prop_data_category.value = c.get("data_category", "") or "—"
+            prop_data_cat_row.layout.display = ""
+            prop_encoding.value = c.get("encoding_hint", "") or "Default"
+            prop_encoding_row.layout.display = ""
+            prop_nullable.value = str(c.get("is_nullable", True))
+            prop_nullable_row.layout.display = ""
         elif node_type == "table":
             t = _resolve_table(_model_data, raw_table) or {}
             prop_name.value, prop_table.value = display_table, ""
@@ -1021,71 +1129,76 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _cancel_load[0] = False
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
-        start_time = time.time()
-        merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
-        loaded = 0
-        errors = 0
+        def _do_load(items, ws):
+            nonlocal _model_data
+            start_time = time.time()
+            merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
+            loaded = 0
+            errors = 0
 
-        try:
-            for i, ds in enumerate(items):
+            try:
+                for i, ds in enumerate(items):
+                    if _cancel_load[0]:
+                        break
+                    if time.time() - start_time > _LOAD_TIMEOUT:
+                        set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
+                        break
+                    set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
+                    try:
+                        data = _load_model_data_fast(dataset=ds, workspace=ws)
+                        if len(items) > 1:
+                            merged_data["models"][ds] = data["tables"]
+                            merged_data["model_relationships"][ds] = data.get("relationships", [])
+                            merged_data["model_perspectives"][ds] = data.get("perspectives", [])
+                        else:
+                            merged_data["tables"].update(data["tables"])
+                            merged_data["relationships"] = data.get("relationships", [])
+                            merged_data["perspectives"] = data.get("perspectives", [])
+                            merged_data["_dataset_name"] = ds
+                            merged_data["model_properties"] = data.get("model_properties", {})
+                        loaded += 1
+                    except Exception as e:
+                        errors += 1
+                        set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
+
+                _model_data = merged_data
+
+                # Auto-expand all items after load
+                models = _model_data.get("models", {})
+                if models:
+                    for m_name, m_tables in models.items():
+                        _expanded.add(m_name)
+                        for t_name in m_tables:
+                            _expanded.add(f"{m_name}\x1f{t_name}")
+                else:
+                    ds_name = _model_data.get("_dataset_name", "Model")
+                    _expanded.add(ds_name)
+                    _expanded.update(_model_data.get("tables", {}).keys())
+
+                _refresh_tree()
+                all_tables = {}
+                all_tables.update(_model_data.get("tables", {}))
+                for m_tables in _model_data.get("models", {}).values():
+                    all_tables.update(m_tables)
+                n_t = len(all_tables)
+                n_m = sum(len(t["measures"]) for t in all_tables.values())
+                n_c = sum(len(t["columns"]) for t in all_tables.values())
+                elapsed = int(time.time() - start_time)
+                err_str = f", {errors} error(s)" if errors else ""
                 if _cancel_load[0]:
-                    set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models.", "#ff9500")
-                    break
-                if time.time() - start_time > _LOAD_TIMEOUT:
-                    set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
-                    break
-                set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
-                try:
-                    data = _load_model_data_fast(dataset=ds, workspace=ws)
-                    if len(items) > 1:
-                        merged_data["models"][ds] = data["tables"]
-                        merged_data["model_relationships"][ds] = data.get("relationships", [])
-                        merged_data["model_perspectives"][ds] = data.get("perspectives", [])
-                    else:
-                        merged_data["tables"].update(data["tables"])
-                        merged_data["relationships"] = data.get("relationships", [])
-                        merged_data["perspectives"] = data.get("perspectives", [])
-                        merged_data["_dataset_name"] = ds
-                        merged_data["model_properties"] = data.get("model_properties", {})
-                    loaded += 1
-                except Exception as e:
-                    errors += 1
-                    set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
+                    set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models: {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#ff9500")
+                else:
+                    set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
+                preview.value = "Select a measure to view its DAX expression."
+            except Exception as e:
+                set_status(conn_status, f"Error: {e}", "#ff3b30")
+            finally:
+                load_btn.disabled = False
+                load_btn.description = "Load Model"
+                stop_btn.layout.display = "none"
+                _cancel_load[0] = False
 
-            _model_data = merged_data
-
-            # Auto-expand all items after load
-            models = _model_data.get("models", {})
-            if models:
-                for m_name, m_tables in models.items():
-                    _expanded.add(m_name)
-                    for t_name in m_tables:
-                        _expanded.add(f"{m_name}\x1f{t_name}")
-            else:
-                ds_name = _model_data.get("_dataset_name", "Model")
-                _expanded.add(ds_name)
-                _expanded.update(_model_data.get("tables", {}).keys())
-
-            _refresh_tree()
-            # Count tables across both single and multi-model structures
-            all_tables = {}
-            all_tables.update(_model_data.get("tables", {}))
-            for m_tables in _model_data.get("models", {}).values():
-                all_tables.update(m_tables)
-            n_t = len(all_tables)
-            n_m = sum(len(t["measures"]) for t in all_tables.values())
-            n_c = sum(len(t["columns"]) for t in all_tables.values())
-            elapsed = int(time.time() - start_time)
-            err_str = f", {errors} error(s)" if errors else ""
-            set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
-            preview.value = "Select a measure to view its DAX expression."
-        except Exception as e:
-            set_status(conn_status, f"Error: {e}", "#ff3b30")
-        finally:
-            load_btn.disabled = False
-            load_btn.description = "Load Model"
-            stop_btn.layout.display = "none"
-            _cancel_load[0] = False
+        threading.Thread(target=_do_load, args=(items, ws), daemon=True).start()
 
     def on_select(change):
         selected = change.get("new", ())
@@ -1142,7 +1255,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_format_str.value = pending.get("format_string", "")
             prop_display_folder.value = pending.get("display_folder", "")
             prop_description.value = pending.get("description", "")
-            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel", "partition")
             _populate_props(key)
             # Re-apply pending values (populate_props may overwrite)
             prop_name.value = pending.get("name", prop_name.value)
@@ -1152,7 +1265,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             preview.value = pending.get("expression", preview.value)
         else:
             preview.value = _get_preview_text(_model_data, key)
-            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel")
+            preview.disabled = key.split(":")[0] not in ("measure", "calc_item", "rel", "partition")
             _populate_props(key)
 
         # Table data preview: show HTML table for table nodes, hide for others
@@ -1205,13 +1318,17 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _suppressing_observe[0] = False
 
     def _expand_folders(tables, table_prefix=""):
-        """Add all display folder keys to _expanded for given tables."""
+        """Add all display folder keys (including nested subfolders) to _expanded."""
         for t_name, t in tables.items():
             for mn in t.get("measures", {}):
                 df = t["measures"][mn].get("display_folder", "")
                 if df:
                     key_base = f"{table_prefix}{t_name}" if not table_prefix else f"{table_prefix}\x1f{t_name}"
-                    _expanded.add(f"folder:{key_base}:{df}")
+                    # Expand every level of the folder path
+                    parts = df.replace("/", "\\").split("\\")
+                    for i in range(len(parts)):
+                        ancestor = "\\".join(parts[: i + 1])
+                        _expanded.add(f"folder:{key_base}:{ancestor}")
 
     def on_expand_all(_):
         if _model_data:
@@ -1296,6 +1413,24 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                                 if t:
                                     t["calc_items"][parts[2]]["expression"] = changes.get("expression", "")
                                 saved += 1
+                            elif node_type == "partition":
+                                p_name = parts[2] if len(parts) > 2 else ""
+                                for p_obj in tm.model.Tables[table_name].Partitions:
+                                    if p_obj.Name == p_name:
+                                        expr = changes.get("expression", "")
+                                        import Microsoft.AnalysisServices.Tabular as TOM
+                                        if p_obj.SourceType == TOM.PartitionSourceType.M:
+                                            p_obj.Source.Expression = expr
+                                        elif p_obj.SourceType == TOM.PartitionSourceType.Calculated:
+                                            p_obj.Source.Expression = expr
+                                        # Update local cache
+                                        t = _resolve_table(_model_data, parts[1])
+                                        if t:
+                                            for pt in t.get("partitions", []):
+                                                if pt["name"] == p_name:
+                                                    pt["expression"] = expr
+                                        saved += 1
+                                        break
                             elif node_type == "table":
                                 tm.model.Tables[table_name].Description = changes.get("description", "")
                                 t = _resolve_table(_model_data, parts[1])
@@ -1325,7 +1460,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     def on_run_action(_):
         """Run the action selected in the dropdown."""
         action = fixer_dropdown.value
-        if action == "Select action..." or action not in fixer_callbacks:
+        if action == "Select action..." or action.startswith("──") or action not in fixer_callbacks:
             set_status(conn_status, "Select an action from the dropdown first.", "#ff9500")
             return
         ws = workspace_input.value.strip() if workspace_input else None
@@ -1400,8 +1535,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         total_findings = 0
         all_findings = []  # [(model, fixer_name, detail_line), ...]
         # Skip these from scan (they're additive actions, not violations)
-        skip_fixers = {"Auto-Create Measures from Columns", "Add PY Measures (Y-1)", "Format All DAX"}
-        fixer_names = [k for k in fixer_callbacks if k not in skip_fixers and k != "Select action..."]
+        skip_fixers = {"  Auto-Create Measures from Columns", "  Add PY Measures (Y-1)", "  Format All DAX"}
+        fixer_names = [k for k in fixer_callbacks if k not in skip_fixers and k != "Select action..." and not k.startswith("──")]
 
         for ds in items:
             set_status(conn_status, f"Scanning '{ds}'\u2026", GRAY_COLOR)
