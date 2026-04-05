@@ -337,36 +337,17 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
+| 29c | Full Property Grid (Advanced) | All TOM properties with collapsible "Advanced" section. See detailed spec below. |
 | 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
+| 42 | Batch Rename Objects | Multi-select → batch rename with pattern (prefix/suffix/find-replace/case). |
+| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. |
+| 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. |
+| 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). |
+| 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. |
 | 48 | Deployment Wizard | Deploy model to target workspace with options (skip partitions, skip roles, etc.). |
 | 49 | Model Comparison / Diff | Compare two models side by side, highlight differences (schema diff). |
 | 41 | AI Assistant | SLL has no SM AI chat module yet. Would need custom LLM integration. Lowest priority. |
-
----
-
-### Tabular Editor 2 Gap Analysis
-
-Key TE2 open-source features **not yet in PBI Fixer**:
-
-| TE2 Feature | PBI Fixer Status | # |
-|-------------|-----------------|-------|
-| Tree with display folders | ✅ Done (nested, v1.2.157) | — |
-| Property grid (all properties) | ✅ Done (basic + extended in-memory, v1.2.165) | 29a |
-| DAX editor + formatter | ✅ Done | — |
-| BPA (Best Practice Analyzer) | ✅ Done (19 auto-fixers) | — |
-| C# scripting | ✅ Replaced with Python scripting (Feature 27, disabled) | — |
-| Perspectives editor | ✅ Done | — |
-| Batch rename | ❌ Missing | 42 |
-| Translations / Cultures | ✅ Done (v1.2.162, with AI auto-translate) | 43 |
-| Add/Delete objects (measures, tables, calc groups) | ❌ Missing | 44 |
-| RLS role editor | ❌ Missing | 45 |
-| Annotations editor | ❌ Missing | 46 |
-| Undo/Redo | ❌ Missing | 47 |
-| Deployment wizard | ❌ Missing | 48 |
-| Model diff/compare | ❌ Missing | 49 |
-| Drag-and-drop display folders | ❌ Not feasible (ipywidgets limitation) | — |
-| IntelliSense in DAX editor | ❌ Not feasible (ipywidgets Textarea) | — |
 
 ---
 
@@ -661,3 +642,55 @@ Compare two semantic models side by side:
 * **Drilldown**: click a modified object to see property-level diff (old value → new value).
 * **Merge**: select individual changes to apply from source → target (cherry-pick merge).
 * Uses TOM comparison of table/column/measure/relationship definitions.
+
+### Feature 29c — Full Property Grid (Advanced Mode)
+
+Complete all TOM properties in the Model Explorer properties panel with a collapsible "Advanced" toggle:
+
+**UI Pattern:**
+* Properties panel shows **basic properties** by default (current behavior).
+* An **"Advanced ▼"** toggle button at the bottom expands/collapses additional rows.
+* Advanced properties are read-only (disabled inputs) unless explicitly made editable.
+
+**Missing basic properties to add (always visible):**
+
+| Object | Property | Notes |
+|--------|----------|-------|
+| Column | `DataType` | Already loaded but not shown in properties |
+| Column | `IsHidden` | Already loaded |
+| Column | `Description` | Text input |
+| Column | `DisplayFolder` | Text input |
+| Column | `FormatString` | Text input |
+| Column | `Expression` | Calculated columns only — shown in expression panel |
+| Column | `SourceColumn` | DataColumn only — source column name |
+| Measure | `DataType` | Result type (read-only) |
+| Measure | `State` | Ready / SemanticError / etc. (read-only) |
+| Measure | `ErrorMessage` | Show if State ≠ Ready |
+| Table | `IsHidden` | Already loaded |
+| Table | `DataCategory` | Time/Geography/Organization |
+| Table | `ExcludeFromModelRefresh` | Checkbox |
+| Relationship | `Name` | Auto-generated name |
+| Relationship | `JoinOnDateBehavior` | DateAndTime vs DatePartOnly |
+| Hierarchy | `Name`, `DisplayFolder`, `IsHidden`, `Description` | Currently no props shown for hierarchies |
+| Hierarchy | `Levels` | Show level names + ordinals |
+
+**Advanced properties (collapsed by default, read-only):**
+
+| Object | Property | Notes |
+|--------|----------|-------|
+| All | `LineageTag` | GUID tracking |
+| All | `ModifiedTime` | Last modified timestamp |
+| All | `Annotations` | Key-value pairs (link to Feature 46) |
+| Column | `IsAvailableInMDX` | MDX visibility |
+| Column | `IsUnique` | Uniqueness constraint |
+| Column | `Alignment` | Text alignment |
+| Column | `IsDefaultImage`, `IsDefaultLabel` | CSDL defaults |
+| Column | `SourceProviderType` | DirectQuery source type |
+| Measure | `IsSimpleMeasure` | Auto-created implicit |
+| Measure | `KPI` | KPI target/status/trend expressions |
+| Measure | `DetailRowsDefinition` | Drill-through DAX |
+| Measure | `FormatStringDefinition` | Dynamic format string DAX |
+| Table | `IsPrivate` | Internal hidden table |
+| Table | `SystemManaged` | System-managed table |
+| Table | `RefreshPolicy` | Incremental refresh config |
+| Relationship | `State` | Ready / Error |
