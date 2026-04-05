@@ -615,14 +615,14 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     def _apply_tree_filter(query=None):
         query = (query or tree_search.value).lower().strip()
         tree.unobserve(on_select, names="value")
+        try:
+            tree.index = ()
+        except Exception:
+            pass
         if query:
             tree.options = [o for o in _all_tree_options if query in o.lower()]
         else:
             tree.options = _all_tree_options
-        try:
-            tree.value = ()
-        except Exception:
-            pass
         tree.observe(on_select, names="value")
 
     def _on_tree_search(change):
