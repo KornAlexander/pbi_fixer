@@ -306,10 +306,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     fixer_callbacks = fixer_callbacks or {}
 
-    def _run_fixer_with_pbir_gate(fixer_fn, report, page_name, workspace, scan_only=False):
+    def _run_fixer_with_pbir_gate(fixer_fn, report, page_name, workspace, scan_only=False, **extra_kw):
         """Run a fixer function. If it fails with PBIR error, attempt conversion then retry."""
         try:
-            fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
+            fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
             return True
         except Exception as e:
             err_msg = str(e)
@@ -336,7 +336,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     pass
             if converted:
                 set_status(conn_status, f"Retrying fixer on '{report}'\u2026", GRAY_COLOR)
-                fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only)
+                fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
                 return True
             set_status(conn_status, f"\u26a0\ufe0f '{report}' could not be converted to PBIR. Convert manually in Power BI Desktop.", "#ff3b30")
             return False
@@ -350,6 +350,17 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         button_style="danger",
         layout=widgets.Layout(width="100px"),
     )
+    tolerance_input = widgets.BoundedFloatText(
+        value=2.0, min=0.1, max=50.0, step=0.5,
+        description="%",
+        layout=widgets.Layout(width="90px", display="none"),
+        style={"description_width": "15px"},
+    )
+
+    def _on_fixer_change(change):
+        tolerance_input.layout.display = "flex" if change["new"] == "Fix Visual Alignment" else "none"
+
+    fixer_dropdown.observe(_on_fixer_change, names="value")
 
     def _on_stop(_):
         _cancel_load[0] = True
@@ -362,7 +373,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
     action_row = widgets.HBox(
-        [scan_btn, fixer_dropdown, run_action_btn],
+        [scan_btn, fixer_dropdown, tolerance_input, run_action_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -1046,9 +1057,12 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                             try:
                                 import io as _io
                                 from contextlib import redirect_stdout as _redirect
+                                extra = {}
+                                if fn == "Fix Visual Alignment":
+                                    extra["tolerance_pct"] = tolerance_input.value
                                 buf = _io.StringIO()
                                 with _redirect(buf):
-                                    _run_fixer_with_pbir_gate(fixer_callbacks[fn], report=rpt, page_name=page, workspace=ws, scan_only=False)
+                                    _run_fixer_with_pbir_gate(fixer_callbacks[fn], report=rpt, page_name=page, workspace=ws, scan_only=False, **extra)
                                 set_status(conn_status, f"\u2713 {fn} applied.", "#34c759")
                             except Exception as e:
                                 set_status(conn_status, f"Error: {e}", "#ff3b30")
@@ -1225,11 +1239,14 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         from contextlib import redirect_stdout as _redirect
         errors = 0
         all_output = []
+        extra_kw = {}
+        if action == "Fix Visual Alignment":
+            extra_kw["tolerance_pct"] = tolerance_input.value
         for rpt, page in unique:
             try:
                 buf = _io.StringIO()
                 with _redirect(buf):
-                    _run_fixer_with_pbir_gate(fixer_callbacks[action], report=rpt, page_name=page, workspace=ws, scan_only=False)
+                    _run_fixer_with_pbir_gate(fixer_callbacks[action], report=rpt, page_name=page, workspace=ws, scan_only=False, **extra_kw)
                 captured = buf.getvalue().rstrip()
                 if captured:
                     all_output.append(captured)
