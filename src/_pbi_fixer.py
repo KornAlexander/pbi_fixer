@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.195"
+__version__ = "1.2.196"
 
 import ipywidgets as widgets
 import io
@@ -2502,9 +2502,9 @@ def pbi_fixer(
                 if nl in shared:
                     combined.append(name)
                 elif name in rpt_names:
-                    combined.append(f"\U0001F4C4 {name}")
-                else:
                     combined.append(f"\U0001F4CA {name}")
+                else:
+                    combined.append(f"\U0001F4C4 {name}")
 
             report_input.options = combined
             _base_options.clear()
