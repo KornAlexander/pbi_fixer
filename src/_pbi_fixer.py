@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.184"
+__version__ = "1.2.185"
 
 import ipywidgets as widgets
 import io
@@ -3517,32 +3517,41 @@ def pbi_fixer(
     if _fixer_visible:
         tab_panels.append(fixer_content)
 
+    # -- Lazy tab loading: extra tabs are built on first click --
+    _lazy_builders = {}  # tab label -> builder function (removed after first build)
     if all_tabs:
+        _lazy_specs = []
         if perspective_editor_tab is not None:
-            tab_panels.append(perspective_editor_tab(
+            _lazy_specs.append(("\U0001F441 Perspectives", lambda: perspective_editor_tab(
                 workspace_input=workspace_input, report_input=report_input
-            ))
-        tab_panels.append(_translations_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_vertipaq_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_bpa_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_report_bpa_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_delta_analyzer_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_prototype_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
-        tab_panels.append(_diagram_tab(
-            workspace_input=workspace_input, report_input=report_input
-        ))
+            )))
+        _lazy_specs.extend([
+            ("\U0001F310 Translations", lambda: _translations_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F4BE Memory Analyzer", lambda: _vertipaq_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F4CB BPA", lambda: _bpa_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F4C4 Report BPA", lambda: _report_bpa_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F4D0 Delta Analyzer", lambda: _delta_analyzer_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F4D0 Prototype", lambda: _prototype_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+            ("\U0001F5FA Model Diagram", lambda: _diagram_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )),
+        ])
+        for label, builder in _lazy_specs:
+            placeholder = widgets.VBox(layout=widgets.Layout(display="none"))
+            _lazy_builders[label] = builder
+            tab_panels.append(placeholder)
 
     # About tab
     about_content = widgets.HTML(
@@ -3589,10 +3598,34 @@ def pbi_fixer(
     )
     tab_panels.append(about_content)
 
+    _loading_html = (
+        f'<div style="padding:40px; text-align:center; color:{gray_color}; font-size:13px; '
+        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; font-style:italic;">'
+        f'Loading\u2026</div>'
+    )
+
     def _switch_tab(change=None):
-        idx = _tab_options.index(tab_selector.value)
-        for i, panel in enumerate(tab_panels):
-            panel.layout.display = "" if i == idx else "none"
+        label = tab_selector.value
+        idx = _tab_options.index(label)
+        # Lazy-build on first click
+        if label in _lazy_builders:
+            panel = tab_panels[idx]
+            panel.children = [widgets.HTML(value=_loading_html)]
+            panel.layout.display = ""
+            # Hide all others
+            for i, p in enumerate(tab_panels):
+                if i != idx:
+                    p.layout.display = "none"
+            try:
+                content = _lazy_builders.pop(label)()
+                panel.children = [content]
+            except Exception as e:
+                panel.children = [widgets.HTML(
+                    value=f'<div style="padding:20px; color:#ff3b30; font-size:13px;">Failed to load: {e}</div>'
+                )]
+            return
+        for i, p in enumerate(tab_panels):
+            p.layout.display = "" if i == idx else "none"
 
     tab_selector.observe(_switch_tab, names="value")
     _switch_tab()  # set initial visibility
