@@ -315,7 +315,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 29b | Extended Properties (expensive) | Tables: row count (evaluate_dax), storage mode per table. Deferred from 29a — requires extra API calls. |
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
@@ -337,6 +336,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
+| 29b | Extended Properties (expensive) | Tables: row count (evaluate_dax), storage mode per table. Requires extra API calls. |
 | 29c | Full Property Grid (Advanced) | All TOM properties with collapsible "Advanced" section. See detailed spec below. |
 | 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
