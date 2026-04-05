@@ -1118,6 +1118,26 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             except Exception:
                 pass
 
+        # Switch preview widget when selecting a report node in multi-report mode
+        if key.startswith("report:") and _report_data.get("reports"):
+            r_name = key.split(":", 1)[1]
+            r_data = _report_data["reports"].get(r_name, {})
+            rid = r_data.get("report_id", "")
+            wid = r_data.get("workspace_id", "")
+            if rid and wid:
+                _show_widget(rid, wid)
+
+        # Switch preview widget when selecting a visual in multi-report mode
+        if key.startswith("visual:") and _report_data.get("reports"):
+            v_raw = key.split(":", 1)[1]
+            if "\x1f" in v_raw:
+                r_name = v_raw.split("\x1f")[0]
+                r_data = _report_data["reports"].get(r_name, {})
+                rid = r_data.get("report_id", "")
+                wid = r_data.get("workspace_id", "")
+                if rid and wid:
+                    _show_widget(rid, wid)
+
     def on_expand_all(_):
         if _report_data:
             reports = _report_data.get("reports", {})
