@@ -373,8 +373,37 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
     action_row = widgets.HBox(
-        [scan_btn, fixer_dropdown, tolerance_input, run_action_btn],
+        [scan_btn, fixer_dropdown, tolerance_input, run_action_btn, godmode_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    # --- God Mode (Fix All) panel ---
+    godmode_btn = widgets.Button(description="\u26A1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
+    godmode_tree = widgets.SelectMultiple(options=[], rows=14, layout=widgets.Layout(width="100%", height="350px", font_family="monospace"))
+    godmode_fix_btn = widgets.Button(description="\u2705 Fix Selected", button_style="success", layout=widgets.Layout(width="140px"))
+    godmode_select_all_btn = widgets.Button(description="Select All", layout=widgets.Layout(width="100px"))
+    godmode_deselect_all_btn = widgets.Button(description="Deselect All", layout=widgets.Layout(width="100px"))
+    godmode_close_btn = widgets.Button(description="\u2715 Close", layout=widgets.Layout(width="80px"))
+    godmode_status = status_html()
+    _godmode_findings = []  # [(report, page_name, fixer_name, visual_label, display_line), ...]
+    _godmode_key_map = {}  # display_line -> index in _godmode_findings
+
+    godmode_panel = widgets.VBox(
+        [
+            widgets.HBox(
+                [godmode_fix_btn, godmode_select_all_btn, godmode_deselect_all_btn, godmode_close_btn, godmode_status],
+                layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
+            ),
+            godmode_tree,
+        ],
+        layout=widgets.Layout(
+            display="none",
+            border=f"1px solid {BORDER_COLOR}",
+            border_radius="8px",
+            padding="8px",
+            background_color=SECTION_BG,
+            margin="0 0 8px 0",
+        ),
     )
 
     tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="520px", font_family="monospace"))
@@ -1260,6 +1289,182 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
             summary += f" {first_line}"
         set_status(conn_status, summary, "#34c759" if not errors else "#ff9500")
 
+    # --- God Mode handlers ---
+    def _godmode_scan():
+        """Scan all loaded reports with all fixers (scan_only=True), build findings list."""
+        _godmode_findings.clear()
+        _godmode_key_map.clear()
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+
+        # Determine which fixers to scan (exclude non-scannable ones)
+        _skip_fixers = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme"}
+        scannable = {k: v for k, v in fixer_callbacks.items() if k not in _skip_fixers}
+
+        # Collect reports
+        if _report_data.get("reports"):
+            reports = [(r_name, r_data) for r_name, r_data in _report_data["reports"].items()]
+        elif _report_data.get("pages"):
+            rpt_name = report_input.value.strip() if report_input else "Report"
+            reports = [(rpt_name, _report_data)]
+        else:
+            return
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+
+        for rpt_name, _ in reports:
+            for fixer_name, fixer_fn in scannable.items():
+                try:
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        extra = {}
+                        if fixer_name == "Fix Visual Alignment":
+                            extra["tolerance_pct"] = tolerance_input.value
+                        fixer_fn(report=rpt_name, page_name=None, workspace=ws, scan_only=True, **extra)
+                    output = buf.getvalue().strip()
+                    if output and "no changes" not in output.lower() and "0 " not in output.split("\n")[-1].lower():
+                        for line in output.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            # Extract page from "[PageName]" prefix if present
+                            page = None
+                            if line.startswith("["):
+                                bracket_end = line.find("]")
+                                if bracket_end > 0:
+                                    page = line[1:bracket_end]
+                            _godmode_findings.append((rpt_name, page, fixer_name, line))
+                except Exception:
+                    pass
+
+    def _godmode_build_tree():
+        """Build the God Mode tree from findings, grouped by Report → Fixer → Item."""
+        from sempy_labs._ui_components import EXPANDED as _EXP
+        options = []
+        _godmode_key_map.clear()
+
+        # Group: report -> fixer -> [findings]
+        from collections import OrderedDict
+        grouped = OrderedDict()
+        for i, (rpt, page, fixer, label) in enumerate(_godmode_findings):
+            grouped.setdefault(rpt, OrderedDict()).setdefault(fixer, []).append((i, label))
+
+        for rpt, fixers in grouped.items():
+            rpt_count = sum(len(items) for items in fixers.values())
+            rpt_line = f"{_EXP} {rpt}  [{rpt_count} fix(es)]"
+            options.append(rpt_line)
+            _godmode_key_map[rpt_line] = ("report", rpt, None, None)
+            for fixer_name, items in fixers.items():
+                fixer_line = f"    {_EXP} {fixer_name}  [{len(items)}]"
+                # Deduplicate display lines
+                while fixer_line in _godmode_key_map:
+                    fixer_line += "\u200b"
+                options.append(fixer_line)
+                _godmode_key_map[fixer_line] = ("fixer", rpt, fixer_name, None)
+                for idx, label in items:
+                    item_line = f"        \u2022 {label}"
+                    while item_line in _godmode_key_map:
+                        item_line += "\u200b"
+                    options.append(item_line)
+                    _godmode_key_map[item_line] = ("item", rpt, fixer_name, idx)
+
+        godmode_tree.options = options
+        # Select all by default
+        godmode_tree.value = list(options)
+
+    def _on_godmode_scan(_):
+        if not _report_data or (not _report_data.get("pages") and not _report_data.get("reports")):
+            set_status(godmode_status, "No report loaded.", "#ff3b30")
+            return
+        godmode_btn.disabled = True
+        godmode_btn.description = "Scanning\u2026"
+        set_status(godmode_status, "Scanning all fixers\u2026", GRAY_COLOR)
+        _godmode_scan()
+        if not _godmode_findings:
+            set_status(godmode_status, "\u2713 No fixable issues found.", "#34c759")
+            godmode_btn.disabled = False
+            godmode_btn.description = "\u26A1 Fix All"
+            godmode_panel.layout.display = "none"
+            return
+        _godmode_build_tree()
+        godmode_panel.layout.display = ""
+        set_status(godmode_status, f"\U0001F50D {len(_godmode_findings)} finding(s). Deselect items to exclude, then Fix Selected.", "#ff9500")
+        godmode_btn.disabled = False
+        godmode_btn.description = "\u26A1 Fix All"
+
+    def _on_godmode_fix(_):
+        """Fix only the selected items from the God Mode tree."""
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        selected = set(godmode_tree.value)
+        if not selected:
+            set_status(godmode_status, "Nothing selected.", "#ff9500")
+            return
+
+        # Determine which (report, fixer) pairs to run, filtered by selection
+        # A fixer runs per-report (page_name=None) — we include it if any of its items are selected
+        from collections import OrderedDict
+        to_run = OrderedDict()  # (report, fixer_name) -> True
+        for opt in selected:
+            if opt not in _godmode_key_map:
+                continue
+            kind, rpt, fixer_name, idx = _godmode_key_map[opt]
+            if kind == "report":
+                # Select all fixers for this report
+                for f2 in _godmode_key_map.values():
+                    if f2[0] in ("fixer", "item") and f2[1] == rpt:
+                        to_run[(rpt, f2[2])] = True
+            elif kind == "fixer":
+                to_run[(rpt, fixer_name)] = True
+            elif kind == "item":
+                to_run[(rpt, fixer_name)] = True
+
+        if not to_run:
+            set_status(godmode_status, "Nothing selected.", "#ff9500")
+            return
+
+        godmode_fix_btn.disabled = True
+        godmode_fix_btn.description = "Fixing\u2026"
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        ok_count = 0
+        err_count = 0
+        for (rpt, fixer_name) in to_run:
+            if fixer_name not in fixer_callbacks:
+                continue
+            try:
+                buf = _io.StringIO()
+                extra = {}
+                if fixer_name == "Fix Visual Alignment":
+                    extra["tolerance_pct"] = tolerance_input.value
+                with _redirect(buf):
+                    _run_fixer_with_pbir_gate(fixer_callbacks[fixer_name], report=rpt, page_name=None, workspace=ws, scan_only=False, **extra)
+                ok_count += 1
+            except Exception:
+                err_count += 1
+        summary = f"\u2713 Fixed {ok_count} fixer(s) across {len(set(r for r, _ in to_run))} report(s)."
+        if err_count:
+            summary = f"\u26a0\ufe0f {ok_count} OK, {err_count} error(s)."
+        set_status(godmode_status, summary, "#34c759" if not err_count else "#ff9500")
+        godmode_fix_btn.disabled = False
+        godmode_fix_btn.description = "\u2705 Fix Selected"
+
+    def _on_godmode_select_all(_):
+        godmode_tree.value = list(godmode_tree.options)
+
+    def _on_godmode_deselect_all(_):
+        godmode_tree.value = []
+
+    def _on_godmode_close(_):
+        godmode_panel.layout.display = "none"
+
+    godmode_btn.on_click(_on_godmode_scan)
+    godmode_fix_btn.on_click(_on_godmode_fix)
+    godmode_select_all_btn.on_click(_on_godmode_select_all)
+    godmode_deselect_all_btn.on_click(_on_godmode_deselect_all)
+    godmode_close_btn.on_click(_on_godmode_close)
+
     def on_scan(_):
         """Fast local scan — checks loaded visual types for fixable issues without API calls."""
         if not _report_data or (not _report_data.get("pages") and not _report_data.get("reports")):
@@ -1427,7 +1632,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="4px 0 0 0"),
     )
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels, format_row], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, godmode_panel, tree_header, panels, format_row], layout=widgets.Layout(padding="12px", gap="4px"))
     # Expose format_container for external placement (below the main PBI Fixer UI)
     widget._format_container = format_container
     return widget, on_load
