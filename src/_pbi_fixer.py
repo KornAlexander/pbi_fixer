@@ -2534,8 +2534,15 @@ def pbi_fixer(
         return name
 
     def _on_report_input_change(change):
-        """Update Combobox options to support autocomplete after commas."""
+        """Update Combobox options to support autocomplete after commas. Auto-strip icon prefixes."""
         val = change.get("new", "")
+        # Auto-strip icon prefixes from the value (📄 / 📊) so all consumers get clean names
+        stripped = val
+        for _pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            stripped = stripped.replace(_pfx, "")
+        if stripped != val:
+            report_input.value = stripped
+            return  # the recursive call will handle the rest
         if not _base_options:
             return
         if "," in val:
