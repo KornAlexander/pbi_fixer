@@ -344,9 +344,6 @@ These fixers have separate files with full `scan_only` support but are **deprior
   + ⬇ Download .pbix — saves report as .pbix file
   + ⬇ Download .pbip — saves report as .pbip file (with optional thick\_report support)
 
----
-
-## Remaining Work
 
 ### Phase 11 — UI Alignment & Consistency Fix (v1.2.105) ✅
 
@@ -504,6 +501,10 @@ Add a **table data preview** in Model Explorer: when a table node is selected in
 * Render as a styled HTML table (reuse `_df_to_html` pattern from Memory Analyzer).
 * The preview appears in the Expression/preview panel when a table node is selected (instead of showing "Select a measure").
 * For measures and columns, keep the existing DAX expression view.
+
+---
+
+## Remaining Work
 
 ### Phase 20 — Extended Model Explorer Properties (Planned)
 
@@ -683,7 +684,18 @@ Display the diagram **directly in the PBI Fixer** as an interactive HTML view �
 
 Since the PBI Fixer already runs in a Fabric Notebook (which requires Fabric capacity), and the Export API also requires Fabric/Premium capacity on the report's workspace, there is **no additional capacity requirement** for page screenshots. The fallback is only needed if the Export API fails for other reasons (permissions, timeouts, service issues). In that case, fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
 
-### Phase 39 — AI Assistant (Planned)
+### Phase 39 — Script Runner Tab (v1.2.147) ✅
+
+Add a **⚙️ Script Runner** tab that allows executing Python scripts with the TOM semantic model object in scope.
+
+* **Why Python, not C#**: Fabric Notebooks don't include a C# compiler (Roslyn). But through `pythonnet`, the TOM object model is fully accessible from Python — giving the same capabilities as Tabular Editor C# scripts.
+* **Interface**: A `Textarea` for entering/pasting Python code + a "▶ Run" button.
+* **Execution context**: The script runs with `tom` (the connected TOM model) in scope, plus `model` as a shortcut for `tom.model`. Also `fabric`, `pd`, and all common imports pre-loaded.
+* **Output**: Captured via `redirect_stdout` and displayed in an HTML output area below the script.
+* **Script templates**: A dropdown with common script templates (list all measures, list all columns, rename pattern, etc.) that pre-fill the textarea.
+* **Safety**: Read-only by default (checkbox to enable write mode). Write mode shows an XMLA warning.
+
+### Phase 40 — AI Assistant (Planned)
 
 * **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
   + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
