@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.208"
+__version__ = "1.2.209"
 
 import ipywidgets as widgets
 import io
@@ -623,7 +623,7 @@ def _translations_tab(workspace_input=None, report_input=None):
 # ---------------------------------------------------------------------------
 # Best Practice Analyzer tab (inline)
 # ---------------------------------------------------------------------------
-def _bpa_tab(workspace_input=None, report_input=None):
+def _bpa_tab(workspace_input=None, report_input=None, container_ref=None):
     """Build the BPA tab with fix buttons per violation."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
@@ -1185,7 +1185,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
     bpa_output = widgets.Output()
 
     def on_show_full(_):
-        """Run run_model_bpa and capture its HTML output into the Output widget."""
+        """Run run_model_bpa natively — closes PBI Fixer and renders directly."""
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
         ds_input = report_input.value.strip() if report_input else ""
@@ -1194,65 +1194,21 @@ def _bpa_tab(workspace_input=None, report_input=None):
             set_status(conn_status, "Enter a semantic model name.", "#ff3b30")
             return
         show_full_btn.disabled = True
-        show_full_btn.description = "Loading\u2026"
-        bpa_output.clear_output(wait=True)
-
-        # Capture HTML by intercepting display calls
-        captured_html = []
-        import IPython.display as _ipd
-        import IPython.core.display_functions as _idf
-        _orig1 = _ipd.display
-        _orig2 = getattr(_idf, 'display', None)
-
-        def _capture(*args, **kwargs):
-            for a in args:
-                if hasattr(a, 'data') and isinstance(a.data, str):
-                    captured_html.append(a.data)
-                elif hasattr(a, '_repr_html_'):
-                    captured_html.append(a._repr_html_())
-
-        _ipd.display = _capture
-        if _orig2:
-            _idf.display = _capture
-
-        import io as _io
-        from contextlib import redirect_stdout as _redirect
-        try:
-            for ds in items:
-                try:
-                    buf = _io.StringIO()
-                    # Also patch the display in _model_bpa module
-                    try:
-                        import sempy_labs._model_bpa as _bpa_mod
-                        _orig_bpa = getattr(_bpa_mod, 'display', None)
-                        _bpa_mod.display = _capture
-                    except Exception:
-                        _bpa_mod = None
-                        _orig_bpa = None
-                    try:
-                        with _redirect(buf):
-                            from sempy_labs import run_model_bpa
-                            run_model_bpa(dataset=ds, workspace=ws)
-                    finally:
-                        if _bpa_mod and _orig_bpa:
-                            _bpa_mod.display = _orig_bpa
-                except Exception as e:
-                    captured_html.append(f'<div style="color:red;">Error for {ds}: {e}</div>')
-        finally:
-            _ipd.display = _orig1
-            if _orig2:
-                _idf.display = _orig2
-
-        # Render captured HTML inside the Output widget
-        with bpa_output:
-            from IPython.display import display as _real_display, HTML as _HTML
-            if captured_html:
-                _real_display(_HTML("\n".join(captured_html)))
-            else:
-                _real_display(_HTML('<div style="color:#888;">No output captured.</div>'))
-
-        show_full_btn.disabled = False
-        show_full_btn.description = "\U0001F4CB Show Full BPA"
+        # Countdown and close main container
+        import time as _time
+        for sec in (3, 2, 1):
+            show_full_btn.description = f"Closing in {sec}\u2026"
+            _time.sleep(1)
+        if container_ref and container_ref[0] is not None:
+            container_ref[0].close()
+        # Render directly into notebook cell output (container is closed)
+        for ds in items:
+            try:
+                from sempy_labs import run_model_bpa
+                run_model_bpa(dataset=ds, workspace=ws)
+            except Exception as e:
+                from IPython.display import display, HTML
+                display(HTML(f'<div style="color:red;">Error for {ds}: {e}</div>'))
 
     show_full_btn.on_click(on_show_full)
 
@@ -1271,7 +1227,7 @@ def _bpa_tab(workspace_input=None, report_input=None):
 # ---------------------------------------------------------------------------
 # Report BPA tab (inline)
 # ---------------------------------------------------------------------------
-def _report_bpa_tab(workspace_input=None, report_input=None):
+def _report_bpa_tab(workspace_input=None, report_input=None, container_ref=None):
     """Build the Report BPA tab — runs run_report_bpa and shows results."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
@@ -1418,18 +1374,21 @@ def _report_bpa_tab(workspace_input=None, report_input=None):
             set_status(conn_status, "Enter a report name.", "#ff3b30")
             return
         show_full_btn.disabled = True
-        show_full_btn.description = "Loading\u2026"
-        native_output.clear_output()
-        with native_output:
-            for rpt in items:
-                try:
-                    from sempy_labs.report import run_report_bpa
-                    run_report_bpa(report=rpt, workspace=ws)
-                except Exception as e:
-                    from IPython.display import display, HTML
-                    display(HTML(f'<div style="color:red;">Error for {rpt}: {e}</div>'))
-        show_full_btn.disabled = False
-        show_full_btn.description = "\U0001F4CB Show Native"
+        # Countdown and close main container
+        import time as _time
+        for sec in (3, 2, 1):
+            show_full_btn.description = f"Closing in {sec}\u2026"
+            _time.sleep(1)
+        if container_ref and container_ref[0] is not None:
+            container_ref[0].close()
+        # Render directly into notebook cell output (container is closed)
+        for rpt in items:
+            try:
+                from sempy_labs.report import run_report_bpa
+                run_report_bpa(report=rpt, workspace=ws)
+            except Exception as e:
+                from IPython.display import display, HTML
+                display(HTML(f'<div style="color:red;">Error for {rpt}: {e}</div>'))
 
     load_btn.on_click(on_load)
     show_full_btn.on_click(on_show_native)
@@ -1441,7 +1400,7 @@ def _report_bpa_tab(workspace_input=None, report_input=None):
 # ---------------------------------------------------------------------------
 # Delta Analyzer tab (inline)
 # ---------------------------------------------------------------------------
-def _delta_analyzer_tab(workspace_input=None, report_input=None):
+def _delta_analyzer_tab(workspace_input=None, report_input=None, container_ref=None):
     """Build the Delta Analyzer tab with full DataFrame subtabs."""
     from sempy_labs._ui_components import (
         FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
@@ -1622,25 +1581,28 @@ def _delta_analyzer_tab(workspace_input=None, report_input=None):
         lh = lakehouse_input.value.strip() or None
         sch = schema_input.value.strip() or None
         show_native_btn.disabled = True
-        show_native_btn.description = "Loading\u2026"
-        native_output.clear_output()
-        with native_output:
-            try:
-                from sempy_labs import delta_analyzer as _da_fn
-                _da_fn(
-                    table_name=t_name,
-                    lakehouse=lh,
-                    workspace=ws,
-                    column_stats=col_stats_cb.value,
-                    skip_cardinality=not cardinality_cb.value,
-                    schema=sch,
-                    visualize=True,
-                )
-            except Exception as e:
-                from IPython.display import display, HTML
-                display(HTML(f'<div style="color:red;">Error: {e}</div>'))
-        show_native_btn.disabled = False
-        show_native_btn.description = "\U0001F4CB Show Native"
+        # Countdown and close main container
+        import time as _time
+        for sec in (3, 2, 1):
+            show_native_btn.description = f"Closing in {sec}\u2026"
+            _time.sleep(1)
+        if container_ref and container_ref[0] is not None:
+            container_ref[0].close()
+        # Render directly into notebook cell output (container is closed)
+        try:
+            from sempy_labs import delta_analyzer as _da_fn
+            _da_fn(
+                table_name=t_name,
+                lakehouse=lh,
+                workspace=ws,
+                column_stats=col_stats_cb.value,
+                skip_cardinality=not cardinality_cb.value,
+                schema=sch,
+                visualize=True,
+            )
+        except Exception as e:
+            from IPython.display import display, HTML
+            display(HTML(f'<div style="color:red;">Error: {e}</div>'))
 
     load_btn.on_click(on_load)
     show_native_btn.on_click(on_show_native)
@@ -3533,6 +3495,7 @@ def pbi_fixer(
 
     # -- Lazy tab loading: extra tabs are built on first click --
     _lazy_builders = {}  # tab label -> builder function (removed after first build)
+    _container_ref = [None]  # mutable ref set after container creation; used by Show Native to close UI
     if all_tabs:
         _lazy_specs = []
         if perspective_editor_tab is not None:
@@ -3547,13 +3510,13 @@ def pbi_fixer(
                 workspace_input=workspace_input, report_input=report_input
             )),
             ("\U0001F4CB BPA", lambda: _bpa_tab(
-                workspace_input=workspace_input, report_input=report_input
+                workspace_input=workspace_input, report_input=report_input, container_ref=_container_ref
             )),
             ("\U0001F4C4 Report BPA", lambda: _report_bpa_tab(
-                workspace_input=workspace_input, report_input=report_input
+                workspace_input=workspace_input, report_input=report_input, container_ref=_container_ref
             )),
             ("\U0001F4D0 Delta Analyzer", lambda: _delta_analyzer_tab(
-                workspace_input=workspace_input, report_input=report_input
+                workspace_input=workspace_input, report_input=report_input, container_ref=_container_ref
             )),
             ("\U0001F4D0 Prototype", lambda: _prototype_tab(
                 workspace_input=workspace_input, report_input=report_input
@@ -3658,6 +3621,7 @@ def pbi_fixer(
             border_radius="12px",
         ),
     )
+    _container_ref[0] = container
 
     if _below_widgets:
         return widgets.VBox([container] + _below_widgets)
