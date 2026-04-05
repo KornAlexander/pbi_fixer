@@ -229,501 +229,119 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ### Optional / Not Now
 
-These fixers have separate files with full `scan_only` support but are **deprioritized** — will not be wired into the UI in the near term:
-
 | Fixer | File | Reason |
 | --- | --- | --- |
-| Migrate Slicer to Slicerbar | `report/_Fix_MigrateSlicerToSlicerbar.py` | Low demand; slicerbar adoption still limited |
 | Set DataSource Version V3 | `semantic_model/_Fix_DefaultDataSourceVersion.py` | Requires Large SM storage format; not broadly available |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Foundation (v1.1.0) ✅
+### Completed (28 phases)
 
-* `_ui_components.py` — shared theme constants, icon dict, `build_tree_items()`, `create_three_panel_layout()`, connection bar helpers
-* `_model_explorer.py` — Model Explorer with tree + DAX preview + properties placeholder
-* `_report_explorer.py` — Report Explorer with tree + preview/properties placeholders
-* `_pbi_fixer.py` — Tab wrapper (Fixer | Semantic Model | Report)
-* `PLAN.md` — this file
-
-### Phase 2 — Semantic Model Properties & Editing (v1.2.x) ✅
-
-* Properties panel in Model Explorer: data type, format string, description, display folder, is\_hidden
-* Editable DAX for measures and calc items with Save Expression button
-* Editable properties (write back via XMLA) with save button and confirmation
-* Collapsible trees with expand/collapse all
-* Perspective Editor tab (based on upstream m-kovalsky/perspective\_editor)
-
-### Phase 3 — Report Preview & Properties (v1.2.x) ✅
-
-* Report preview via `powerbiclient.Report` widget (live embedded report)
-* Properties panel: visual position, size, type, filter config
-* Page navigation in preview when selecting page in tree
-* Fixer actions dropdown in Report Explorer (runs fixers on selected page)
-
-### Phase 4 — Multi-Item Connection & PBIR Gate (v1.2.8–1.2.24) ✅
-
-* Shared Load button next to input field — triggers SM + Report loading at once
-* Comma-separated report/SM input (e.g. `"Bad Report, Slicerbar Testing"`)
-* Blank input = load all semantic models / reports in the workspace via REST API
-* Multi-model tree grouping (expand/collapse per model)
-* Multi-report tree grouping (expand/collapse per report)
-* Per-item progress status during loading (`Model 1/9: loading 'X'…`)
-* 5-minute hard timeout on full load
-* PBIR format check via `_check_report_format()`, skips non-PBIR reports for fixers
-* "Upgrade to PBIR" checkbox in Fixer (runs first in chain)
-* "Convert to PBIR" in Report Explorer actions dropdown
-* PBIRLegacy warning badges in tree + banner with "Convert All" button
-* After conversion, re-check and update tree badges
-
-### Phase 5 — Fixer Tab Redesign (v1.2.8–1.2.24) ✅
-
-* **"God Button"** (⚡ Fix Everything) — selects all fixers + confirms XMLA, runs
-* Report fixers in Report Explorer actions dropdown (Fix Pie Charts, Fix Bar Charts, etc.)
-* SM fixers in Model Explorer actions dropdown (Discourage Implicit Measures, Calendar, etc.)
-* Fixer tab hidden by default (`show_fixer_tab=False`); pass `True` to restore
-* Tab order: SM → Report → Fixer → Perspectives → ...
-* All fixer scripts continue to work standalone via `print()` + `redirect_stdout`
-* New SM actions: "Auto-Create Measures from Columns", "Add PY Measures (Y-1)" — inline fallback in `_pbi_fixer.py`
-* "Format All DAX" action in Model Explorer (calls `tom.format_dax()`)
-
-### Phase 6 — UI Polish (v1.2.14–1.2.42) ✅
-
-* Full-width layout (`width=100%`, no max-width cap)
-* Wider tree panels (400px) and input fields (400px)
-* Multi-select via `SelectMultiple` (Ctrl+click / Shift+click)
-* Single-click expand/collapse coexists with multi-select (len==1 triggers toggle)
-* Duplicate display strings deduplicated with zero-width spaces
-* Properties panel strips model prefix from table names
-* Inline status per tab (progress, errors, completion)
-* Fixer stdout captured via `redirect_stdout` (no notebook scroll)
-* Split toolbar into two rows: nav (Load/Expand/Collapse) + actions (Scan/dropdown/Run)
-* Select-then-run pattern: dropdown selects action, ⚡ Run button executes
-* SummarizeBy property shown for columns in Model Explorer properties
-* Save Expression/Properties correctly extracts model name from multi-model keys
-* Auto-expand all items after load
-* Unified save button with dirty state tracking (green ✓/red ⚠️)
-* Branded header with accent color + wrench icon + bottom border
-* Version footer with author + actionablereporting.com link
-* Tab button width optimized (130px for 8 tabs)
-* Input box with light grey background for visual separation
-* ℹ️ About tab with author info, website, source repos, tech credits
-* Perspectives tab icon changed to 👁 (eye) to distinguish from 🔍 Scan
-
-### Phase 7 — Scan Mode & Violation Counts (v1.2.26–1.2.43) ✅
-
-* **Scan button** (`[🔍 Scan]`) on both Model Explorer and Report Explorer toolbars
-* Report Explorer: fast local scan using loaded visual type data (no API calls)
-  — checks for pie charts, bar charts, column charts, hidden filters
-* Model Explorer: scan runs all SM fixers in `scan_only=True` mode
-* Tree items annotated with `⚠️N` violation badges after scan
-* Scan results stored in `_scan_results` + `_scan_details` dicts
-* Summary status: `"🔍 Scan complete: 14 finding(s) across 2 report(s)."`
-* Properties panel shows violation details for selected flagged visual
-* One-click "Fix this" buttons per violation (runs specific fixer on that page)
-* Re-scan after fix to update counts automatically
-* More granular page-level attribution for report scan
-
-### Phase 8 — VertipaqAnalyzer & Memory Integration (v1.2.36–1.2.38) ✅
-
-* **💾 Memory Analyzer tab** (renamed from "Vertipaq") — dedicated tab with on-demand loading
-  + Tree: models → tables (sorted by size) → columns (sorted by size)
-  + Each node shows size (KB/MB/GB), row count, cardinality, encoding, % DB
-  + Properties panel shows full stats for selected table/column
-  + Single-click expand/collapse, multi-select compatible
-  + Subtab selector: Model Summary | Tables | Partitions | Columns | Relationships | Hierarchies
-  + Full DataFrame HTML rendering per subtab with row highlighting
-* Both inline in `_pbi_fixer.py` (no external file dependency)
-* Relationships shown in Model Explorer tree (expand/collapse per model)
-* Perspectives listed in Model Explorer tree (read-only, names only)
-* Visual → SM measure navigation (list\_visual\_objects + clickable buttons)
-* Cache Vertipaq results across tab switches
-
-### Phase 9 — BPA Integration & Auto-Fixers (v1.2.44–1.2.99) ✅
-
-* **📋 BPA tab** — runs `run_model_bpa()` on loaded semantic models
-  + Results table with Rule Name, Category, Object Name, Object Type, Severity
-  + Auto-fix buttons per row for 7 fixable rule types (see Fixer Inventory above)
-  + "Fix All" button per rule — bulk-fixes all violations of a single rule
-  + "Fix Rule" dropdown — select a rule and fix all its violations
-  + "Show Native" button — renders full BPA DataFrame in native output
-* **📄 Report BPA tab** — runs `run_report_bpa()` on loaded reports
-  + Results table with Report, Rule Name, Category, Object, Severity
-  + Auto-converts PBIRLegacy reports before running BPA
-  + "Show Native" button for full DataFrame output
-
-### Phase 10 — Delta Analyzer & Download (v1.2.44–1.2.99) ✅
-
-* **📐 Delta Analyzer tab** — analyses delta tables in the lakehouse
-  + Inputs: table name, lakehouse (optional), schema (optional), column stats toggle, cardinality toggle
-  + Subtabs: Summary | Parquet Files | Row Groups | Column Chunks | Columns
-  + Full DataFrame HTML rendering per subtab
-  + "Show Native" button for full DataFrame output
-* **Download buttons** — between input box and tabs
-  + ⬇ Download .pbix — saves report as .pbix file
-  + ⬇ Download .pbip — saves report as .pbip file (with optional thick\_report support)
-
-
-### Phase 11 — UI Alignment & Consistency Fix (v1.2.105) ✅
-
-Fix visual inconsistencies in the three-panel layout across all tabs:
-
-* **Report Explorer panel alignment**: the three columns (Tree | Properties | Preview) do not align consistently with the panels in other tabs (Model Explorer, Perspectives, etc.). Ensure all tabs use the same column widths, borders, and spacing.
-* **Panel height consistency**: all three panels should have the same minimum height so the layout doesn't jump when switching tabs or when one panel has more content than others.
-* **Border and padding audit**: verify that every section box across all tabs uses the canonical style from `_ui_components.py` (`SECTION_BG`, `BORDER_COLOR`, `border_radius: 8px`, `padding: 12px`). Some panels may be using inline styles that drift from the shared constants.
-* **Header alignment**: "REPORT STRUCTURE", "PROPERTIES", "PREVIEW" headers should be at the same vertical position and use the same font size, weight, and color as the corresponding headers in the Model Explorer.
-* **Full-width stretch**: ensure the three-panel HBox fills the full available width consistently, with no gap between the outer panels and the tab container edge.
-
-### Phase 12 — Dropdown Item Selector (v1.2.106) ✅
-
-Replace the current free-text-only Report/SM input with a **combo widget** (`widgets.Combobox`) that supports both dropdown selection and free text entry:
-
-* When the workspace is entered and the user clicks **Load** (or on workspace change), fetch the list of all reports and semantic models via the Fabric REST API (`GET /v1.0/myorg/groups/{ws}/reports` + `GET /v1.0/myorg/groups/{ws}/datasets`).
-* Populate the dropdown with a **deduplicated** combined list. If a report and semantic model share the same display name, show the name **only once** — the tool loads both the report and its underlying model regardless.
-* Items are prefixed with icons to distinguish types: `"📄 Report Name"` and `"📊 Model Name"`. Shared-name items show without prefix (or with a combined indicator).
-* The user can **select from the dropdown** (click to pick one or multiple items) or **type/paste free text** including comma-separated values. Free text takes precedence over dropdown selection.
-* If left **blank** → load **all** items in the workspace (current behavior, unchanged).
-* Deduplicate by display name (case-insensitive), keeping both item types internally for the load logic.
-* Implementation: `widgets.Combobox` with `options` populated after workspace is set. For multi-select, consider a `SelectMultiple` or `TagsInput` widget alongside the Combobox.
-* **Layout fix**: the "📋 List Items" button should be placed on the **Report** input row (next to the Combobox), not on the Workspace row. The input label should read just **"Report"** (omit "/ SM").
-
-### Phase 13 — Clone Report + Semantic Model (v1.2.107) ✅
-
-Add an action (button or dropdown entry) that clones the currently loaded report and its underlying semantic model into the same workspace with a new name. The user enters a new name (or a suffix like `"_copy"` / `"_v2"` is appended automatically), and the tool:
-
-* Clones the semantic model via `clone_semantic_model()` or `create_semantic_model_from_bim()` using the current model's BIM/TMDL definition.
-* Clones the report via `getDefinition` → modify the report name and dataset binding → `createItem` with the new definition pointing to the cloned model.
-* Optionally allows cloning to a **different workspace** (target workspace dropdown).
-* Shows progress and confirms both items were created successfully.
-* Useful for creating dev/test copies, versioning before applying fixers, or templating.
-
-### Phase 14 — Extract BPA Fixers to Standalone Files (v1.2.108) ✅
-
-The 7 BPA auto-fixers currently live inline in `_bpa_tab()`. For consistency with the fixer pattern (standalone + UI), consider extracting to separate files:
-
-| Inline Fixer | Proposed File | Proposed Function |
-| --- | --- | --- |
-| Fix floating point | `semantic_model/_Fix_FloatingPointDataType.py` | `fix_floating_point_datatype()` |
-| Fix IsAvailableInMDX | `semantic_model/_Fix_IsAvailableInMdx.py` | `fix_isavailable_in_mdx()` |
-| Fix measure descriptions | `semantic_model/_Fix_MeasureDescriptions.py` | `fix_measure_descriptions()` |
-| Fix date format | `semantic_model/_Fix_DateColumnFormat.py` | `fix_date_column_format()` |
-| Fix month format | `semantic_model/_Fix_MonthColumnFormat.py` | `fix_month_column_format()` |
-| Fix measure format (#,0) | `semantic_model/_Fix_MeasureFormat.py` | `fix_measure_format()` |
-| Hide foreign keys | `semantic_model/_Fix_HideForeignKeys.py` | `fix_hide_foreign_keys()` |
-
-Each should follow the standard pattern: `(dataset, workspace, scan_only)` with standalone `print()` output.
-
-### Phase 15 — Clone Buttons & Name Mismatch Check (v1.2.110) ✅
-
-Move clone functionality from the action dropdowns to dedicated **top-level buttons** next to the download buttons, and add name mismatch detection:
-
-* **Three clone buttons** in the `download_row` (alongside ⬇ Download .pbix / ⬇ Download .pbip):
-  + **📋 Clone Both** — clones the semantic model first (via `getDefinition` → `create_semantic_model_from_bim`), then clones the report (via `clone_report`) and rebinds it to the newly cloned model. Appends `_copy` suffix (or user-specified suffix via a text input popup).
-  + **📋 Clone Report** — clones only the report (keeps it connected to the original semantic model).
-  + **📋 Clone Model** — clones only the semantic model (no report).
-* **Name mismatch check**: Before cloning, compare the report name and the semantic model name. If they differ (which is common — e.g. report "Sales Dashboard" backed by model "Sales Model"), show a warning: `"⚠️ Report 'Sales Dashboard' uses model 'Sales Model'. Clone both will create 'Sales Dashboard_copy' + 'Sales Model_copy'."` This prevents confusion about what was cloned.
-* **Status feedback**: Show progress ("Cloning model…" → "Cloning report…" → "✓ Done") in the existing `download_status` HTML widget.
-* **Remove from action dropdowns**: Remove the "📋 Clone Report" entry from Report Explorer and "📋 Clone Model" from Model Explorer dropdowns — the top-level buttons replace them. _(Or keep both for convenience — dropdown entries call the same functions.)_
-* **Current state (Phase 13)**: Clone callbacks exist as `_clone_report()` and `_clone_semantic_model()` in `_pbi_fixer.py`, wired into the Report Explorer and Model Explorer action dropdowns respectively. They always append `_copy` and don't check for name mismatches.
-
-### Phase 16 — Stop Load Button (v1.2.111) ✅
-
-Add a **"⏹ Stop" button** to both Model Explorer and Report Explorer that allows cancelling a long-running load operation mid-flight:
-
-* Place a Stop button next to the Load button. It is hidden/disabled by default and becomes visible+enabled only while loading is in progress.
-* When clicked, sets a shared `_cancel_load` flag (e.g. `[False]` mutable list) that the item-by-item loading loop checks before processing the next item.
-* On cancellation, the tree shows partially loaded items with a status message like `"⏹ Stopped after 3/9 items."` and the Load button re-enables.
-* The stop button is hidden/disabled again when no load is running.
-* Applies to both `on_load` in `_model_explorer.py` and `_report_explorer.py`.
-
-### Phase 17 — Native BPA & Memory Analyzer Integration (v1.2.112) ✅
-
-Replace the custom inline BPA and Memory Analyzer tab implementations with the **original upstream HTML renderers** from Semantic Link Labs, integrated as copied source code within the PBI Fixer codebase. The goal is to use the rich, tabbed HTML visualizations from `run_model_bpa()` and `vertipaq_analyzer()` directly, rather than maintaining a separate simplified version.
-
-#### Multi-Model Support
-
-The upstream `run_model_bpa()` and `vertipaq_analyzer()` each operate on a **single model**. The PBI Fixer loads multiple models at once (comma-separated or "load all"). The copied HTML rendering must be **modified to support multiple models**:
-
-* **BPA tab**: Run `run_model_bpa(return_dataframe=True)` per model, concatenate the DataFrames with an added `Model` column, then render the combined results into a single HTML table. Add a **model selector** (dropdown or tabs at the top of the BPA results panel) to filter by model, plus an "All Models" option. The native category tabs (Performance, DAX Expressions, Formatting, etc.) should work across the combined dataset — each category tab shows findings from all selected models, with the Model column visible.
-* **Memory Analyzer tab**: Run `vertipaq_analyzer()` per model, store each result dict keyed by model name. The subtab selector (Model Summary | Tables | Columns | etc.) already exists. Add a **model dropdown** at the top that switches which model's data is displayed. The "All Models" option should show a combined Model Summary table comparing all loaded models side-by-side (total size, table count, column count per model).
-* **Report BPA tab**: Already supports multi-report — no change needed.
-
-#### Approach
-
-* **Copy, don't rewrite**: Take the HTML rendering logic from `_model_bpa.py` (the styled tab UI with tooltips, severity summaries, clickable rules, URL links) and `_vertipaq.py` (the vertipaq_map, formatted HTML tables with data type icons, size formatting) and embed them as local copies inside the PBI Fixer source tree (e.g. `_bpa_native.py`, `_vertipaq_native.py`). This avoids drift from upstream while allowing amendments.
-* **Preserve amendments**: Layer the PBI Fixer-specific additions on top of the native output:
-  + **BPA tab**: Keep the auto-fix buttons (Fix All, Fix Rule, Fix Row), the fixable-rule dropdown, the row-level fix buttons, and the "Show Full BPA" button. Render the native BPA HTML (with its category tabs, severity badges, tooltips, rule URLs) as the primary results view. Append fix controls below or beside each row where a fixer is available.
-  + **Memory Analyzer tab**: Keep the tree view (models → tables → columns with size/cardinality), properties panel, and subtab selector. Use the native `vertipaq_analyzer()` dict of DataFrames as the data source (already done), but render each subtab using the upstream's formatted HTML rendering (with data type icons, number formatting, % DB column) instead of the current raw `.to_html()`. Keep the Load button, Expand/Collapse, and caching behavior.
-  + **Report BPA tab**: Use `run_report_bpa()` output as-is, keeping the "Show Native" button and PBIRLegacy auto-conversion logic.
-* **Delta Analyzer**: no change — already uses its own rendering; upstream has no equivalent.
-
-#### Source Files to Copy
-
-| Upstream Source | Local Copy | What to Extract |
-| --- | --- | --- |
-| `_model_bpa.py` | `_bpa_native.py` | HTML rendering: `styles`, `tab_html`, `content_html`, `script` generation + the `vertipaq_map`-style formatting for the results table |
-| `_model_bpa_rules.py` | (import directly) | BPA rule definitions — no copy needed, import from `sempy_labs` |
-| `_vertipaq.py` | `_vertipaq_native.py` | HTML rendering: `vertipaq_map` with data type icons + format strings, table/column/partition/relationship formatting, the `_format_size()` helper |
-| `_icons.py` | (import directly) | Icon constants (`data_type_string`, `int_format`, etc.) — import from `sempy_labs._icons` |
-
-#### Key Constraints
-
-* **Do not fork the data-fetching logic** — continue calling `run_model_bpa(return_dataframe=True)` and `vertipaq_analyzer()` as the data sources. Only copy the *rendering/HTML generation* code.
-* **Keep inline fallbacks** — if the copied native renderers fail (e.g. missing icons module in a non-SLL environment), fall back to the current simplified HTML tables.
-* **Maintain fix button wiring** — the fix buttons must still reference the `_fix_map` and `_apply_fix` functions from the BPA tab. Augment the native HTML with fix button columns or overlay ipywidgets buttons alongside the HTML output.
-* **`IPython.display` vs `ipywidgets.HTML`** — the upstream functions use `display(HTML(...))` which renders directly in notebook output. For the PBI Fixer, capture the HTML string (not the display call) and inject it into an `ipywidgets.HTML` widget inside the tab panel. Use the `return_dataframe=True` path for BPA and the dict return for vertipaq_analyzer to get data, then apply the copied formatting logic to produce the HTML string.
-
-### Phase 18 — Additional BPA Fix Scripts (v1.2.113) ✅
-
-Expand the auto-fix coverage from the current 7 BPA fixers to cover all rules where a safe, deterministic fix is possible. The upstream SLL `_model_bpa_rules.py` defines **60 rules total**. Of these, the following are already auto-fixable (Phases 9+14):
-
-| # | BPA Rule | Standalone File | Status |
-|---|----------|-----------------|--------|
-| 1 | Do not use floating point data types | `_Fix_FloatingPointDataType.py` | ✅ Done |
-| 7 | Set IsAvailableInMdx to false | `_Fix_IsAvailableInMdx.py` | ✅ Done |
-| 45 | Visible objects with no description (Measures) | `_Fix_MeasureDescriptions.py` | ✅ Done |
-| 46 | Provide format string for 'Date' columns | `_Fix_DateColumnFormat.py` | ✅ Done |
-| 56 | Provide format string for 'Month' columns | `_Fix_MonthColumnFormat.py` | ✅ Done |
-| 48 | Provide format string for measures | `_Fix_MeasureFormat.py` | ✅ Done |
-| 52 | Hide foreign keys | `_Fix_HideForeignKeys.py` | ✅ Done |
-
-The following **12 additional rules** should get standalone fix scripts in this phase:
-
-| # | BPA Rule | Proposed File | Fix Action |
-|---|----------|---------------|------------|
-| 37 | Use the DIVIDE function for division | `_Fix_UseDivideFunction.py` | Regex-replace `] / ` and `) / ` patterns in measure expressions with `DIVIDE(numerator, denominator)`. Only fix simple single-level divisions; skip nested/complex cases. Use DAX Formatter after fix to clean up. |
-| 14 | Avoid adding 0 to a measure | `_Fix_AvoidAdding0.py` | Strip `0+` or `0 +` prefix from measure expressions. |
-| 47 | Do not summarize numeric columns | `_Fix_DoNotSummarize.py` | Set `SummarizeBy = "None"` on all numeric data columns. |
-| 53 | Mark primary keys | `_Fix_MarkPrimaryKeys.py` | For each relationship's "To" column (the 1-side / primary key side), set `IsKey = True` on the column. Only apply when the column is not already a key and the table has no existing key column. |
-| 58 | Objects should not start or end with a space | `_Fix_TrimObjectNames.py` | Trim leading/trailing whitespace from object names (tables, columns, measures, hierarchies, partitions). |
-| 59 | First letter of objects must be capitalized | `_Fix_CapitalizeObjectNames.py` | Capitalize the first letter of object names. |
-| 50 | Percentages should be formatted with thousands separators | `_Fix_PercentageFormat.py` | Set format string to `#,0.0%;-#,0.0%;#,0.0%` on measures whose name contains `%`, `Percent`, or `Pct`. |
-| 51 | Whole numbers should be formatted with thousands separators | `_Fix_WholeNumberFormat.py` | Set format string to `#,0` on integer-typed measures without a format string. |
-| 57 | Format flag columns as Yes/No value strings | `_Fix_FlagColumnFormat.py` | For columns starting with `Is` or ending with `Flag` (integer type, visible), add a calculated column or set an appropriate format. |
-| 26 | Set IsAvailableInMdx to true on necessary columns | `_Fix_IsAvailableInMdxTrue.py` | Set `IsAvailableInMDX = True` on attribute/key columns that incorrectly have it set to False. |
-| 54 | Month (as a string) must be sorted | `_Fix_SortMonthColumn.py` | Set `SortByColumn` on month name columns to point to a corresponding month number column (auto-detect by naming convention). |
-| 49 | Add data category for columns | `_Fix_DataCategory.py` | Set appropriate `DataCategory` on columns based on naming conventions (e.g. columns named "City" → `DataCategory = "City"`, "Country" → "Country", "URL"/"Image" → "ImageUrl"/"WebUrl"). |
-
-Each script follows the standard pattern: `def fix_xxx(dataset, workspace, scan_only)` with standalone `print()` output and `scan_only` support. All are wired into the BPA tab's `_fix_map` for auto-fix buttons and into the Model Explorer actions dropdown.
-
-**Out of scope** (not auto-fixable — require human judgment or are destructive):
-* Remove unnecessary columns (#41), Remove unnecessary measures (#42), Remove inactive relationships (#40), Remove calc groups with no items (#44) — these are **deletion** operations that risk breaking reports. Flag only.
-* Avoid using calculated columns (#2), Reduce calculated tables (#15) — require rewriting data pipeline. Flag only.
-* Rules involving RLS logic, DirectQuery tuning, star schema design — architectural decisions. Flag only.
-
-### Phase 19 — Table Data Preview (v1.2.114) ✅
-
-Add a **table data preview** in Model Explorer: when a table node is selected in the tree, show the top N rows as an HTML table in the preview panel.
-
-* Add a row-count dropdown (Top 10 / Top 100 / All) next to the preview panel header.
-* Use `fabric.evaluate_dax()` with a `TOPN()` query against the semantic model to fetch the data.
-* Render as a styled HTML table (reuse `_df_to_html` pattern from Memory Analyzer).
-* The preview appears in the Expression/preview panel when a table node is selected (instead of showing "Select a measure").
-* For measures and columns, keep the existing DAX expression view.
+| # | Phase | Version | Summary |
+|---|-------|---------|---------|
+| 1 | Foundation | v1.1.0 | `_ui_components.py`, `_model_explorer.py`, `_report_explorer.py`, `_pbi_fixer.py` tab wrapper |
+| 2 | SM Properties & Editing | v1.2.x | Properties panel, editable DAX, save button, Perspective Editor tab |
+| 3 | Report Preview & Properties | v1.2.x | `powerbiclient.Report` embed, visual properties, page navigation, fixer actions dropdown |
+| 4 | Multi-Item Connection & PBIR Gate | v1.2.8–1.2.24 | Comma-separated input, blank=all, PBIR format check, PBIRLegacy warnings, Convert All button |
+| 5 | Fixer Tab Redesign | v1.2.8–1.2.24 | God Button, fixers in Explorer dropdowns, tab hidden by default, Format All DAX, MeasuresFromColumns, PYMeasures |
+| 6 | UI Polish | v1.2.14–1.2.42 | Full-width layout, multi-select, deduplication, branded header, About tab, version footer |
+| 7 | Scan Mode & Violation Counts | v1.2.26–1.2.43 | Scan button per tab, violation badges, "Fix this" buttons, re-scan after fix |
+| 8 | VertipaqAnalyzer & Memory | v1.2.36–1.2.38 | 💾 Memory Analyzer tab with subtabs, tree, DataFrame rendering, cache |
+| 9 | BPA Integration & Auto-Fixers | v1.2.44–1.2.99 | 📋 BPA tab + 📄 Report BPA tab, category tabs, Fix All/Fix Rule/Fix Row, Show Native |
+| 10 | Delta Analyzer & Download | v1.2.44–1.2.99 | 📐 Delta Analyzer tab, ⬇ Download .pbix/.pbip buttons |
+| 11 | UI Alignment & Consistency | v1.2.105 | Three-panel layout alignment, border/padding audit, full-width stretch |
+| 12 | Dropdown Item Selector | v1.2.106 | `widgets.Combobox` with API-populated dropdown, icon prefixes 📄/📊, List Items button |
+| 13 | Clone Report + Semantic Model | v1.2.107 | Clone via `getDefinition` → `createItem`, auto-increment suffix (_copy, _copy2, _copy3) |
+| 14 | Extract BPA Fixers to Files | v1.2.108 | 7 BPA fixers → standalone files in `semantic_model/` with `scan_only` support |
+| 15 | Clone Buttons & Name Mismatch | v1.2.110 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
+| 16 | Stop Load Button | v1.2.111 | ⏹ Stop button on both Explorers, `_cancel_load` flag |
+| 17 | Native BPA & Memory Analyzer | v1.2.112 | BPA category ToggleButtons, Memory Analyzer subtabs (no tree, direct DataFrames) |
+| 18 | Additional BPA Fix Scripts | v1.2.113 | 12 more BPA fixers → 19 total standalone files |
+| 19 | Table Data Preview | v1.2.114 | Top N rows via `evaluate_dax(TOPN(...))` in Model Explorer preview panel |
+| 20 | Search & Filter Tree | v1.2.141 | `widgets.Text` filter above both Explorer trees, real-time keystroke filtering |
+| 21 | Incremental Refresh Setup | v1.2.142 | `_Setup_IncrementalRefresh.py`, auto date column detection, Model Explorer action |
+| 22 | Fix Visual Alignment | v1.2.143 | `_Fix_VisualAlignment.py`, customizable `tolerance_pct` (2%), Report Explorer action |
+| 23 | Design Theme Editor | v1.2.144 | `_report_theme.py` — `get/set/update_theme_colors()`, `show_theme_summary()` |
+| 24 | Format Overview | v1.2.145 | Report Explorer subtab, workspace-wide PBIR/PBIRLegacy status, Convert All Legacy |
+| 25 | Model Diagram Tab | v1.2.146 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
+| 26 | Report Prototyping | v1.2.123–1.2.153 | 📐 Prototype tab, SVG + Excalidraw, optional page screenshots (Export API), progress bar, suppressed output |
+| 27 | Script Runner Tab | v1.2.147 | ⚙️ Python script runner with TOM in scope. Disabled pending security review. |
+| 28 | Grouped BPA Fixer Checkboxes | v1.2.152 | 6 category groups (Data Types, Formatting, Naming, Schema, MDX, Documentation) with select-all + Fix Selected |
 
 ---
 
 ## Remaining Work
 
-### Phase 20 — Extended Model Explorer Properties (Planned)
-
-Add more properties to the Model Explorer properties panel:
+### Phase 29 — Extended Model Explorer Properties
 
 * **Columns**: encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category.
 * **Tables**: mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag.
 * **Measures**: is-hidden, lineage tag, KPI properties (if any).
 * **Relationships**: cross-filter direction, security filtering, is-active, rely-on-referential-integrity.
-* All additional properties read from the TOM `_model_data` cache (extend `_load_model_data_fast` / `_load_model_data_tom`).
 
-### Phase 21 — Editable Report Explorer Properties (Planned)
+### Phase 30 — Editable Report Explorer Properties
 
-Make Report Explorer visual/page properties editable via `connect_report`:
+* **Pages**: editable display name, width, height, background color, hidden flag.
+* **Visuals**: editable position (x, y), size (width, height), title text, hidden flag.
+* Save button with dirty-state tracking. Writes via `connect_report` in read-write mode.
 
-* **Pages**: allow editing display name, width, height, background color, hidden flag.
-* **Visuals**: allow editing position (x, y), size (width, height), title text, hidden flag.
-* Show editable `widgets.Text` / `widgets.IntText` fields in the properties panel (same pattern as Model Explorer).
-* Add a Save button with dirty-state tracking. Writes go through `connect_report` in read-write mode.
+### Phase 31 — Read Stats from Data Toggle
 
-### Phase 22 — Read Stats from Data Toggle (Planned)
+* `read_stats_from_data=True` checkbox in Memory Analyzer nav row for Direct Lake models.
 
-* `read_stats_from_data=True` toggle for Direct Lake models in Memory Analyzer.
-* Add a checkbox in the Memory Analyzer nav row; when checked, calls `vertipaq_analyzer(read_stats_from_data=True)`.
+### Phase 32 — Measure Dependency Tree
 
-### Phase 23 — Measure Dependency Tree (Planned)
+* Measure dependency tree/DAG visualization leveraging `anytree` patterns in SLL.
+* Show which measures reference which other measures/columns.
 
-* Measure dependency tree visualization leveraging existing `anytree` patterns in Semantic Link Labs.
-* Show which measures reference which other measures/columns as a tree or DAG.
-
-### Phase 24 — Search & Filter Tree (v1.2.141) ✅
-
-* Search/filter input above the tree for both Model Explorer and Report Explorer.
-* Filter tree items by name in real time as the user types.
-* Implemented as a `widgets.Text` input above each tree that filters on keystroke.
-
-### Phase 25 — Export Scan Results (Planned)
+### Phase 33 — Export Scan Results
 
 * Export scan results to DataFrame / CSV for external reporting.
-* Add an "Export" button next to the Scan button.
+* "Export" button next to the Scan button.
 
-### Phase 26 — Batch Fixer Presets (Planned)
+### Phase 34 — Batch Fixer Presets
 
-* Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
+* Presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
 * Preset dropdown in the Fixer tab or as a top-level action.
 
-### Phase 27 — Incremental Refresh Setup (v1.2.142) ✅
-
-* Incremental refresh setup in Model Explorer actions dropdown.
-* Auto-detects date columns in the selected table.
-* UI form: date column picker, lookback window, incremental rows count.
-* Uses `_Setup_IncrementalRefresh.py` standalone module.
-
-### Phase 28 — Fix Visual Alignment & Size (v1.2.143) ✅
-
-* `report/_Fix_VisualAlignment.py` — detects and corrects misaligned chart visuals.
-* Customizable `tolerance_pct` (default 2%).
-* `scan_only` support. Wired into Report Explorer actions dropdown.
-
-### Phase 29 — Design Theme Editor (v1.2.144) ✅
-
-* `report/_report_theme.py` — standalone theme get/set/update module.
-* `get_report_theme()`, `set_report_theme()`, `update_theme_colors()`, `show_theme_summary()`.
-* Visual editor for colors in Report Explorer actions.
-* Save back via `connect_report` / `updateDefinition`.
-
-### Phase 30 — Background Editor (Planned)
+### Phase 35 — Background Editor
 
 * Set/change page backgrounds: solid color picker (hex input), transparency slider (0–100%).
 * Apply to current page or all pages. Modifies PBIR page `background` property.
 
-### Phase 31 — Logo Uploader (Planned)
+### Phase 36 — Logo Uploader
 
 * Add a logo/image to report pages via URL input.
 * Preview inline, insert as Image visual at configurable position/size.
-* Apply to current page or all pages. Uses `connect_report`.
 
-### Phase 32 — Standard Design Themes (Planned)
+### Phase 37 — Standard Design Themes
 
 * Dropdown of built-in Microsoft theme presets applied in one click.
 * Source from Microsoft's official theme gallery. Apply via `updateDefinition`.
 
-### Phase 33 — Enhanced Fix Page Size (Planned)
+### Phase 38 — Enhanced Fix Page Size
 
-* Extend `_Fix_PageSize.py`: proportionally resize all visuals + scale font sizes when page size changes.
+* Extend `_Fix_PageSize.py`: proportionally resize all visuals + scale font sizes.
 * `resize_visuals=True` and `resize_fonts=True` parameters. `scan_only` compatible.
 
-### Phase 34 — Fix Variance Charts (Planned)
+### Phase 39 — Fix Variance Charts
 
 * IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`).
-* Detect bar/column charts with variance indicators. Apply positive/negative color formatting.
-* Axis/label cleanup. Waterfall chart support. Wired into Report Explorer actions.
+* Positive/negative color formatting, axis/label cleanup, waterfall chart support.
 
-### Phase 35 — Design Preview Before Fix (Planned)
+### Phase 40 — Design Preview Before Fix
 
-* General pattern: show 2–4 design preset previews (HTML/SVG mockups) before applying a fix.
+* Show 2–4 design preset previews (HTML/SVG mockups) before applying a fix.
 * User selects preset, confirms with "Apply". Framework in `_ui_components.py`.
-* Presets for variance charts (IBCS Standard/Strict/Traffic Light/Monochrome), bar/column, pie replacement.
 
-### Phase 36 — Workspace Report Format Overview (v1.2.145) ✅
+### Phase 41 — AI Assistant
 
-* Format Overview subtab in Report Explorer.
-* Lists all reports in workspace with PBIR/PBIRLegacy format status.
-* Color-coded badges: PBIR = green, PBIRLegacy = orange.
-* "Convert All Legacy" button for batch conversion.
-
-### Phase 37 — Model Diagram Tab (v1.2.146) ✅
-
-* 🗺 Model Diagram tab — SVG visualization of table relationships.
-* Table boxes with key columns, relationship lines with cardinality labels.
-* Automatic layout: fact tables centered, dimensions radiate outward.
-* Model dropdown for multi-model support.
-* Generate button + export SVG to lakehouse.
-
-### Phase 38 — Report Prototyping with Excalidraw (v1.2.123) ✅
-
-Add a **📐 Report Prototype** tab (or action) that generates an Excalidraw diagram of the loaded report, showing all pages as **actual rendered screenshots**, navigation dependencies, and measure/table usage as a complete visual map.
-
-#### Page Screenshots (Feasible — Server-Side Rendering)
-
-Each page is rendered as an **actual PNG screenshot** using the Power BI Export To File REST API (`export_report(format="PNG", page_name=...)`). This is a server-side render — no browser/Playwright needed. Works in Fabric Notebooks.
-
-* Use `sempy_labs.report.export_report(report, export_format="PNG", page_name=page_guid)` per page.
-* The Export API is async (polls for completion), takes ~5-15s per page. A 20-page report ≈ 2-5 minutes.
-* Read the exported PNG from the lakehouse, convert to base64, embed in the Excalidraw `files` object.
-* Create `image` elements in Excalidraw referencing the base64 files — same pattern as PBI-Prototyping screenshots.
-* Scale images to ~50% (960×540) for readability in the overview diagram.
-* **Requires Premium/Fabric capacity** (the Export API needs it — but the PBI Fixer already runs on Fabric).
-
-#### Diagram Structure
-
-* **Page screenshots** arranged horizontally by category or navigation hierarchy. Each has a title label above and a one-line description below.
-* **Navigation arrows**: Draw arrows between pages that have drill-through targets, button navigation actions, or bookmark links. Parse PBIR visual definitions for `drillthrough`, `navigation`, and `bookmark` actions.
-* **Visual inventory overlay**: Optionally annotate each page screenshot with badges showing visual count by type (e.g. "3× bar, 2× card, 1× slicer").
-* **Measure → Page mapping**: Show which measures appear on which pages. Highlight "orphan" measures (defined in the model but not used on any page) and "hot" measures (used on many pages).
-
-#### Excalidraw JSON Generation
-
-* Build the diagram as an `.excalidraw` JSON file using the PBI-Prototyping Python approach.
-* Elements: `image` (page screenshots), `text` (labels), `arrow` (navigation links), `rectangle` (category headers), `ellipse` (measure nodes).
-* Color coding by page level/category (teal L1, blue L2, purple L3, orange L4, etc.).
-
-#### Inline HTML Display
-
-Display the diagram **directly in the PBI Fixer** as an interactive HTML view — no need to open a separate file:
-
-* **SVG rendering**: Generate the diagram as **inline SVG** (not just Excalidraw JSON). Since we build the elements programmatically (rectangles, text, arrows, images), generate a parallel SVG string using the same coordinates and styles. Embed page screenshot PNGs as base64 `<image>` elements in the SVG.
-* **Display in a new tab**: Add a **📐 Report Prototype** tab to the PBI Fixer. The tab contains an `ipywidgets.HTML` widget showing the SVG diagram with overflow scroll (both x and y) for large reports.
-* **Page relationship mapping** (included in the diagram):
-  + Drill-through targets (from `list_pages()`)
-  + Button navigation actions (from visual JSON)
-  + Bookmarks (from `list_bookmarks()`)
-  + Measure usage per page (from `list_visual_objects()`)
-  + Arrows between pages show navigation flow; orphan pages highlighted in red.
-* **Interactive click** (if feasible): SVG `<a>` links on page boxes that switch to the Report Explorer tab and select that page in the tree. Otherwise, the SVG is static but pannable/zoomable via CSS `overflow: auto`.
-* **Refresh button**: Re-generate the diagram after applying fixers to see before/after changes.
-
-#### Export Options
-
-* Save as `.excalidraw` file to lakehouse Files (openable in VS Code with Excalidraw extension).
-* Save the inline SVG as `.svg` file.
-* Save page screenshots to `PBI-Prototyping/<Report Name>/screenshots/` folder.
-* **Before/After comparison**: Generate a "before" snapshot on load and an "after" snapshot after fixes, side by side.
-
-#### Fallback (Export API Failure)
-
-Since the PBI Fixer already runs in a Fabric Notebook (which requires Fabric capacity), and the Export API also requires Fabric/Premium capacity on the report's workspace, there is **no additional capacity requirement** for page screenshots. The fallback is only needed if the Export API fails for other reasons (permissions, timeouts, service issues). In that case, fall back to text-only boxes with page name, visual count, and visual types — no screenshots.
-
-### Phase 39 — Script Runner Tab (v1.2.147) ✅
-
-Add a **⚙️ Script Runner** tab that allows executing Python scripts with the TOM semantic model object in scope.
-
-* **Why Python, not C#**: Fabric Notebooks don't include a C# compiler (Roslyn). But through `pythonnet`, the TOM object model is fully accessible from Python — giving the same capabilities as Tabular Editor C# scripts.
-* **Interface**: A `Textarea` for entering/pasting Python code + a "▶ Run" button.
-* **Execution context**: The script runs with `tom` (the connected TOM model) in scope, plus `model` as a shortcut for `tom.model`. Also `fabric`, `pd`, and all common imports pre-loaded.
-* **Output**: Captured via `redirect_stdout` and displayed in an HTML output area below the script.
-* **Script templates**: A dropdown with common script templates (list all measures, list all columns, rename pattern, etc.) that pre-fill the textarea.
-* **Safety**: Read-only by default (checkbox to enable write mode). Write mode shows an XMLA warning.
-
-### Phase 40 — AI Assistant (Planned)
-
-* **AI Assistant window** (Michael's AI window): integrate the Semantic Link Labs AI/Copilot chat interface into the PBI Fixer as an additional tab or slide-out panel. This leverages the existing `sempy_labs._ai` module and/or the `sempy_labs.rti._copilot` module. The AI window should:
-  + Provide a chat interface where users can ask natural-language questions about their loaded semantic model or report (e.g. "Which measures are unused?", "Suggest DAX optimizations", "Explain this measure").
-  + Have context awareness — automatically pass the currently loaded model/report metadata (table names, measure expressions, relationships) as context to the AI.
-  + Support quick actions from AI suggestions (e.g. AI suggests hiding a column → one-click button to apply via XMLA).
-  + Research Michael Kovalsky's existing AI window implementation in SLL to determine the correct integration points and API surface.
-
-### Phase 41 — Grouped BPA Fixer Checkboxes (v1.2.152) ✅
-
-Replaced the flat rule dropdown + "Fix Rule" button with a **grouped checkbox panel**:
-
-* **6 fixer categories**: 🔢 Data Types, 📊 Formatting, 🏷 Naming, 🔗 Schema, 📡 MDX, 📝 Documentation.
-* Each group has a **select-all checkbox** that toggles all rules in that group.
-* Only rules with actual BPA findings are shown (groups without findings are hidden).
-* Each rule checkbox shows the finding count (e.g. "Hide foreign keys (12)").
-* **"⚡ Fix Selected" button** fixes all checked rules at once.
-* "Fix Row" button retained for single-row fixes.
-* "⚡ Fix All" button still available for fixing everything regardless of checkboxes.
+* Integrate SLL AI/Copilot chat interface as a tab or slide-out panel.
+* Context-aware: pass loaded model/report metadata (tables, measures, relationships) to AI.
+* Quick-action buttons from AI suggestions (e.g. "Hide this column" → one-click XMLA apply).
+* Research Michael Kovalsky's `sempy_labs._ai` / `sempy_labs.rti._copilot` integration points.
 
 ---
 
@@ -781,7 +399,7 @@ Exceptions: XMLA warning box uses `#ffc107` border.
 | God button | "⚡ Fix Everything" runs all checked fixers | Most common action; reduces clicks for the typical workflow |
 | Fixer tab hidden | `show_fixer_tab=False` by default | All fixers accessible via Actions dropdowns in Report/SM tabs |
 | Scan mode | Integrated toggle per tab, not a separate tab | Violations visible where objects are; no context switching needed |
-| BPA fixers | 19 standalone files + inline per-row wrappers in `_bpa_tab()` | Each has a standalone file with `scan_only`; inline wrappers handle per-row BPA fix buttons |
+| BPA fixers | 19 standalone files + grouped checkbox UI in `_bpa_tab()` | Each has a standalone file with `scan_only`; grouped into 6 categories with select-all checkboxes |
 | Analysis tabs inline | Vertipaq, BPA, Report BPA, Delta Analyzer in `_pbi_fixer.py` | No external file dependency; these tabs are read-only analysis, not reusable modules |
 
 ---
@@ -829,7 +447,7 @@ Exceptions: XMLA warning box uses `#ffc107` border.
 
 | File | Status |
 | --- | --- |
-| `_pbi_fixer.py` | ✅ Pushed (v1.2.99) |
+| `_pbi_fixer.py` | ✅ Pushed (v1.2.152) |
 | `_ui_components.py` | ✅ Pushed |
 | `_model_explorer.py` | ✅ Pushed |
 | `_report_explorer.py` | ✅ Pushed |
