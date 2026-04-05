@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.213"
+__version__ = "1.2.214"
 
 import ipywidgets as widgets
 import io
@@ -2845,6 +2845,7 @@ def pbi_fixer(
 
             # 3) Model BPA
             try:
+                from sempy_labs._fix_model_bpa import _RULE_TO_FIXER as _mbpa_map
                 _ipd.display = lambda *a, **kw: None
                 try:
                     from sempy_labs import run_model_bpa
@@ -2856,13 +2857,16 @@ def pbi_fixer(
                         rule = str(row.get("Rule Name", ""))
                         obj = str(row.get("Object Name", ""))
                         sev = str(row.get("Severity", ""))
-                        detail = f"[Sev {sev}] {rule}: {obj}"
+                        has_fix = rule.lower().strip() in _mbpa_map
+                        fix_tag = "" if has_fix else " (no auto-fix)"
+                        detail = f"[Sev {sev}] {rule}: {obj}{fix_tag}"
                         _fa_findings.append(("\U0001F4CB Model BPA", item, rule, detail))
             except Exception:
                 pass
 
             # 4) Report BPA
             try:
+                from sempy_labs.report._fix_report_bpa import _RULE_TO_FIXER as _rbpa_map
                 _ipd.display = lambda *a, **kw: None
                 try:
                     from sempy_labs.report import run_report_bpa
@@ -2874,7 +2878,9 @@ def pbi_fixer(
                         rule = str(row.get("Rule Name", ""))
                         obj = str(row.get("Object Name", ""))
                         sev = str(row.get("Severity", ""))
-                        detail = f"[Sev {sev}] {rule}: {obj}"
+                        has_fix = rule.lower().strip() in _rbpa_map
+                        fix_tag = "" if has_fix else " (no auto-fix)"
+                        detail = f"[Sev {sev}] {rule}: {obj}{fix_tag}"
                         _fa_findings.append(("\U0001F4C4 Report BPA", item, rule, detail))
             except Exception:
                 pass
@@ -2980,6 +2986,10 @@ def pbi_fixer(
         from contextlib import redirect_stdout as _redirect
         ok = 0
         err = 0
+        # Track already-run BPA fixers to avoid duplicates (BPA fixers run per-model, not per-rule)
+        _bpa_model_done = set()  # (item, fixer_key)
+        _bpa_report_done = set()
+
         for (cat, item_name, fixer_name) in to_run:
             try:
                 buf = _io.StringIO()
@@ -2990,8 +3000,27 @@ def pbi_fixer(
                     elif cat == "\U0001F4C4 Model Fixers":
                         if fixer_name in _model_fixer_cbs:
                             _model_fixer_cbs[fixer_name](report=item_name, workspace=ws, scan_only=False)
-                    # BPA findings are informational — no auto-fix from here
-                    # (user should use the BPA tab's Fix Rule feature)
+                    elif cat == "\U0001F4CB Model BPA":
+                        # Use standalone fixer via rule mapping
+                        from sempy_labs._fix_model_bpa import _RULE_TO_FIXER as _mbpa_map
+                        rule_key = fixer_name.lower().strip()
+                        if rule_key in _mbpa_map and (item_name, rule_key) not in _bpa_model_done:
+                            _bpa_model_done.add((item_name, rule_key))
+                            import importlib
+                            mod_path, fn_name = _mbpa_map[rule_key]
+                            mod = importlib.import_module(mod_path)
+                            fn = getattr(mod, fn_name)
+                            fn(dataset=item_name, workspace=ws, scan_only=False)
+                    elif cat == "\U0001F4C4 Report BPA":
+                        from sempy_labs.report._fix_report_bpa import _RULE_TO_FIXER as _rbpa_map
+                        rule_key = fixer_name.lower().strip()
+                        if rule_key in _rbpa_map and (item_name, rule_key) not in _bpa_report_done:
+                            _bpa_report_done.add((item_name, rule_key))
+                            import importlib
+                            mod_path, fn_name = _rbpa_map[rule_key]
+                            mod = importlib.import_module(mod_path)
+                            fn = getattr(mod, fn_name)
+                            fn(report=item_name, workspace=ws, scan_only=False)
                 ok += 1
             except Exception:
                 err += 1
