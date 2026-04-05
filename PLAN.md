@@ -329,7 +329,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
 | 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
 | 38 | Enhanced Fix Page Size | Proportionally resize all visuals + scale fonts on page size change. |
-| 41 | AI Assistant | SLL has no SM AI chat module yet. Would need custom LLM integration. Defer. |
 | 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. TE2 feature. |
 | 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). TE2 feature. |
 | 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. TE2 core feature. |
@@ -342,6 +341,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
 | 48 | Deployment Wizard | Deploy model to target workspace with options (skip partitions, skip roles, etc.). |
 | 49 | Model Comparison / Diff | Compare two models side by side, highlight differences (schema diff). |
+| 41 | AI Assistant | SLL has no SM AI chat module yet. Would need custom LLM integration. Lowest priority. |
 
 ---
 
