@@ -1200,76 +1200,72 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _cancel_load[0] = False
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
-        def _do_load(items, ws):
-            nonlocal _model_data
-            start_time = time.time()
-            merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
-            loaded = 0
-            errors = 0
+        start_time = time.time()
+        merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
+        loaded = 0
+        errors = 0
 
-            try:
-                for i, ds in enumerate(items):
-                    if _cancel_load[0]:
-                        break
-                    if time.time() - start_time > _LOAD_TIMEOUT:
-                        set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
-                        break
-                    set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
-                    try:
-                        data = _load_model_data_fast(dataset=ds, workspace=ws, cancel_flag=_cancel_load)
-                        if len(items) > 1:
-                            merged_data["models"][ds] = data["tables"]
-                            merged_data["model_relationships"][ds] = data.get("relationships", [])
-                            merged_data["model_perspectives"][ds] = data.get("perspectives", [])
-                        else:
-                            merged_data["tables"].update(data["tables"])
-                            merged_data["relationships"] = data.get("relationships", [])
-                            merged_data["perspectives"] = data.get("perspectives", [])
-                            merged_data["_dataset_name"] = ds
-                            merged_data["model_properties"] = data.get("model_properties", {})
-                        loaded += 1
-                    except Exception as e:
-                        errors += 1
-                        set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
-
-                _model_data = merged_data
-
-                # Auto-expand all items after load
-                models = _model_data.get("models", {})
-                if models:
-                    for m_name, m_tables in models.items():
-                        _expanded.add(m_name)
-                        for t_name in m_tables:
-                            _expanded.add(f"{m_name}\x1f{t_name}")
-                else:
-                    ds_name = _model_data.get("_dataset_name", "Model")
-                    _expanded.add(ds_name)
-                    _expanded.update(_model_data.get("tables", {}).keys())
-
-                _refresh_tree()
-                all_tables = {}
-                all_tables.update(_model_data.get("tables", {}))
-                for m_tables in _model_data.get("models", {}).values():
-                    all_tables.update(m_tables)
-                n_t = len(all_tables)
-                n_m = sum(len(t["measures"]) for t in all_tables.values())
-                n_c = sum(len(t["columns"]) for t in all_tables.values())
-                elapsed = int(time.time() - start_time)
-                err_str = f", {errors} error(s)" if errors else ""
+        try:
+            for i, ds in enumerate(items):
                 if _cancel_load[0]:
-                    set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models: {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#ff9500")
-                else:
-                    set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
-                preview.value = "Select a measure to view its DAX expression."
-            except Exception as e:
-                set_status(conn_status, f"Error: {e}", "#ff3b30")
-            finally:
-                load_btn.disabled = False
-                load_btn.description = "Load Model"
-                stop_btn.layout.display = "none"
-                _cancel_load[0] = False
+                    break
+                if time.time() - start_time > _LOAD_TIMEOUT:
+                    set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
+                    break
+                set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
+                try:
+                    data = _load_model_data_fast(dataset=ds, workspace=ws, cancel_flag=_cancel_load)
+                    if len(items) > 1:
+                        merged_data["models"][ds] = data["tables"]
+                        merged_data["model_relationships"][ds] = data.get("relationships", [])
+                        merged_data["model_perspectives"][ds] = data.get("perspectives", [])
+                    else:
+                        merged_data["tables"].update(data["tables"])
+                        merged_data["relationships"] = data.get("relationships", [])
+                        merged_data["perspectives"] = data.get("perspectives", [])
+                        merged_data["_dataset_name"] = ds
+                        merged_data["model_properties"] = data.get("model_properties", {})
+                    loaded += 1
+                except Exception as e:
+                    errors += 1
+                    set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
 
-        threading.Thread(target=_do_load, args=(items, ws), daemon=True).start()
+            _model_data = merged_data
+
+            # Auto-expand all items after load
+            models = _model_data.get("models", {})
+            if models:
+                for m_name, m_tables in models.items():
+                    _expanded.add(m_name)
+                    for t_name in m_tables:
+                        _expanded.add(f"{m_name}\x1f{t_name}")
+            else:
+                ds_name = _model_data.get("_dataset_name", "Model")
+                _expanded.add(ds_name)
+                _expanded.update(_model_data.get("tables", {}).keys())
+
+            _refresh_tree()
+            all_tables = {}
+            all_tables.update(_model_data.get("tables", {}))
+            for m_tables in _model_data.get("models", {}).values():
+                all_tables.update(m_tables)
+            n_t = len(all_tables)
+            n_m = sum(len(t["measures"]) for t in all_tables.values())
+            n_c = sum(len(t["columns"]) for t in all_tables.values())
+            elapsed = int(time.time() - start_time)
+            err_str = f", {errors} error(s)" if errors else ""
+            if _cancel_load[0]:
+                set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models: {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#ff9500")
+            else:
+                set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
+            preview.value = "Select a measure to view its DAX expression."
+        except Exception as e:
+            set_status(conn_status, f"Error: {e}", "#ff3b30")
+        finally:
+            load_btn.disabled = False
+            load_btn.description = "Load Model"
+            stop_btn.layout.display = "none"
+            _cancel_load[0] = False
 
     def on_select(change):
         selected = change.get("new", ())
