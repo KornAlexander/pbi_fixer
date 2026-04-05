@@ -36,7 +36,7 @@ def _list_workspace_datasets(workspace):
     return [d.get("name") for d in response.json().get("value", []) if d.get("name")]
 
 
-def _load_model_data_fast(dataset, workspace, cancel_flag=None):
+def _load_model_data_fast(dataset, workspace):
     """
     Load model metadata using sempy.fabric DataFrames (fast REST API).
     Falls back to TOM for hierarchies, calc groups, and table type detection.
@@ -95,8 +95,6 @@ def _load_model_data_fast(dataset, workspace, cancel_flag=None):
     try:
         with connect_semantic_model(dataset=dataset, readonly=True, workspace=workspace) as tm:
             for table in tm.model.Tables:
-                if cancel_flag and cancel_flag[0]:
-                    break
                 t_name = table.Name
                 if t_name not in model_data["tables"]:
                     continue
@@ -577,8 +575,6 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     _scan_results = {}  # key -> violation count
 
     load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
-    stop_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
-    _cancel_load = [False]
     expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
     collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
     scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="110px"))
@@ -595,14 +591,9 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(width="100px"),
     )
 
-    def _on_stop(_):
-        _cancel_load[0] = True
-
-    stop_btn.on_click(_on_stop)
-
     conn_status = status_html()
     nav_row = widgets.HBox(
-        [load_btn, stop_btn, expand_btn, collapse_btn, conn_status],
+        [load_btn, expand_btn, collapse_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
     action_row = widgets.HBox(
@@ -1196,8 +1187,6 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
         load_btn.disabled = True
         load_btn.description = "Loading\u2026"
-        stop_btn.layout.display = ""
-        _cancel_load[0] = False
         set_status(conn_status, f"Loading {len(items)} model(s)\u2026", GRAY_COLOR)
 
         start_time = time.time()
@@ -1207,14 +1196,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
         try:
             for i, ds in enumerate(items):
-                if _cancel_load[0]:
-                    break
                 if time.time() - start_time > _LOAD_TIMEOUT:
                     set_status(conn_status, f"\u23f1\ufe0f Timeout after {loaded}/{len(items)} models.", "#ff9500")
                     break
                 set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
                 try:
-                    data = _load_model_data_fast(dataset=ds, workspace=ws, cancel_flag=_cancel_load)
+                    data = _load_model_data_fast(dataset=ds, workspace=ws)
                     if len(items) > 1:
                         merged_data["models"][ds] = data["tables"]
                         merged_data["model_relationships"][ds] = data.get("relationships", [])
@@ -1254,18 +1241,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             n_c = sum(len(t["columns"]) for t in all_tables.values())
             elapsed = int(time.time() - start_time)
             err_str = f", {errors} error(s)" if errors else ""
-            if _cancel_load[0]:
-                set_status(conn_status, f"\u23f9 Stopped after {loaded}/{len(items)} models: {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#ff9500")
-            else:
-                set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
+            set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
             preview.value = "Select a measure to view its DAX expression."
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
         finally:
             load_btn.disabled = False
             load_btn.description = "Load Model"
-            stop_btn.layout.display = "none"
-            _cancel_load[0] = False
 
     def on_select(change):
         selected = change.get("new", ())
