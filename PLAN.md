@@ -305,6 +305,12 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Remaining Work (prioritized)
 
+### Prio 0 — Implement Next
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+
 ### Prio 1 — High Priority
 
 | # | Feature | Description |
@@ -312,7 +318,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 29b | Extended Properties (expensive) | Tables: row count (evaluate_dax), storage mode per table. Deferred from 29a — requires extra API calls. |
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
-| 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
 | 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. Core TE2 feature. |
 
