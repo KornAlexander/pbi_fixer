@@ -85,6 +85,15 @@ def _load_report_data(report, workspace):
         report_data["report_id"] = str(getattr(rw, "_report_id", "") or "")
         report_data["workspace_id"] = str(getattr(rw, "_workspace_id", "") or "")
 
+        # Read page order from pages.json
+        _page_order = {}
+        try:
+            pages_meta = rw.get(file_path="definition/pages/pages.json")
+            for idx, pn in enumerate(pages_meta.get("pageOrder", [])):
+                _page_order[pn] = idx
+        except Exception:
+            pass
+
         # list_pages/list_visuals may fail on NaN→int conversion inside upstream code
         try:
             pages_df = rw.list_pages()
@@ -99,7 +108,7 @@ def _load_report_data(report, workspace):
             import pandas as pd
             visuals_df = pd.DataFrame(columns=["Page Name", "Visual Name", "Type", "Display Type", "X", "Y", "Width", "Height", "Hidden", "Title"])
 
-        for _, row in pages_df.iterrows():
+        for _row_idx, row in pages_df.iterrows():
             p_name = _safe_str(row.get("Page Name", row.get("Page Display Name", "")))
             display_name = _safe_str(row.get("Page Display Name", p_name))
             p_info = {
@@ -108,6 +117,7 @@ def _load_report_data(report, workspace):
                 "height": _safe_int(row.get("Height")),
                 "hidden": _safe_bool(row.get("Hidden")),
                 "visual_count": _safe_int(row.get("Visual Count")),
+                "ordinal": _page_order.get(p_name, 9999),
                 "visuals": {},
             }
             report_data["pages"][p_name] = p_info
@@ -152,7 +162,7 @@ def _build_tree(report_data, expanded_pages, scan_results=None):
             items.append((0, "page", f"{marker} {r_name}{fmt_str}  [{p_count} pages]{badge}", f"report:{r_name}"))
             if not is_rpt_expanded:
                 continue
-            for p_name in r["pages"]:
+            for p_name in sorted(r["pages"], key=lambda pn: r["pages"][pn].get("ordinal", 9999)):
                 p = r["pages"][p_name]
                 full_key = f"{r_name}\x1f{p_name}"
                 is_expanded = full_key in expanded_pages
@@ -176,7 +186,7 @@ def _build_tree(report_data, expanded_pages, scan_results=None):
                         label += f" \u26a0\ufe0f{scan_results[v_key]}"
                     items.append((2, "visual", label, v_key))
     else:
-        for p_name in report_data.get("pages", {}):
+        for p_name in sorted(report_data.get("pages", {}), key=lambda pn: report_data["pages"][pn].get("ordinal", 9999)):
             p = report_data["pages"][p_name]
             is_expanded = p_name in expanded_pages
             marker = EXPANDED if is_expanded else COLLAPSED
