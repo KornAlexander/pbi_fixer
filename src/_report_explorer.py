@@ -366,7 +366,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="420px", font_family="monospace"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="520px", font_family="monospace"))
     tree_search = widgets.Text(placeholder="\U0001F50D Filter tree\u2026", layout=widgets.Layout(width="320px"))
     _all_tree_options = []
 
@@ -433,8 +433,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _widget_ws = {}    # report_id -> workspace_id (for refresh)
     refresh_btn = widgets.Button(description="\U0001F504 Refresh", layout=widgets.Layout(width="100px"))
     # Use a VBox as the container — we swap its children to show the Report widget
-    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="300px"))
-    preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="450px")
+    preview_content = widgets.VBox([preview_placeholder], layout=widgets.Layout(width="100%", min_height="400px"))
+    preview_box = panel_box([preview_label, widgets.HBox([refresh_btn], layout=widgets.Layout(justify_content="flex-end", margin="0 0 4px 0")), preview_content], flex="1", min_height="520px")
 
     def _get_or_create_widget(report_id, workspace_id):
         """Get cached widget or create new one. Returns widget or None."""
@@ -443,7 +443,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         try:
             from powerbiclient import Report as PBIReport
             rpt_widget = PBIReport(group_id=workspace_id, report_id=report_id)
-            rpt_widget.layout = widgets.Layout(width="100%", height="400px")
+            rpt_widget.layout = widgets.Layout(width="100%", height="480px")
             _widget_cache[report_id] = rpt_widget
             _widget_ws[report_id] = workspace_id
             return rpt_widget
