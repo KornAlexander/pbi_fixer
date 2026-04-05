@@ -38,12 +38,13 @@ The tool connects to an entire workspace of semantic models and reports (display
 ```
 src/
   _pbi_fixer.py          # Tab wrapper + Fixer UI + PBIR check gate + inline tabs
-                         #   (Vertipaq, BPA, Report BPA, Delta Analyzer, About)
+                         #   (Memory Analyzer, BPA, Report BPA, Delta Analyzer,
+                         #    Prototype, Model Diagram, Script Runner, About)
   _ui_components.py      # Shared theme, icons, tree-building, layout helpers
-  _model_explorer.py     # Model Explorer tab
+  _model_explorer.py     # Model Explorer tab (renamed from _sm_explorer.py at v1.2.119)
   _report_explorer.py    # Report Explorer tab
   _perspective_editor.py # Perspective Editor tab
-  report/                # Report fixers (each runs standalone too)
+  report/                # Report fixers + standalone modules
     _Fix_PieChart.py
     _Fix_BarChart.py
     _Fix_ColumnChart.py
@@ -51,6 +52,9 @@ src/
     _Fix_HideVisualFilters.py
     _Fix_UpgradeToPbir.py
     _Fix_MigrateSlicerToSlicerbar.py
+    _Fix_VisualAlignment.py
+    _report_prototype.py   # Standalone prototype generator (SVG + Excalidraw)
+    _report_theme.py       # Theme get/set/update module
   semantic_model/        # SM fixers — additive + BPA auto-fixers (each standalone)
     _Fix_DiscourageImplicitMeasures.py
     _Add_CalculatedTable_Calendar.py
@@ -60,25 +64,26 @@ src/
     _Add_CalcGroup_TimeIntelligence.py
     _Add_MeasuresFromColumns.py
     _Add_PYMeasures.py
-    _Fix_FloatingPointDataType.py      # BPA fixer (Phase 14)
-    _Fix_IsAvailableInMdx.py           # BPA fixer (Phase 14)
-    _Fix_IsAvailableInMdxTrue.py       # BPA fixer (Phase 18)
-    _Fix_MeasureDescriptions.py        # BPA fixer (Phase 14)
-    _Fix_DateColumnFormat.py           # BPA fixer (Phase 14)
-    _Fix_MonthColumnFormat.py          # BPA fixer (Phase 14)
-    _Fix_MeasureFormat.py              # BPA fixer (Phase 14)
-    _Fix_HideForeignKeys.py            # BPA fixer (Phase 14)
-    _Fix_UseDivideFunction.py          # BPA fixer (Phase 18)
-    _Fix_AvoidAdding0.py               # BPA fixer (Phase 18)
-    _Fix_DoNotSummarize.py             # BPA fixer (Phase 18)
-    _Fix_MarkPrimaryKeys.py            # BPA fixer (Phase 18)
-    _Fix_TrimObjectNames.py            # BPA fixer (Phase 18)
-    _Fix_CapitalizeObjectNames.py      # BPA fixer (Phase 18)
-    _Fix_PercentageFormat.py           # BPA fixer (Phase 18)
-    _Fix_WholeNumberFormat.py          # BPA fixer (Phase 18)
-    _Fix_FlagColumnFormat.py           # BPA fixer (Phase 18)
-    _Fix_SortMonthColumn.py            # BPA fixer (Phase 18)
-    _Fix_DataCategory.py               # BPA fixer (Phase 18)
+    _Setup_IncrementalRefresh.py  # Incremental refresh setup (Phase 27)
+    _Fix_FloatingPointDataType.py
+    _Fix_IsAvailableInMdx.py
+    _Fix_IsAvailableInMdxTrue.py
+    _Fix_MeasureDescriptions.py
+    _Fix_DateColumnFormat.py
+    _Fix_MonthColumnFormat.py
+    _Fix_MeasureFormat.py
+    _Fix_HideForeignKeys.py
+    _Fix_UseDivideFunction.py
+    _Fix_AvoidAdding0.py
+    _Fix_DoNotSummarize.py
+    _Fix_MarkPrimaryKeys.py
+    _Fix_TrimObjectNames.py
+    _Fix_CapitalizeObjectNames.py
+    _Fix_PercentageFormat.py
+    _Fix_WholeNumberFormat.py
+    _Fix_FlagColumnFormat.py
+    _Fix_SortMonthColumn.py
+    _Fix_DataCategory.py
 ```
 
 ---
@@ -140,22 +145,25 @@ Two conversion approaches exist in Semantic Link Labs:
 
 ---
 
-## Tab Layout (v1.2.119)
+## Tab Layout (v1.2.152)
 
 | Tab | Icon | Source | Description |
 | --- | --- | --- | --- |
-| Semantic Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + actions dropdown |
-| Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + scan + actions dropdown + visual→model navigation |
+| Semantic Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
+| Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
 | Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
 | Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
-| Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats with model dropdown, tree, subtab DataFrames |
-| BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with category tabs, severity badges, auto-fix for 19 rule types |
+| Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats with model dropdown, subtab DataFrames |
+| BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with category tabs, severity badges, grouped checkbox fixers for 19 rule types |
 | Report BPA | 📄 | `_pbi_fixer.py` (`_report_bpa_tab`) | Report BPA via `run_report_bpa()`, auto-converts PBIRLegacy |
 | Delta Analyzer | 📐 | `_pbi_fixer.py` (`_delta_analyzer_tab`) | Delta table analysis: summary, parquet files, row groups, column chunks |
+| Prototype | 📐 | `report/_report_prototype.py` | Report prototype with SVG + Excalidraw export, optional page screenshots |
+| Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram between tables |
 | About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits |
 
 * **Fixer tab** is hidden by default (`show_fixer_tab=False`); all fixers are accessible via actions dropdowns in SM and Report tabs.
-* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Memory Analyzer → BPA → Report BPA → Delta Analyzer → About.
+* **Script Runner tab** exists but is disabled pending security review.
+* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
 
 ---
 
@@ -173,6 +181,7 @@ All report fixers have their own file in `report/`, accept `(report, page_name, 
 | Fix Column Charts | `_Fix_ColumnChart.py` | `fix_columncharts()` | ✅ | ✅ | ✅ |
 | Fix Page Size | `_Fix_PageSize.py` | `fix_page_size()` | ✅ | ✅ | ✅ |
 | Hide Visual Filters | `_Fix_HideVisualFilters.py` | `fix_hide_visual_filters()` | ✅ | ✅ | ✅ |
+| Fix Visual Alignment | `_Fix_VisualAlignment.py` | `fix_visual_alignment()` | ✅ | ❌ | ✅ |
 | Migrate Slicer to Slicerbar | `_Fix_MigrateSlicerToSlicerbar.py` | `fix_migrate_slicer_to_slicerbar()` | ✅ | ❌ | ❌ |
 
 ### Semantic Model Fixers (separate files with `scan_only` support)
@@ -192,19 +201,31 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 | Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
 | Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
 
-### BPA Auto-Fixers (standalone files + inline wrappers in `_bpa_tab`)
+### BPA Auto-Fixers (19 total — standalone files + grouped checkbox UI in `_bpa_tab`)
 
-These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support (created in Phase 14), plus inline per-row wrappers in `_pbi_fixer.py` for the BPA tab's Fix/Fix All buttons.
+These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab organizes them into 6 category groups with select-all checkboxes (Phase 41).
 
-| BPA Rule | Fix Action | Has Separate File |
-| --- | --- | --- |
-| Do not use floating point data types | Change column DataType from Double to Decimal | ✅ `_Fix_FloatingPointDataType.py` |
-| Set IsAvailableInMdx to false | Set `IsAvailableInMDX = False` on column | ✅ `_Fix_IsAvailableInMdx.py` |
-| Visible objects with no description (Measures) | Set measure description to its DAX expression | ✅ `_Fix_MeasureDescriptions.py` |
-| Provide format string for 'Date' columns | Set format to `mm/dd/yyyy` | ✅ `_Fix_DateColumnFormat.py` |
-| Provide format string for 'Month' columns | Set format to `MMMM yyyy` | ✅ `_Fix_MonthColumnFormat.py` |
-| Provide format string for measures | Set format to `#,0` | ✅ `_Fix_MeasureFormat.py` |
-| Hide foreign keys | Set `IsHidden = True` on column | ✅ `_Fix_HideForeignKeys.py` |
+| # | BPA Rule | Fix Action | Category |
+|---|----------|------------|----------|
+| 1 | Do not use floating point data types | Column DataType → Decimal | 🔢 Data Types |
+| 2 | Set IsAvailableInMdx to false | `IsAvailableInMDX = False` | 📡 MDX |
+| 3 | Set IsAvailableInMdx to true | `IsAvailableInMDX = True` | 📡 MDX |
+| 4 | Visible objects with no description (Measures) | Set description to DAX expression | 📝 Documentation |
+| 5 | Provide format string for 'Date' columns | Format → `mm/dd/yyyy` | 📊 Formatting |
+| 6 | Provide format string for 'Month' columns | Format → `MMMM yyyy` | 📊 Formatting |
+| 7 | Provide format string for measures | Format → `#,0` | 📊 Formatting |
+| 8 | Percentages should be formatted | Format → `#,0.0%;-#,0.0%;#,0.0%` | 📊 Formatting |
+| 9 | Format flag columns as Yes/No | Format → `"Yes";"Yes";"No"` | 📊 Formatting |
+| 10 | Hide foreign keys | `IsHidden = True` | 🔗 Schema |
+| 11 | Do not summarize numeric columns | `SummarizeBy = None` | 🔗 Schema |
+| 12 | Mark primary keys | `IsKey = True` | 🔗 Schema |
+| 13 | Objects should not start or end with a space | Trim whitespace | 🏷 Naming |
+| 14 | First letter must be capitalized | Capitalize first letter | 🏷 Naming |
+| 15 | Use the DIVIDE function for division | Regex-replace `/ ` → `DIVIDE()` | 📊 Formatting |
+| 16 | Avoid adding 0 to a measure | Strip `0+` prefix | 📊 Formatting |
+| 17 | Whole numbers should be formatted | Format → `#,0` | 📊 Formatting |
+| 18 | Month (as a string) must be sorted | Set SortByColumn | 📊 Formatting |
+| 19 | Add data category for columns | Set DataCategory by naming convention | 📊 Formatting |
 
 ### Optional / Not Now
 
@@ -535,10 +556,11 @@ Make Report Explorer visual/page properties editable via `connect_report`:
 * Measure dependency tree visualization leveraging existing `anytree` patterns in Semantic Link Labs.
 * Show which measures reference which other measures/columns as a tree or DAG.
 
-### Phase 24 — Search & Filter Tree (Planned)
+### Phase 24 — Search & Filter Tree (v1.2.141) ✅
 
-* Search/filter input above the tree for large models (100+ tables).
+* Search/filter input above the tree for both Model Explorer and Report Explorer.
 * Filter tree items by name in real time as the user types.
+* Implemented as a `widgets.Text` input above each tree that filters on keystroke.
 
 ### Phase 25 — Export Scan Results (Planned)
 
@@ -550,21 +572,24 @@ Make Report Explorer visual/page properties editable via `connect_report`:
 * Batch fixer presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
 * Preset dropdown in the Fixer tab or as a top-level action.
 
-### Phase 27 — Incremental Refresh Setup (Planned)
+### Phase 27 — Incremental Refresh Setup (v1.2.142) ✅
 
-* **Incremental refresh setup** in Model Explorer: when a table is selected, offer a one-click action to configure an incremental refresh policy. UI form: date column picker, lookback window, incremental rows count. Uses SLL's `add_incremental_refresh_policy()` / `update_incremental_refresh_policy()`.
+* Incremental refresh setup in Model Explorer actions dropdown.
+* Auto-detects date columns in the selected table.
+* UI form: date column picker, lookback window, incremental rows count.
+* Uses `_Setup_IncrementalRefresh.py` standalone module.
 
-### Phase 28 — Fix Visual Alignment & Size (Planned)
+### Phase 28 — Fix Visual Alignment & Size (v1.2.143) ✅
 
-* A new fixer (`report/_Fix_VisualAlignment.py`) that detects and corrects misaligned or undersized chart visuals on a page.
-* Scan chart-type visuals, flag tiny charts (<1% page area), snap to grid by row/column alignment.
+* `report/_Fix_VisualAlignment.py` — detects and corrects misaligned chart visuals.
+* Customizable `tolerance_pct` (default 2%).
 * `scan_only` support. Wired into Report Explorer actions dropdown.
 
-### Phase 29 — Design Theme Editor (Planned)
+### Phase 29 — Design Theme Editor (v1.2.144) ✅
 
-* A new tab or sub-panel in Report Explorer for editing the report's JSON theme.
-* Visual editor for colors (primary/secondary/tertiary, background, foreground, accent).
-* Font family and size overrides. Preview swatches.
+* `report/_report_theme.py` — standalone theme get/set/update module.
+* `get_report_theme()`, `set_report_theme()`, `update_theme_colors()`, `show_theme_summary()`.
+* Visual editor for colors in Report Explorer actions.
 * Save back via `connect_report` / `updateDefinition`.
 
 ### Phase 30 — Background Editor (Planned)
@@ -600,35 +625,20 @@ Make Report Explorer visual/page properties editable via `connect_report`:
 * User selects preset, confirms with "Apply". Framework in `_ui_components.py`.
 * Presets for variance charts (IBCS Standard/Strict/Traffic Light/Monochrome), bar/column, pie replacement.
 
-### Phase 36 — Workspace Report Format Overview (Planned)
+### Phase 36 — Workspace Report Format Overview (v1.2.145) ✅
 
-Add a **report format overview** panel or subtab (e.g. in the Report tab or as a standalone section) that lists all reports in the workspace with their PBIR/PBIRLegacy format status at a glance.
+* Format Overview subtab in Report Explorer.
+* Lists all reports in workspace with PBIR/PBIRLegacy format status.
+* Color-coded badges: PBIR = green, PBIRLegacy = orange.
+* "Convert All Legacy" button for batch conversion.
 
-* Use `sempy_labs.report.list_reports()` to fetch the full report list including the `Format` column.
-* Display a DataFrame table showing `Report Name`, `Report Id`, and `Format` (PBIR / PBIRLegacy / etc.).
-* Color-code or badge: PBIR = green, PBIRLegacy = orange/warning, other = grey.
-* Optionally add a **"Convert All Legacy"** button that batch-converts all PBIRLegacy reports to PBIR via `upgrade_to_pbir()`.
-* This provides a quick workspace-level health check before loading individual reports.
+### Phase 37 — Model Diagram Tab (v1.2.146) ✅
 
-### Phase 37 — Model Diagram Tab (Planned)
-
-Add a new **🗺 Model Diagram** tab that visualizes relationships between tables as an interactive diagram.
-
-* **Diagram rendering**: render relationship lines between table boxes using inline HTML/SVG in an `ipywidgets.HTML` widget. Each table is a box showing the table name and key columns; relationship lines connect foreign key → primary key with cardinality labels (1:*, *:1, 1:1, *:*).
-* **Data source**: use the already-loaded TOM model relationships (`tm.model.Relationships`) from the Model Explorer — no additional API calls needed.
-* **Layout algorithm**: automatic layout using a simple force-directed or layered approach:
-  + Place fact tables (tables with the most relationships) in the center.
-  + Dimension tables radiate outward.
-  + Minimize crossing lines.
-  + Allow manual repositioning via drag (if feasible in ipywidgets; otherwise fixed layout with zoom/pan via CSS `transform`).
-* **Subtab per model**: if multiple semantic models are loaded, show a subtab selector (like Memory Analyzer) to switch between models.
-* **Filtering**: option to show only tables related to a selected table (click a table in the diagram or select from tree → highlight its neighborhood).
-* **Model Explorer integration — Create Diagram action**: in the Model Explorer actions dropdown, add a **"🗺 Create Diagram"** action. When triggered on a selected table:
-  + Automatically select the table and all directly related tables (via relationships).
-  + Generate a **TMDL diagram file** saved to the model's TMDL definition if supported by the TMDL format. TMDL diagram files (`.tmdl` in the `diagrams/` folder) store layout metadata: which tables are included, their x/y positions, and relationship line routing.
-  + If TMDL diagram persistence is not supported (TMDL format does not have a `diagrams/` concept), fall back to saving diagram layout as a JSON file alongside the model definition or in the lakehouse.
-  + The diagram starts with all related tables included and arranged automatically; the user can then reposition and save.
-* **Research needed**: verify whether TMDL supports diagram definitions (Tabular Editor stores diagrams in `.tmd` / BIM files under `model.diagrams[]`). If TMDL has a `diagrams/` folder, use it. Otherwise, store as a sidecar JSON.
+* 🗺 Model Diagram tab — SVG visualization of table relationships.
+* Table boxes with key columns, relationship lines with cardinality labels.
+* Automatic layout: fact tables centered, dimensions radiate outward.
+* Model dropdown for multi-model support.
+* Generate button + export SVG to lakehouse.
 
 ### Phase 38 — Report Prototyping with Excalidraw (v1.2.123) ✅
 
@@ -702,6 +712,18 @@ Add a **⚙️ Script Runner** tab that allows executing Python scripts with the
   + Have context awareness — automatically pass the currently loaded model/report metadata (table names, measure expressions, relationships) as context to the AI.
   + Support quick actions from AI suggestions (e.g. AI suggests hiding a column → one-click button to apply via XMLA).
   + Research Michael Kovalsky's existing AI window implementation in SLL to determine the correct integration points and API surface.
+
+### Phase 41 — Grouped BPA Fixer Checkboxes (v1.2.152) ✅
+
+Replaced the flat rule dropdown + "Fix Rule" button with a **grouped checkbox panel**:
+
+* **6 fixer categories**: 🔢 Data Types, 📊 Formatting, 🏷 Naming, 🔗 Schema, 📡 MDX, 📝 Documentation.
+* Each group has a **select-all checkbox** that toggles all rules in that group.
+* Only rules with actual BPA findings are shown (groups without findings are hidden).
+* Each rule checkbox shows the finding count (e.g. "Hide foreign keys (12)").
+* **"⚡ Fix Selected" button** fixes all checked rules at once.
+* "Fix Row" button retained for single-row fixes.
+* "⚡ Fix All" button still available for fixing everything regardless of checkboxes.
 
 ---
 
