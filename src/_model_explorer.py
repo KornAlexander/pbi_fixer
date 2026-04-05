@@ -36,7 +36,7 @@ def _list_workspace_datasets(workspace):
     return [d.get("name") for d in response.json().get("value", []) if d.get("name")]
 
 
-def _load_model_data_fast(dataset, workspace):
+def _load_model_data_fast(dataset, workspace, cancel_flag=None):
     """
     Load model metadata using sempy.fabric DataFrames (fast REST API).
     Falls back to TOM for hierarchies, calc groups, and table type detection.
@@ -95,6 +95,8 @@ def _load_model_data_fast(dataset, workspace):
     try:
         with connect_semantic_model(dataset=dataset, readonly=True, workspace=workspace) as tm:
             for table in tm.model.Tables:
+                if cancel_flag and cancel_flag[0]:
+                    break
                 t_name = table.Name
                 if t_name not in model_data["tables"]:
                     continue
@@ -1214,7 +1216,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                         break
                     set_status(conn_status, f"Model {i+1}/{len(items)}: loading '{ds}'\u2026", GRAY_COLOR)
                     try:
-                        data = _load_model_data_fast(dataset=ds, workspace=ws)
+                        data = _load_model_data_fast(dataset=ds, workspace=ws, cancel_flag=_cancel_load)
                         if len(items) > 1:
                             merged_data["models"][ds] = data["tables"]
                             merged_data["model_relationships"][ds] = data.get("relationships", [])
