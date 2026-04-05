@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.179"
+__version__ = "1.2.180"
 
 import ipywidgets as widgets
 import io
@@ -1867,10 +1867,17 @@ def _diagram_tab(workspace_input=None, report_input=None):
 
     # Layout constants
     _BOX_W = 200
-    _BOX_H = 80
+    _HEADER_H = 24
+    _COL_LINE_H = 14
+    _COL_PAD = 6
+    _MIN_BODY = 20
     _PAD_X = 80
     _PAD_Y = 100
     _COLS = 5
+
+    def _box_height(t):
+        body_h = max(_MIN_BODY, len(t["cols"]) * _COL_LINE_H + _COL_PAD)
+        return _HEADER_H + body_h
 
     def _generate(_):
         ws = workspace_input.value.strip() if workspace_input else None
@@ -1932,19 +1939,29 @@ def _diagram_tab(workspace_input=None, report_input=None):
             sorted_tables = sorted(tables.values(), key=lambda t: (-t["rel_count"], t["name"]))
             visible_tables = [t for t in sorted_tables if not t["is_hidden"]]
 
-            # Build positions
+            # Build positions — use actual box heights for row placement
             positions = {}
+            row_heights = {}  # track max height per row for proper spacing
+            for idx, t in enumerate(visible_tables):
+                row = idx // _COLS
+                bh = _box_height(t)
+                row_heights[row] = max(row_heights.get(row, 0), bh)
+
             for idx, t in enumerate(visible_tables):
                 col = idx % _COLS
                 row = idx // _COLS
-                positions[t["name"]] = (40 + col * (_BOX_W + _PAD_X), 40 + row * (_BOX_H + _PAD_Y))
+                y_offset = 40 + sum(row_heights.get(r, 0) + _PAD_Y for r in range(row))
+                positions[t["name"]] = (40 + col * (_BOX_W + _PAD_X), y_offset)
 
             # Build SVG
             n = len(visible_tables)
             cols = min(_COLS, n) if n > 0 else 1
             rows_count = (n + cols - 1) // cols
             svg_w = cols * (_BOX_W + _PAD_X) + 40
-            svg_h = rows_count * (_BOX_H + _PAD_Y) + 40
+            svg_h = 40 + sum(row_heights.get(r, 0) + _PAD_Y for r in range(rows_count))
+
+            # Precompute actual heights per table for connection points
+            table_heights = {t["name"]: _box_height(t) for t in visible_tables}
 
             svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">']
             svg.append(f'<rect width="{svg_w}" height="{svg_h}" fill="#fff"/>')
@@ -1956,8 +1973,30 @@ def _diagram_tab(workspace_input=None, report_input=None):
                     continue
                 fx, fy = positions[rel["from_table"]]
                 tx, ty = positions[rel["to_table"]]
-                x1, y1 = fx + _BOX_W // 2, fy + _BOX_H
-                x2, y2 = tx + _BOX_W // 2, ty
+                fh = table_heights[rel["from_table"]]
+                th = table_heights[rel["to_table"]]
+
+                # Connect from nearest edge (bottom/top/left/right) based on relative position
+                fcx, fcy = fx + _BOX_W // 2, fy + fh // 2
+                tcx, tcy = tx + _BOX_W // 2, ty + th // 2
+
+                if abs(fcy - tcy) > abs(fcx - tcx):
+                    # Vertical: connect bottom→top or top→bottom
+                    if fcy < tcy:
+                        x1, y1 = fcx, fy + fh
+                        x2, y2 = tcx, ty
+                    else:
+                        x1, y1 = fcx, fy
+                        x2, y2 = tcx, ty + th
+                else:
+                    # Horizontal: connect right→left or left→right
+                    if fcx < tcx:
+                        x1, y1 = fx + _BOX_W, fcy
+                        x2, y2 = tx, tcy
+                    else:
+                        x1, y1 = fx, fcy
+                        x2, y2 = tx + _BOX_W, tcy
+
                 color = "#888" if rel["active"] else "#ddd"
                 dash = "" if rel["active"] else ' stroke-dasharray="4,3"'
                 svg.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="1.5"{dash} marker-end="url(#rel-arrow)"/>')
@@ -1969,15 +2008,15 @@ def _diagram_tab(workspace_input=None, report_input=None):
             for t in visible_tables:
                 x, y = positions[t["name"]]
                 # Header
-                svg.append(f'<rect x="{x}" y="{y}" width="{_BOX_W}" height="24" rx="4" fill="#2563eb" stroke="#1e40af" stroke-width="1"/>')
+                svg.append(f'<rect x="{x}" y="{y}" width="{_BOX_W}" height="{_HEADER_H}" rx="4" fill="#2563eb" stroke="#1e40af" stroke-width="1"/>')
                 svg.append(f'<text x="{x + 8}" y="{y + 16}" font-family="{FONT_FAMILY}" font-size="12" font-weight="600" fill="#fff">{t["name"][:22]}</text>')
                 # Body
-                body_h = max(20, len(t["cols"]) * 14 + 6)
-                svg.append(f'<rect x="{x}" y="{y + 24}" width="{_BOX_W}" height="{body_h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>')
+                body_h = max(_MIN_BODY, len(t["cols"]) * _COL_LINE_H + _COL_PAD)
+                svg.append(f'<rect x="{x}" y="{y + _HEADER_H}" width="{_BOX_W}" height="{body_h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>')
                 for ci, col_name in enumerate(t["cols"]):
-                    svg.append(f'<text x="{x + 8}" y="{y + 38 + ci * 14}" font-family="{FONT_FAMILY}" font-size="10" fill="#555">{col_name[:25]}</text>')
+                    svg.append(f'<text x="{x + 8}" y="{y + _HEADER_H + 14 + ci * _COL_LINE_H}" font-family="{FONT_FAMILY}" font-size="10" fill="#555">{col_name[:25]}</text>')
                 if not t["cols"]:
-                    svg.append(f'<text x="{x + 8}" y="{y + 38}" font-family="{FONT_FAMILY}" font-size="10" fill="#bbb" font-style="italic">(no key/FK cols)</text>')
+                    svg.append(f'<text x="{x + 8}" y="{y + _HEADER_H + 14}" font-family="{FONT_FAMILY}" font-size="10" fill="#bbb" font-style="italic">(no key/FK cols)</text>')
 
             svg.append('</svg>')
             svg_display.value = "\n".join(svg)
