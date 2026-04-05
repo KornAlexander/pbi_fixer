@@ -239,36 +239,63 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ### Completed (28 phases)
 
-| # | Phase | Version | Summary |
-|---|-------|---------|---------|
-| 1 | Foundation | v1.1.0 | `_ui_components.py`, `_model_explorer.py`, `_report_explorer.py`, `_pbi_fixer.py` tab wrapper |
-| 2 | SM Properties & Editing | v1.2.x | Properties panel, editable DAX, save button, Perspective Editor tab |
-| 3 | Report Preview & Properties | v1.2.x | `powerbiclient.Report` embed, visual properties, page navigation, fixer actions dropdown |
-| 4 | Multi-Item Connection & PBIR Gate | v1.2.8–1.2.24 | Comma-separated input, blank=all, PBIR format check, PBIRLegacy warnings, Convert All button |
-| 5 | Fixer Tab Redesign | v1.2.8–1.2.24 | God Button, fixers in Explorer dropdowns, tab hidden by default, Format All DAX, MeasuresFromColumns, PYMeasures |
-| 6 | UI Polish | v1.2.14–1.2.42 | Full-width layout, multi-select, deduplication, branded header, About tab, version footer |
-| 7 | Scan Mode & Violation Counts | v1.2.26–1.2.43 | Scan button per tab, violation badges, "Fix this" buttons, re-scan after fix |
-| 8 | VertipaqAnalyzer & Memory | v1.2.36–1.2.38 | 💾 Memory Analyzer tab with subtabs, tree, DataFrame rendering, cache |
-| 9 | BPA Integration & Auto-Fixers | v1.2.44–1.2.99 | 📋 BPA tab + 📄 Report BPA tab, category tabs, Fix All/Fix Rule/Fix Row, Show Native |
-| 10 | Delta Analyzer & Download | v1.2.44–1.2.99 | 📐 Delta Analyzer tab, ⬇ Download .pbix/.pbip buttons |
-| 11 | UI Alignment & Consistency | v1.2.105 | Three-panel layout alignment, border/padding audit, full-width stretch |
-| 12 | Dropdown Item Selector | v1.2.106 | `widgets.Combobox` with API-populated dropdown, icon prefixes 📄/📊, List Items button |
-| 13 | Clone Report + Semantic Model | v1.2.107 | Clone via `getDefinition` → `createItem`, auto-increment suffix (_copy, _copy2, _copy3) |
-| 14 | Extract BPA Fixers to Files | v1.2.108 | 7 BPA fixers → standalone files in `semantic_model/` with `scan_only` support |
-| 15 | Clone Buttons & Name Mismatch | v1.2.110 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
-| 16 | Stop Load Button | v1.2.111 | ⏹ Stop button on both Explorers, `_cancel_load` flag |
-| 17 | Native BPA & Memory Analyzer | v1.2.112 | BPA category ToggleButtons, Memory Analyzer subtabs (no tree, direct DataFrames) |
-| 18 | Additional BPA Fix Scripts | v1.2.113 | 12 more BPA fixers → 19 total standalone files |
-| 19 | Table Data Preview | v1.2.114 | Top N rows via `evaluate_dax(TOPN(...))` in Model Explorer preview panel |
-| 20 | Search & Filter Tree | v1.2.141 | `widgets.Text` filter above both Explorer trees, real-time keystroke filtering |
-| 21 | Incremental Refresh Setup | v1.2.142 | `_Setup_IncrementalRefresh.py`, auto date column detection, Model Explorer action |
-| 22 | Fix Visual Alignment | v1.2.143 | `_Fix_VisualAlignment.py`, customizable `tolerance_pct` (2%), Report Explorer action |
-| 23 | Design Theme Editor | v1.2.144 | `_report_theme.py` — `get/set/update_theme_colors()`, `show_theme_summary()` |
-| 24 | Format Overview | v1.2.145 | Report Explorer subtab, workspace-wide PBIR/PBIRLegacy status, Convert All Legacy |
-| 25 | Model Diagram Tab | v1.2.146 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
-| 26 | Report Prototyping | v1.2.123–1.2.153 | 📐 Prototype tab, SVG + Excalidraw, optional page screenshots (Export API), progress bar, suppressed output |
-| 27 | Script Runner Tab | v1.2.147 | ⚙️ Python script runner with TOM in scope. Disabled pending security review. |
-| 28 | Grouped BPA Fixer Checkboxes | v1.2.152 | 6 category groups (Data Types, Formatting, Naming, Schema, MDX, Documentation) with select-all + Fix Selected |
+#### 🏗 Core & Foundation
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 1 | Foundation | v1.1.0 | 2026-03-27 | `_ui_components.py`, `_model_explorer.py`, `_report_explorer.py`, `_pbi_fixer.py` tab wrapper |
+| 4 | Multi-Item Connection & PBIR Gate | v1.2.8–1.2.24 | 2026-03-28 | Comma-separated input, blank=all, PBIR format check, PBIRLegacy warnings, Convert All |
+| 6 | UI Polish | v1.2.14–1.2.42 | 2026-03-28 | Full-width layout, multi-select, deduplication, branded header, About tab, version footer |
+| 11 | UI Alignment & Consistency | v1.2.105 | 2026-04-04 | Three-panel layout alignment, border/padding audit, full-width stretch |
+| 12 | Dropdown Item Selector | v1.2.106 | 2026-04-04 | `widgets.Combobox` with API-populated dropdown, icon prefixes 📄/📊, List Items |
+| 16 | Stop Load Button | v1.2.111 | 2026-04-04 | ⏹ Stop button on both Explorers, `_cancel_load` flag |
+| 20 | Search & Filter Tree | v1.2.141 | 2026-04-04 | Real-time keystroke filtering above both Explorer trees |
+
+#### 📊 Semantic Model Explorer
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 2 | SM Properties & Editing | v1.2.x | 2026-03-27 | Properties panel, editable DAX, save button, Perspective Editor tab |
+| 19 | Table Data Preview | v1.2.114 | 2026-04-04 | Top N rows via `evaluate_dax(TOPN(...))` in preview panel |
+| 21 | Incremental Refresh Setup | v1.2.142 | 2026-04-04 | `_Setup_IncrementalRefresh.py`, auto date column detection |
+| 25 | Model Diagram Tab | v1.2.146 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
+
+#### 📄 Report Explorer
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 3 | Report Preview & Properties | v1.2.x | 2026-03-27 | `powerbiclient.Report` embed, visual properties, page navigation |
+| 22 | Fix Visual Alignment | v1.2.143 | 2026-04-05 | `_Fix_VisualAlignment.py`, tolerance %, Report Explorer action |
+| 23 | Design Theme Editor | v1.2.144 | 2026-04-05 | `_report_theme.py` — get/set/update theme colors, Apply IBCS Theme |
+| 24 | Format Overview | v1.2.145 | 2026-04-05 | Workspace-wide PBIR/PBIRLegacy status, Convert All Legacy button |
+| 26 | Report Prototyping | v1.2.123–1.2.153 | 2026-04-04 | 📐 Prototype tab, SVG + Excalidraw, page screenshots, progress bar |
+
+#### ⚡ Fixers & BPA
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 5 | Fixer Tab Redesign | v1.2.8–1.2.24 | 2026-03-28 | God Button, fixers in Explorer dropdowns, tab hidden by default |
+| 7 | Scan Mode & Violation Counts | v1.2.26–1.2.43 | 2026-03-28 | Scan button per tab, violation badges, "Fix this" buttons, re-scan |
+| 9 | BPA Integration & Auto-Fixers | v1.2.44–1.2.99 | 2026-03-29 | 📋 BPA tab + 📄 Report BPA, category tabs, Fix All/Fix Rule/Fix Row |
+| 14 | Extract BPA Fixers to Files | v1.2.108 | 2026-04-04 | 7 BPA fixers → standalone files with `scan_only` support |
+| 18 | Additional BPA Fix Scripts | v1.2.113 | 2026-04-04 | 12 more BPA fixers → 19 total standalone files |
+| 28 | Grouped BPA Fixer Checkboxes | v1.2.152 | 2026-04-05 | 6 category groups with select-all + Fix Selected |
+
+#### 💾 Analysis Tabs
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 8 | VertipaqAnalyzer & Memory | v1.2.36–1.2.38 | 2026-03-28 | 💾 Memory Analyzer tab with subtabs, DataFrame rendering, cache |
+| 10 | Delta Analyzer & Download | v1.2.44–1.2.99 | 2026-03-29 | 📐 Delta Analyzer tab, ⬇ Download .pbix/.pbip buttons |
+| 17 | Native BPA & Memory Analyzer | v1.2.112 | 2026-04-04 | BPA category ToggleButtons, Memory Analyzer direct DataFrames |
+
+#### 📋 Clone & Utilities
+
+| # | Phase | Version | Date | Summary |
+|---|-------|---------|------|---------|
+| 13 | Clone Report + Semantic Model | v1.2.107 | 2026-04-04 | Clone via `getDefinition` → `createItem`, auto-increment suffix |
+| 15 | Clone Buttons & Name Mismatch | v1.2.110 | 2026-04-04 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
+| 27 | Script Runner Tab | v1.2.147 | 2026-04-05 | ⚙️ Python script runner with TOM in scope. Disabled pending review. |
 
 ---
 
