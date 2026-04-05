@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.141"
+__version__ = "1.2.176"
 
 import ipywidgets as widgets
 import io
@@ -43,7 +43,14 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
     _current_model = [None]
 
     load_btn = widgets.Button(description="Load Memory", button_style="primary", layout=widgets.Layout(width="120px"))
+    stop_mem_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
+    _cancel_mem = [False]
+    read_stats_cb = widgets.Checkbox(value=False, description="Read stats from data (Direct Lake)", indent=False, layout=widgets.Layout(width="auto"))
     conn_status = status_html()
+
+    def _on_stop_mem(_):
+        _cancel_mem[0] = True
+    stop_mem_btn.on_click(_on_stop_mem)
 
     model_dropdown = widgets.Dropdown(
         options=["(no models loaded)"],
@@ -165,10 +172,15 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
             return
         load_btn.disabled = True
         load_btn.description = "Loading\u2026"
+        stop_mem_btn.layout.display = ""
+        _cancel_mem[0] = False
         _vp_data = {}
         import io as _io
         from contextlib import redirect_stdout as _redirect
         for i, ds in enumerate(items):
+            if _cancel_mem[0]:
+                set_status(conn_status, f"\u23f9 Stopped after {len(_vp_data)}/{len(items)} models.", "#ff9500")
+                break
             set_status(conn_status, f"Memory Analyzer {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 import IPython.display as _ipd
@@ -186,7 +198,7 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
                     buf = _io.StringIO()
                     with _redirect(buf):
                         from sempy_labs import vertipaq_analyzer
-                        result = vertipaq_analyzer(dataset=ds, workspace=ws)
+                        result = vertipaq_analyzer(dataset=ds, workspace=ws, read_stats_from_data=read_stats_cb.value)
                 finally:
                     _ipd.display = _orig
                     if _idf and _orig2: _idf.display = _orig2
@@ -202,14 +214,405 @@ def _vertipaq_tab(workspace_input=None, report_input=None):
         set_status(conn_status, f"\u2713 Loaded {len(_vp_data)} model(s).", "#34c759")
         load_btn.disabled = False
         load_btn.description = "Load Memory"
+        stop_mem_btn.layout.display = "none"
+        _cancel_mem[0] = False
 
     load_btn.on_click(on_load)
 
     nav_row = widgets.HBox(
-        [load_btn, model_dropdown, conn_status],
+        [load_btn, stop_mem_btn, model_dropdown, read_stats_cb, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
     widget = widgets.VBox([nav_row, subtab_selector, df_container], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
+
+
+# ---------------------------------------------------------------------------
+# Translations Editor tab (inline)
+# ---------------------------------------------------------------------------
+def _translations_tab(workspace_input=None, report_input=None):
+    """Build the Translations Editor tab — view, auto-translate, edit, and apply translations."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    _trans_data = {}  # {obj_key: {lang: value, ...}}
+    _original = {}    # snapshot of original translations for diff
+    _objects = []     # [(obj_type, table_name, obj_name, tom_path), ...]
+    _languages = []   # ["de-DE", "fr-FR", ...]
+    _ds_name = [None]
+
+    # Common language codes
+    _LANG_OPTIONS = [
+        "de-DE", "fr-FR", "es-ES", "it-IT", "pt-BR", "nl-NL", "pl-PL",
+        "ja-JP", "zh-CN", "ko-KR", "ru-RU", "tr-TR", "ar-SA", "sv-SE",
+        "da-DK", "nb-NO", "fi-FI", "cs-CZ", "hu-HU", "ro-RO",
+    ]
+
+    load_btn = widgets.Button(description="Load Translations", button_style="primary", layout=widgets.Layout(width="150px"))
+    lang_dropdown = widgets.Dropdown(options=_LANG_OPTIONS, value="de-DE", layout=widgets.Layout(width="100px"))
+    add_lang_btn = widgets.Button(description="+ Add Language", layout=widgets.Layout(width="120px"))
+    auto_translate_btn = widgets.Button(description="🌐 Auto-Translate", button_style="info", layout=widgets.Layout(width="150px"))
+    apply_btn = widgets.Button(description="✓ Apply Changes", button_style="success", layout=widgets.Layout(width="140px"), disabled=True)
+    conn_status = status_html()
+
+    nav_row = widgets.HBox(
+        [load_btn, lang_dropdown, add_lang_btn, auto_translate_btn, apply_btn, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0", flex_wrap="wrap"),
+    )
+
+    # Grid container — holds the translations table as HTML + editable widgets
+    grid_html = widgets.HTML(
+        value=f'<div style="padding:20px; color:{GRAY_COLOR}; font-size:14px; font-family:{FONT_FAMILY}; text-align:center; font-style:italic;">Click Load Translations to view/edit model translations.</div>',
+    )
+    grid_container = widgets.VBox(
+        [grid_html],
+        layout=widgets.Layout(
+            max_height="500px", overflow_y="auto", overflow_x="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+        ),
+    )
+
+    # Preview of pending changes
+    preview_html = widgets.HTML(value="")
+    preview_container = widgets.VBox(
+        [preview_html],
+        layout=widgets.Layout(
+            max_height="200px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color=SECTION_BG,
+            display="none",
+        ),
+    )
+
+    def _obj_key(obj_type, table_name, obj_name):
+        return f"{obj_type}:{table_name}:{obj_name}"
+
+    def _render_grid():
+        """Render translations as an HTML table."""
+        if not _objects:
+            grid_html.value = f'<div style="color:{GRAY_COLOR};">No objects loaded.</div>'
+            return
+        langs = _languages
+        html = '<table style="border-collapse:collapse; width:100%; font-size:11px; font-family:monospace;">'
+        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
+        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Type</th>'
+        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Table</th>'
+        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Object Name</th>'
+        for lang in langs:
+            html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR}; color:{ICON_ACCENT};">{lang}</th>'
+        html += '</tr>'
+
+        for obj_type, table_name, obj_name, _ in _objects:
+            key = _obj_key(obj_type, table_name, obj_name)
+            trans = _trans_data.get(key, {})
+            orig = _original.get(key, {})
+            html += '<tr>'
+            type_icon = "📊" if obj_type == "Table" else "🔢" if obj_type == "Column" else "Σ" if obj_type == "Measure" else "📁"
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; color:#888;">{type_icon}</td>'
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0;">{table_name}</td>'
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; font-weight:600;">{obj_name}</td>'
+            for lang in langs:
+                val = trans.get(lang, "")
+                orig_val = orig.get(lang, "")
+                is_changed = val != orig_val
+                bg = "#fff3cd" if is_changed else ""
+                style = f'background:{bg};' if bg else ""
+                html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; {style}">{val or "<span style=&quot;color:#ccc;&quot;>—</span>"}</td>'
+            html += '</tr>'
+        html += '</table>'
+        grid_html.value = html
+
+    def _render_preview():
+        """Show pending changes as a diff."""
+        changes = []
+        for obj_type, table_name, obj_name, _ in _objects:
+            key = _obj_key(obj_type, table_name, obj_name)
+            trans = _trans_data.get(key, {})
+            orig = _original.get(key, {})
+            for lang in _languages:
+                new_val = trans.get(lang, "")
+                old_val = orig.get(lang, "")
+                if new_val != old_val:
+                    changes.append((obj_type, table_name, obj_name, lang, old_val, new_val))
+
+        if not changes:
+            preview_container.layout.display = "none"
+            apply_btn.disabled = True
+            return
+
+        preview_container.layout.display = ""
+        apply_btn.disabled = False
+        html = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; margin-bottom:4px;">PENDING CHANGES ({len(changes)})</div>'
+        html += '<table style="border-collapse:collapse; width:100%; font-size:11px;">'
+        html += '<tr style="background:#f5f5f5;"><th style="padding:3px 6px;">Object</th><th style="padding:3px 6px;">Language</th><th style="padding:3px 6px;">Old</th><th style="padding:3px 6px;">New</th></tr>'
+        for obj_type, table_name, obj_name, lang, old_val, new_val in changes:
+            old_display = old_val or "—"
+            html += f'<tr><td style="padding:3px 6px; border-bottom:1px solid #f0f0f0;">{table_name}.{obj_name}</td>'
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; color:{ICON_ACCENT};">{lang}</td>'
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; color:#888; text-decoration:line-through;">{old_display}</td>'
+            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; color:#34c759; font-weight:600;">{new_val}</td></tr>'
+        html += '</table>'
+        preview_html.value = html
+
+    def on_load(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        if not ds_input:
+            set_status(conn_status, "Enter a semantic model name.", "#ff3b30")
+            return
+        ds = ds_input.split(",")[0].strip()
+        # Strip icon prefix
+        for pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            if ds.startswith(pfx):
+                ds = ds[len(pfx):]
+        load_btn.disabled = True
+        load_btn.description = "Loading…"
+        _ds_name[0] = ds
+
+        try:
+            set_status(conn_status, f"Loading translations for '{ds}'…", GRAY_COLOR)
+            from sempy_labs.tom import connect_semantic_model
+            import Microsoft.AnalysisServices.Tabular as TOM
+
+            _objects.clear()
+            _trans_data.clear()
+            _original.clear()
+            _languages.clear()
+
+            with connect_semantic_model(dataset=ds, readonly=True, workspace=ws) as tom:
+                for c in tom.model.Cultures:
+                    _languages.append(str(c.Name))
+                for table in tom.model.Tables:
+                    t_name = str(table.Name)
+                    _objects.append(("Table", t_name, t_name, ("table", t_name)))
+                    for col in table.Columns:
+                        if col.Type == TOM.ColumnType.RowNumber:
+                            continue
+                        _objects.append(("Column", t_name, str(col.Name), ("column", t_name, str(col.Name))))
+                    for m in table.Measures:
+                        _objects.append(("Measure", t_name, str(m.Name), ("measure", t_name, str(m.Name))))
+                    for h in table.Hierarchies:
+                        _objects.append(("Hierarchy", t_name, str(h.Name), ("hierarchy", t_name, str(h.Name))))
+                for obj_type, table_name, obj_name, tom_path in _objects:
+                    key = _obj_key(obj_type, table_name, obj_name)
+                    _trans_data[key] = {}
+                    for lang in _languages:
+                        try:
+                            culture = tom.model.Cultures[lang]
+                            if tom_path[0] == "table":
+                                obj = tom.model.Tables[table_name]
+                            elif tom_path[0] == "column":
+                                obj = tom.model.Tables[table_name].Columns[obj_name]
+                            elif tom_path[0] == "measure":
+                                obj = tom.model.Tables[table_name].Measures[obj_name]
+                            elif tom_path[0] == "hierarchy":
+                                obj = tom.model.Tables[table_name].Hierarchies[obj_name]
+                            else:
+                                continue
+                            t = culture.ObjectTranslations[obj, TOM.TranslatedProperty.Caption]
+                            _trans_data[key][lang] = str(t.Value) if t and t.Value else ""
+                        except Exception:
+                            _trans_data[key][lang] = ""
+
+            import copy
+            _original.update(copy.deepcopy(_trans_data))
+            _render_grid()
+            n_obj = len(_objects)
+            n_lang = len(_languages)
+            n_existing = sum(1 for key in _trans_data for lang in _trans_data[key] if _trans_data[key][lang])
+            set_status(conn_status, f"✓ {n_obj} objects, {n_lang} language(s), {n_existing} existing translations.", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
+        finally:
+            load_btn.disabled = False
+            load_btn.description = "Load Translations"
+
+    def on_add_lang(_):
+        lang = lang_dropdown.value
+        if lang in _languages:
+            set_status(conn_status, f"'{lang}' already exists.", "#ff9500")
+            return
+        _languages.append(lang)
+        for key in _trans_data:
+            _trans_data[key][lang] = ""
+            _original.setdefault(key, {})[lang] = ""
+        _render_grid()
+        _render_preview()
+        set_status(conn_status, f"Added '{lang}'. Use Auto-Translate to fill.", "#34c759")
+
+    def on_auto_translate(_):
+        if not _languages or not _objects:
+            set_status(conn_status, "Load translations first.", "#ff3b30")
+            return
+        auto_translate_btn.disabled = True
+        auto_translate_btn.description = "Translating…"
+
+        def _translate_bg():
+            try:
+                from synapse.ml.services import Translate
+                from pyspark.sql.types import StructType, StructField, StringType
+                from pyspark.sql.functions import flatten, col
+                from sempy_labs._helper_functions import _create_spark_session
+
+                set_status(conn_status, "Initializing Spark session…", GRAY_COLOR)
+                spark = _create_spark_session()
+                total = 0
+                lang_count = len(_languages)
+                translated_langs = 0
+
+                for lang_idx, lang in enumerate(_languages):
+                    target_lang = lang.split("-")[0].lower()
+                    if target_lang == "en":
+                        translated_langs += 1
+                        continue
+
+                    to_translate = []
+                    keys_to_update = []
+                    for obj_type, table_name, obj_name, _ in _objects:
+                        key = _obj_key(obj_type, table_name, obj_name)
+                        if not _trans_data[key].get(lang):
+                            to_translate.append(obj_name)
+                            keys_to_update.append(key)
+
+                    if not to_translate:
+                        translated_langs += 1
+                        continue
+
+                    set_status(conn_status, f"Language {lang_idx+1}/{lang_count}: Translating {len(to_translate)} names → {lang}…", GRAY_COLOR)
+                    auto_translate_btn.description = f"{lang} ({lang_idx+1}/{lang_count})"
+
+                    _CHUNK_SIZE = 50
+                    schema = StructType([StructField("text", StringType(), True)])
+                    lang_translated = 0
+
+                    for chunk_start in range(0, len(to_translate), _CHUNK_SIZE):
+                        chunk_end = min(chunk_start + _CHUNK_SIZE, len(to_translate))
+                        chunk_names = to_translate[chunk_start:chunk_end]
+                        chunk_keys = keys_to_update[chunk_start:chunk_end]
+
+                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} names…", GRAY_COLOR)
+
+                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} — calling Azure AI Translator (first call may take 30-60s)…", GRAY_COLOR)
+
+                        df_names = spark.createDataFrame([(n,) for n in chunk_names], schema)
+                        translate = (
+                            Translate()
+                            .setTextCol("text")
+                            .setToLanguage(target_lang)
+                            .setOutputCol("translation")
+                            .setConcurrency(5)
+                        )
+                        df_result = (
+                            translate.transform(df_names)
+                            .withColumn("translation", flatten(col("translation.translations")))
+                            .withColumn("translation", col("translation.text"))
+                            .select("text", "translation")
+                        )
+
+                        results = df_result.collect()
+                        for row, key in zip(results, chunk_keys):
+                            translated_list = row["translation"]
+                            if translated_list and len(translated_list) > 0:
+                                _trans_data[key][lang] = str(translated_list[0])
+                                total += 1
+                                lang_translated += 1
+
+                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_end}/{len(to_translate)} names translated", GRAY_COLOR)
+
+                    translated_langs += 1
+                    set_status(conn_status, f"✓ {lang}: {lang_translated} translated ({translated_langs}/{lang_count} languages done)", "#34c759")
+                    _render_grid()
+
+                _render_preview()
+                set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via Azure AI Translator.", "#34c759")
+            except ImportError:
+                set_status(conn_status, "SynapseML not available. Run in a Fabric Notebook.", "#ff3b30")
+            except Exception as e:
+                set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
+            finally:
+                auto_translate_btn.disabled = False
+                auto_translate_btn.description = "🌐 Auto-Translate"
+
+        import threading
+        threading.Thread(target=_translate_bg, daemon=True).start()
+
+    def on_apply(_):
+        ds = _ds_name[0]
+        if not ds:
+            set_status(conn_status, "No model loaded.", "#ff3b30")
+            return
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        apply_btn.disabled = True
+        apply_btn.description = "Applying…"
+
+        try:
+            changes = []
+            for obj_type, table_name, obj_name, tom_path in _objects:
+                key = _obj_key(obj_type, table_name, obj_name)
+                trans = _trans_data.get(key, {})
+                orig = _original.get(key, {})
+                for lang in _languages:
+                    new_val = trans.get(lang, "")
+                    old_val = orig.get(lang, "")
+                    if new_val != old_val:
+                        changes.append((obj_type, table_name, obj_name, tom_path, lang, new_val))
+
+            if not changes:
+                set_status(conn_status, "No changes to apply.", "#ff9500")
+                apply_btn.disabled = False
+                apply_btn.description = "✓ Apply Changes"
+                return
+
+            set_status(conn_status, f"Applying {len(changes)} translation(s) via XMLA…", GRAY_COLOR)
+
+            import sys, io as _sio
+            _old = sys.stdout
+            sys.stdout = _sio.StringIO()
+            try:
+                from sempy_labs.tom import connect_semantic_model
+                with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+                    for obj_type, table_name, obj_name, tom_path, lang, new_val in changes:
+                        if tom_path[0] == "table":
+                            obj = tom.model.Tables[table_name]
+                        elif tom_path[0] == "column":
+                            obj = tom.model.Tables[table_name].Columns[obj_name]
+                        elif tom_path[0] == "measure":
+                            obj = tom.model.Tables[table_name].Measures[obj_name]
+                        elif tom_path[0] == "hierarchy":
+                            obj = tom.model.Tables[table_name].Hierarchies[obj_name]
+                        else:
+                            continue
+                        tom.set_translation(object=obj, language=lang, property="Name", value=new_val)
+                    tom.model.SaveChanges()
+            finally:
+                sys.stdout = _old
+
+            import copy
+            _original.clear()
+            _original.update(copy.deepcopy(_trans_data))
+            _render_grid()
+            _render_preview()
+            set_status(conn_status, f"✓ Applied {len(changes)} translation(s).", "#34c759")
+        except Exception as e:
+            set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
+        finally:
+            apply_btn.disabled = False
+            apply_btn.description = "✓ Apply Changes"
+
+    load_btn.on_click(on_load)
+    add_lang_btn.on_click(on_add_lang)
+    auto_translate_btn.on_click(on_auto_translate)
+    apply_btn.on_click(on_apply)
+
+    widget = widgets.VBox(
+        [nav_row, grid_container, preview_container],
+        layout=widgets.Layout(padding="12px", gap="4px"),
+    )
     return widget
 
 
@@ -427,11 +830,18 @@ def _bpa_tab(workspace_input=None, report_input=None):
         return None
 
     load_btn = widgets.Button(description="Run BPA", button_style="primary", layout=widgets.Layout(width="120px"))
+    stop_bpa_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
+    _cancel_bpa = [False]
     fix_all_btn = widgets.Button(description="\u26a1 Fix All", button_style="danger", layout=widgets.Layout(width="100px"))
     show_full_btn = widgets.Button(description="\U0001F4CB Show Full BPA", layout=widgets.Layout(width="150px"))
     conn_status = status_html()
+
+    def _on_stop_bpa(_):
+        _cancel_bpa[0] = True
+    stop_bpa_btn.on_click(_on_stop_bpa)
+
     nav_row = widgets.HBox(
-        [load_btn, fix_all_btn, show_full_btn, conn_status],
+        [load_btn, stop_bpa_btn, fix_all_btn, show_full_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -479,35 +889,40 @@ def _bpa_tab(workspace_input=None, report_input=None):
     _all_findings = []  # [(ds, rule_name, category, obj_name, obj_type, severity), ...]
 
     def _render_native_bpa(findings):
-        """Render BPA findings as native-style HTML tables grouped by category."""
+        """Render BPA findings as native-style HTML tables grouped by category with row numbers."""
         from collections import OrderedDict
         cats = OrderedDict()
+        # Build a global row index for Fix Row to work across categories
+        row_idx_map = {}  # (cat_name, item_idx) -> global_row_1based
+        global_row = 0
         for ds, rule_name, category, obj_name, obj_type, severity in findings:
             if rule_name.startswith("ERROR"):
-                cats.setdefault("Errors", []).append((ds, rule_name, obj_type, obj_name, severity))
-                continue
-            cats.setdefault(category, []).append((ds, rule_name, obj_type, obj_name, severity))
+                cats.setdefault("Errors", []).append((ds, rule_name, obj_type, obj_name, severity, global_row + 1))
+            else:
+                cats.setdefault(category, []).append((ds, rule_name, obj_type, obj_name, severity, global_row + 1))
+            global_row += 1
 
         _bpa_categories.clear()
         cat_labels = []
         for cat_name, items in cats.items():
             sev_counts = {}
-            for _, _, _, _, sev in items:
+            for _, _, _, _, sev, _ in items:
                 sev_counts[sev] = sev_counts.get(sev, 0) + 1
             sev_badge = " + ".join(f"\u26a0 ({v})" if k in ("2", "3") else f"\u2139 ({v})" for k, v in sorted(sev_counts.items()))
             cat_labels.append(f"{cat_name}\n{sev_badge}")
 
-            # Build per-category table (matching upstream style)
+            # Build per-category table with row numbers
             html = '<table border="1" style="border-collapse:collapse; width:100%; font-size:12px;">'
-            html += '<tr><th style="padding:4px 8px; text-align:left;">Rule Name</th><th style="padding:4px 8px;">Object Type</th><th style="padding:4px 8px;">Object Name</th><th style="padding:4px 8px; text-align:center;">Severity</th></tr>'
-            for ds, rule_name, obj_type, obj_name, severity in items:
+            html += '<tr><th style="padding:4px 6px; text-align:center; width:35px;">#</th><th style="padding:4px 8px; text-align:left;">Rule Name</th><th style="padding:4px 8px;">Object Type</th><th style="padding:4px 8px;">Object Name</th><th style="padding:4px 8px; text-align:center;">Severity</th></tr>'
+            for ds, rule_name, obj_type, obj_name, severity, row_num in items:
                 if rule_name.startswith("ERROR"):
-                    html += f'<tr><td colspan="4" style="color:#ff3b30; padding:4px 8px;">\u274c {ds}: {rule_name}</td></tr>'
+                    html += f'<tr><td style="padding:4px 6px; text-align:center; color:#888;">{row_num}</td><td colspan="4" style="color:#ff3b30; padding:4px 8px;">\u274c {ds}: {rule_name}</td></tr>'
                     continue
                 sev_icon = "\u26a0\ufe0f" if severity in ("2", "3") else "\u2139\ufe0f"
                 has_fix = _is_fixable(rule_name, obj_type)
                 fix_badge = ' <span style="color:#34c759; font-size:10px;">[fixable]</span>' if has_fix else ''
-                html += f'<tr><td style="padding:4px 8px; color:{ICON_ACCENT};">{rule_name}{fix_badge}</td>'
+                html += f'<tr><td style="padding:4px 6px; text-align:center; color:#888; font-size:11px;">{row_num}</td>'
+                html += f'<td style="padding:4px 8px; color:{ICON_ACCENT};">{rule_name}{fix_badge}</td>'
                 html += f'<td style="padding:4px 8px;">{obj_type}</td>'
                 html += f'<td style="padding:4px 8px;">{obj_name}</td>'
                 html += f'<td style="padding:4px 8px; text-align:center;">{sev_icon}</td></tr>'
@@ -534,6 +949,8 @@ def _bpa_tab(workspace_input=None, report_input=None):
             return
         load_btn.disabled = True
         load_btn.description = "Scanning\u2026"
+        stop_bpa_btn.layout.display = ""
+        _cancel_bpa[0] = False
         import io as _io
         from contextlib import redirect_stdout as _redirect
         import IPython.display as _ipd
@@ -542,6 +959,9 @@ def _bpa_tab(workspace_input=None, report_input=None):
         _all_findings = []
 
         for i, ds in enumerate(items):
+            if _cancel_bpa[0]:
+                set_status(conn_status, f"\u23f9 Stopped after {i}/{len(items)} models.", "#ff9500")
+                break
             set_status(conn_status, f"BPA {i+1}/{len(items)}: '{ds}'\u2026", GRAY_COLOR)
             try:
                 buf = _io.StringIO()
@@ -577,6 +997,8 @@ def _bpa_tab(workspace_input=None, report_input=None):
         set_status(conn_status, f"\u2713 BPA: {n} finding(s) across {len(items)} model(s).", "#34c759" if n == 0 else "#ff9500")
         load_btn.disabled = False
         load_btn.description = "Run BPA"
+        stop_bpa_btn.layout.display = "none"
+        _cancel_bpa[0] = False
 
     def _update_rule_dropdown():
         """Populate rule dropdown with fixable rules + counts."""
@@ -1332,6 +1754,9 @@ def _prototype_tab(workspace_input=None, report_input=None):
         _page_images.clear()
         _rpt_name[0] = rpt
 
+        def _proto_progress(done, total, page_name):
+            set_status(conn_status, f"Exporting screenshots: {done}/{total} \u2014 {page_name}", GRAY_COLOR)
+
         try:
             set_status(conn_status, "Generating prototype\u2026", GRAY_COLOR)
 
@@ -1342,6 +1767,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
                 workspace=ws,
                 screenshots=screenshots_cb.value,
                 include_hidden=hidden_cb.value,
+                on_progress=_proto_progress,
             )
 
             svg = result["svg"]
@@ -1359,7 +1785,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
             set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots.{err_msg}", "#34c759" if not export_errors else "#ff9500")
 
         except Exception as e:
-            set_status(conn_status, f"Error: {str(e)[:100]}", "#ff3b30")
+            set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
         finally:
             generate_btn.disabled = False
             generate_btn.description = "\U0001F4D0 Generate Prototype"
@@ -1404,11 +1830,354 @@ def _prototype_tab(workspace_input=None, report_input=None):
     return widget
 
 
+# ---------------------------------------------------------------------------
+# Model Diagram tab (inline)
+# ---------------------------------------------------------------------------
+def _diagram_tab(workspace_input=None, report_input=None):
+    """Build the Model Diagram tab — SVG visualization of table relationships."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    generate_btn = widgets.Button(description="\U0001F5FA Generate Diagram", button_style="primary", layout=widgets.Layout(width="200px"))
+    model_dd = widgets.Dropdown(options=["(load a model first)"], value="(load a model first)", layout=widgets.Layout(width="300px"))
+    conn_status = status_html()
+
+    nav_row = widgets.HBox(
+        [generate_btn, model_dd, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+
+    svg_display = widgets.HTML(
+        value=f'<div style="padding:20px; color:{GRAY_COLOR}; font-size:14px; font-family:{FONT_FAMILY}; text-align:center; font-style:italic;">Click "Generate Diagram" after loading a model in the Model Explorer tab.</div>'
+    )
+    svg_container = widgets.VBox(
+        [svg_display],
+        layout=widgets.Layout(
+            overflow_x="auto", overflow_y="auto", max_height="600px",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color="#fff",
+        ),
+    )
+
+    # Layout constants
+    _BOX_W = 200
+    _BOX_H = 80
+    _PAD_X = 80
+    _PAD_Y = 100
+    _COLS = 5
+
+    def _generate(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        if not ds_input:
+            set_status(conn_status, "Enter a model name.", "#ff3b30")
+            return
+        ds = ds_input.split(",")[0].strip()
+        for pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            if ds.startswith(pfx):
+                ds = ds[len(pfx):]
+
+        generate_btn.disabled = True
+        generate_btn.description = "Loading\u2026"
+        set_status(conn_status, f"Loading relationships for '{ds}'\u2026", GRAY_COLOR)
+
+        try:
+            from sempy_labs.tom import connect_semantic_model
+            tables = {}
+            relationships = []
+
+            with connect_semantic_model(dataset=ds, readonly=True, workspace=ws) as tom:
+                for table in tom.model.Tables:
+                    cols = []
+                    for col in table.Columns:
+                        if col.IsKey:
+                            cols.append(f"\U0001F511 {col.Name}")
+                        elif any(r.FromColumn.Name == col.Name and str(r.FromTable.Name) == table.Name for r in tom.model.Relationships):
+                            cols.append(f"\U0001F517 {col.Name}")
+                    tables[table.Name] = {
+                        "name": table.Name,
+                        "cols": cols[:5],  # limit to 5 key/FK cols
+                        "is_hidden": bool(table.IsHidden),
+                        "rel_count": 0,
+                    }
+
+                for rel in tom.model.Relationships:
+                    from_t = str(rel.FromTable.Name)
+                    from_c = str(rel.FromColumn.Name)
+                    to_t = str(rel.ToTable.Name)
+                    to_c = str(rel.ToColumn.Name)
+                    card_from = str(rel.FromCardinality) if hasattr(rel, "FromCardinality") else "*"
+                    card_to = str(rel.ToCardinality) if hasattr(rel, "ToCardinality") else "1"
+                    is_active = bool(rel.IsActive) if hasattr(rel, "IsActive") else True
+                    cross = str(rel.CrossFilteringBehavior) if hasattr(rel, "CrossFilteringBehavior") else ""
+                    relationships.append({
+                        "from_table": from_t, "from_col": from_c,
+                        "to_table": to_t, "to_col": to_c,
+                        "cardinality": f"{card_from}:{card_to}",
+                        "active": is_active, "cross_filter": cross,
+                    })
+                    if from_t in tables:
+                        tables[from_t]["rel_count"] += 1
+                    if to_t in tables:
+                        tables[to_t]["rel_count"] += 1
+
+            # Layout: sort by relationship count (fact tables first), then alphabetical
+            sorted_tables = sorted(tables.values(), key=lambda t: (-t["rel_count"], t["name"]))
+            visible_tables = [t for t in sorted_tables if not t["is_hidden"]]
+
+            # Build positions
+            positions = {}
+            for idx, t in enumerate(visible_tables):
+                col = idx % _COLS
+                row = idx // _COLS
+                positions[t["name"]] = (40 + col * (_BOX_W + _PAD_X), 40 + row * (_BOX_H + _PAD_Y))
+
+            # Build SVG
+            n = len(visible_tables)
+            cols = min(_COLS, n) if n > 0 else 1
+            rows_count = (n + cols - 1) // cols
+            svg_w = cols * (_BOX_W + _PAD_X) + 40
+            svg_h = rows_count * (_BOX_H + _PAD_Y) + 40
+
+            svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">']
+            svg.append(f'<rect width="{svg_w}" height="{svg_h}" fill="#fff"/>')
+            svg.append('<defs><marker id="rel-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#888"/></marker></defs>')
+
+            # Draw relationship lines first (behind boxes)
+            for rel in relationships:
+                if rel["from_table"] not in positions or rel["to_table"] not in positions:
+                    continue
+                fx, fy = positions[rel["from_table"]]
+                tx, ty = positions[rel["to_table"]]
+                x1, y1 = fx + _BOX_W // 2, fy + _BOX_H
+                x2, y2 = tx + _BOX_W // 2, ty
+                color = "#888" if rel["active"] else "#ddd"
+                dash = "" if rel["active"] else ' stroke-dasharray="4,3"'
+                svg.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="1.5"{dash} marker-end="url(#rel-arrow)"/>')
+                # Cardinality label at midpoint
+                mx, my = (x1 + x2) // 2, (y1 + y2) // 2
+                svg.append(f'<text x="{mx}" y="{my - 4}" font-family="{FONT_FAMILY}" font-size="9" fill="#888" text-anchor="middle">{rel["cardinality"]}</text>')
+
+            # Draw table boxes
+            for t in visible_tables:
+                x, y = positions[t["name"]]
+                # Header
+                svg.append(f'<rect x="{x}" y="{y}" width="{_BOX_W}" height="24" rx="4" fill="#2563eb" stroke="#1e40af" stroke-width="1"/>')
+                svg.append(f'<text x="{x + 8}" y="{y + 16}" font-family="{FONT_FAMILY}" font-size="12" font-weight="600" fill="#fff">{t["name"][:22]}</text>')
+                # Body
+                body_h = max(20, len(t["cols"]) * 14 + 6)
+                svg.append(f'<rect x="{x}" y="{y + 24}" width="{_BOX_W}" height="{body_h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>')
+                for ci, col_name in enumerate(t["cols"]):
+                    svg.append(f'<text x="{x + 8}" y="{y + 38 + ci * 14}" font-family="{FONT_FAMILY}" font-size="10" fill="#555">{col_name[:25]}</text>')
+                if not t["cols"]:
+                    svg.append(f'<text x="{x + 8}" y="{y + 38}" font-family="{FONT_FAMILY}" font-size="10" fill="#bbb" font-style="italic">(no key/FK cols)</text>')
+
+            svg.append('</svg>')
+            svg_display.value = "\n".join(svg)
+
+            set_status(conn_status, f"\u2713 Diagram: {len(visible_tables)} tables, {len(relationships)} relationships.", "#34c759")
+
+        except Exception as e:
+            set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
+        finally:
+            generate_btn.disabled = False
+            generate_btn.description = "\U0001F5FA Generate Diagram"
+
+    generate_btn.on_click(_generate)
+
+    widget = widgets.VBox([nav_row, svg_container], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
+
+
+# ---------------------------------------------------------------------------
+# Script Runner tab (inline)
+# ---------------------------------------------------------------------------
+def _script_tab(workspace_input=None, report_input=None):
+    """Build the Script Runner tab for executing Python scripts with TOM model access."""
+    from sempy_labs._ui_components import (
+        FONT_FAMILY, BORDER_COLOR, GRAY_COLOR, ICON_ACCENT, SECTION_BG,
+        status_html, set_status,
+    )
+
+    _TEMPLATES = {
+        "-- Select template --": "",
+        "List all measures": """for table in model.Tables:
+    for m in table.Measures:
+        print(f"[{table.Name}][{m.Name}] = {m.Expression[:60]}")
+""",
+        "List all columns with types": """for table in model.Tables:
+    for c in table.Columns:
+        print(f"'{table.Name}'[{c.Name}] ({c.DataType})")
+""",
+        "List relationships": """for r in model.Relationships:
+    print(f"'{r.FromTable.Name}'[{r.FromColumn.Name}] -> '{r.ToTable.Name}'[{r.ToColumn.Name}]  Active={r.IsActive}")
+""",
+        "List tables with row counts": """import sempy.fabric as fabric
+ws = workspace  # from scope
+for table in model.Tables:
+    print(f"{table.Name}: {len(table.Columns)} columns, {len(table.Measures)} measures")
+""",
+        "Find unused measures": """used = set()
+for table in model.Tables:
+    for m in table.Measures:
+        expr = str(m.Expression) if m.Expression else ""
+        for t2 in model.Tables:
+            for m2 in t2.Measures:
+                if m2.Name != m.Name and f"[{m.Name}]" in str(m2.Expression or ""):
+                    used.add(m.Name)
+for table in model.Tables:
+    for m in table.Measures:
+        if m.Name not in used and not m.IsHidden:
+            print(f"Possibly unused: [{m.Name}]")
+""",
+        "Hide all columns starting with 'ID'": """count = 0
+for table in model.Tables:
+    for c in table.Columns:
+        if c.Name.startswith("ID") and not c.IsHidden:
+            if not readonly:
+                c.IsHidden = True
+                count += 1
+            else:
+                print(f"Would hide: '{table.Name}'[{c.Name}]")
+                count += 1
+if not readonly:
+    model.SaveChanges()
+print(f"Hidden {count} column(s).")
+""",
+    }
+
+    template_dd = widgets.Dropdown(
+        options=list(_TEMPLATES.keys()),
+        value="-- Select template --",
+        layout=widgets.Layout(width="300px"),
+    )
+    run_btn = widgets.Button(description="\u25B6 Run Script", button_style="primary", layout=widgets.Layout(width="120px"))
+    write_cb = widgets.Checkbox(value=False, description="Enable write mode (XMLA)", indent=False, layout=widgets.Layout(width="auto"))
+    conn_status = status_html()
+
+    script_input = widgets.Textarea(
+        value="# Python script with TOM model access\n# Variables in scope: model, tom, workspace, readonly\n\nfor table in model.Tables:\n    print(table.Name)\n",
+        layout=widgets.Layout(width="100%", height="200px", font_family="monospace"),
+    )
+
+    output_html = widgets.HTML(value="")
+    output_container = widgets.VBox(
+        [output_html],
+        layout=widgets.Layout(
+            max_height="300px", overflow_y="auto",
+            border=f"1px solid {BORDER_COLOR}", border_radius="8px",
+            padding="8px", background_color="#f8f9fa",
+        ),
+    )
+
+    def _on_template(change):
+        tpl = change.get("new", "")
+        code = _TEMPLATES.get(tpl, "")
+        if code:
+            script_input.value = code
+
+    template_dd.observe(_on_template, names="value")
+
+    def _on_run(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        if not ds_input:
+            set_status(conn_status, "Enter a model name.", "#ff3b30")
+            return
+        ds = ds_input.split(",")[0].strip()
+        for pfx in ("\U0001F4C4 ", "\U0001F4CA "):
+            if ds.startswith(pfx):
+                ds = ds[len(pfx):]
+
+        code = script_input.value
+        if not code.strip():
+            set_status(conn_status, "Enter a script.", "#ff3b30")
+            return
+
+        readonly = not write_cb.value
+        run_btn.disabled = True
+        run_btn.description = "Running\u2026"
+        set_status(conn_status, f"Executing on '{ds}' ({'readonly' if readonly else 'WRITE'})\u2026", GRAY_COLOR)
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+
+        try:
+            from sempy_labs.tom import connect_semantic_model
+            buf = _io.StringIO()
+            with connect_semantic_model(dataset=ds, readonly=readonly, workspace=ws) as tom:
+                scope = {
+                    "tom": tom,
+                    "model": tom.model,
+                    "workspace": ws,
+                    "readonly": readonly,
+                    "print": lambda *a, **kw: _io.StringIO.write(buf, " ".join(str(x) for x in a) + kw.get("end", "\n")),
+                }
+                # Add common imports
+                try:
+                    import sempy.fabric as fabric
+                    scope["fabric"] = fabric
+                except Exception:
+                    pass
+                try:
+                    import pandas as pd
+                    scope["pd"] = pd
+                except Exception:
+                    pass
+                try:
+                    import Microsoft.AnalysisServices.Tabular as TOM
+                    scope["TOM"] = TOM
+                except Exception:
+                    pass
+
+                exec(compile(code, "<script>", "exec"), scope)
+
+            captured = buf.getvalue()
+            if captured:
+                lines = captured.rstrip().split("\n")
+                html = '<pre style="font-family:monospace; font-size:12px; margin:0; white-space:pre-wrap;">'
+                for line in lines:
+                    html += f"{line}\n"
+                html += "</pre>"
+                output_html.value = html
+            else:
+                output_html.value = '<div style="color:#888; font-size:12px;">Script completed with no output.</div>'
+            set_status(conn_status, f"\u2713 Script executed ({len(captured.splitlines())} lines output).", "#34c759")
+
+        except Exception as e:
+            output_html.value = f'<pre style="color:#ff3b30; font-size:12px;">{str(e)}</pre>'
+            set_status(conn_status, f"Error: {str(e)[:80]}", "#ff3b30")
+        finally:
+            run_btn.disabled = False
+            run_btn.description = "\u25B6 Run Script"
+
+    run_btn.on_click(_on_run)
+
+    nav_row = widgets.HBox(
+        [template_dd, run_btn, write_cb, conn_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+    header = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">'
+        f'Script Runner — Python with TOM Model Access</div>'
+        f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; margin-bottom:8px;">'
+        f'Variables: <code>model</code>, <code>tom</code>, <code>TOM</code>, <code>fabric</code>, <code>pd</code>, <code>workspace</code>, <code>readonly</code></div>'
+    )
+
+    widget = widgets.VBox([nav_row, header, script_input, output_container], layout=widgets.Layout(padding="12px", gap="4px"))
+    return widget
+
+
 def pbi_fixer(
     workspace: Optional[str | UUID] = None,
     report: Optional[str | UUID] = None,
     page_name: Optional[str] = None,
     show_fixer_tab: bool = False,
+    all_tabs: bool = False,
 ):
     """
     Launches an interactive UI for scanning and fixing Power BI report visuals.
@@ -1427,6 +2196,16 @@ def pbi_fixer(
     show_fixer_tab : bool, default=False
         If True, shows the Fixer tab. By default hidden since all fixers
         are accessible via action dropdowns in the Report and SM tabs.
+    all_tabs : bool, default=False
+        If False (default), only shows Semantic Model, Report, and About tabs for fast startup.
+        If True, shows all tabs (Perspectives, Translations, Memory Analyzer, BPA, etc.).
+
+    Examples
+    --------
+    >>> pbi_fixer()                              # Minimal: SM + Report + About
+    >>> pbi_fixer(all_tabs=True)                 # All tabs
+    >>> pbi_fixer("", "Bad Report")              # SM + Report, pre-filled report name
+    >>> pbi_fixer(all_tabs=True, report="Sales") # All tabs, pre-filled report
     """
 
     # ---------------------------------------------------------------------------
@@ -1833,10 +2612,16 @@ def pbi_fixer(
         try:
             from sempy_labs.report._report_functions import clone_report as _clone_rpt
             cloned = f"{rpt}_copy"
-            _clone_rpt(report=rpt, cloned_report=cloned, workspace=ws)
+            import warnings as _w, sys as _s, io as _sio
+            _old = _s.stdout; _s.stdout = _sio.StringIO()
+            with _w.catch_warnings():
+                _w.simplefilter("ignore")
+                _clone_rpt(report=rpt, cloned_report=cloned, workspace=ws)
+            _s.stdout = _old
             download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 Report cloned as \'{cloned}\'.</span>'
         except Exception as e:
-            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+            _s.stdout = _old
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:200]}</span>'
         clone_rpt_btn.disabled = False
 
     def _on_clone_model(_):
@@ -1848,11 +2633,17 @@ def pbi_fixer(
         ds = rpt.split(",")[0].strip()
         clone_model_btn.disabled = True
         download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model\u2026</span>'
+        import warnings as _w, sys as _s, io as _sio
+        _old = _s.stdout; _s.stdout = _sio.StringIO()
         try:
-            _clone_semantic_model_impl(ds, ws)
-            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 Model cloned as \'{ds}_copy\'.</span>'
+            with _w.catch_warnings():
+                _w.simplefilter("ignore")
+                cloned_name = _clone_semantic_model_impl(ds, ws)
+            _s.stdout = _old
+            download_status.value = f'<span style="color:#34c759; font-size:12px;">\u2713 Model cloned as \'{cloned_name}\'.</span>'
         except Exception as e:
-            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+            _s.stdout = _old
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:200]}</span>'
         clone_model_btn.disabled = False
 
     def _clone_semantic_model_impl(ds, ws):
@@ -1879,8 +2670,23 @@ def pbi_fixer(
                 break
         if bim_part is None:
             raise ValueError(f"Could not extract model.bim. Got {len(result.get('definition', {}).get('parts', []))} part(s): {[p.get('path') for p in result.get('definition', {}).get('parts', [])]}")
-        create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
-        create_semantic_model_from_bim(dataset=f"{ds}_copy", bim_file=bim_part, workspace=ws)
+
+        # Find unique name (append _copy, _copy2, _copy3, etc.)
+        import sempy.fabric as fabric
+        existing = set()
+        try:
+            df = fabric.list_datasets(workspace=ws, mode="rest")
+            existing = set(df["Dataset Name"].tolist())
+        except Exception:
+            pass
+        cloned_name = f"{ds}_copy"
+        counter = 2
+        while cloned_name in existing:
+            cloned_name = f"{ds}_copy{counter}"
+            counter += 1
+
+        create_semantic_model_from_bim(dataset=cloned_name, bim_file=bim_part, workspace=ws)
+        return cloned_name
 
     def _on_clone_both(_):
         rpt = _strip_item_prefix(report_input.value.strip())
@@ -1905,20 +2711,26 @@ def pbi_fixer(
             download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model + report\u2026</span>'
 
         ds = model_name or rpt
+        import warnings as _w, sys as _s, io as _sio
+        _old = _s.stdout; _s.stdout = _sio.StringIO()
         try:
-            # 1. Clone model
-            download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model \'{ds}\'\u2026</span>'
-            _clone_semantic_model_impl(ds, ws)
-            # 2. Clone report, rebound to new model
-            download_status.value = f'<span style="color:#999; font-size:12px;">Cloning report \'{rpt}\'\u2026</span>'
-            from sempy_labs.report._report_functions import clone_report as _clone_rpt
-            _clone_rpt(report=rpt, cloned_report=f"{rpt}_copy", workspace=ws, target_dataset=f"{ds}_copy")
+            with _w.catch_warnings():
+                _w.simplefilter("ignore")
+                # 1. Clone model
+                download_status.value = f'<span style="color:#999; font-size:12px;">Cloning model \'{ds}\'\u2026</span>'
+                cloned_ds = _clone_semantic_model_impl(ds, ws)
+                # 2. Clone report, rebound to new model
+                download_status.value = f'<span style="color:#999; font-size:12px;">Cloning report \'{rpt}\'\u2026</span>'
+                from sempy_labs.report._report_functions import clone_report as _clone_rpt
+                _clone_rpt(report=rpt, cloned_report=f"{rpt}_copy", workspace=ws, target_dataset=cloned_ds)
+            _s.stdout = _old
             download_status.value = (
                 f'<span style="color:#34c759; font-size:12px;">'
-                f'\u2713 Cloned \'{rpt}_copy\' + \'{ds}_copy\'.</span>'
+                f'\u2713 Cloned \'{rpt}_copy\' + \'{cloned_ds}\'.</span>'
             )
         except Exception as e:
-            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:80]}</span>'
+            _s.stdout = _old
+            download_status.value = f'<span style="color:#ff3b30; font-size:12px;">Error: {str(e)[:200]}</span>'
         clone_both_btn.disabled = False
 
     clone_both_btn.on_click(_on_clone_both)
@@ -1941,13 +2753,16 @@ def pbi_fixer(
         _tab_options.append("\U0001F4C4 Report")
     if _fixer_visible:
         _tab_options.append("\u26A1 Fixer")
-    if perspective_editor_tab is not None:
-        _tab_options.append("\U0001F441 Perspectives")
-    _tab_options.append("\U0001F4BE Memory Analyzer")
-    _tab_options.append("\U0001F4CB BPA")
-    _tab_options.append("\U0001F4C4 Report BPA")
-    _tab_options.append("\U0001F4D0 Delta Analyzer")
-    _tab_options.append("\U0001F4D0 Prototype")
+    if all_tabs:
+        if perspective_editor_tab is not None:
+            _tab_options.append("\U0001F441 Perspectives")
+        _tab_options.append("\U0001F310 Translations")
+        _tab_options.append("\U0001F4BE Memory Analyzer")
+        _tab_options.append("\U0001F4CB BPA")
+        _tab_options.append("\U0001F4C4 Report BPA")
+        _tab_options.append("\U0001F4D0 Delta Analyzer")
+        _tab_options.append("\U0001F4D0 Prototype")
+        _tab_options.append("\U0001F5FA Model Diagram")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -2437,26 +3252,49 @@ def pbi_fixer(
     if fix_hide_visual_filters is not None:
         _rpt_fixer_cbs["Hide Visual Filters"] = lambda **kw: fix_hide_visual_filters(**kw)
 
-    # -- Build fixer callbacks for Model Explorer actions dropdown --
+    # Visual Alignment fixer
+    fix_visual_alignment = _lazy_import("sempy_labs.report._Fix_VisualAlignment", "fix_visual_alignment")
+    if fix_visual_alignment is not None:
+        _rpt_fixer_cbs["Fix Visual Alignment"] = lambda **kw: fix_visual_alignment(**kw)
+
+    # Theme editor actions
+    _show_theme = _lazy_import("sempy_labs.report._report_theme", "show_theme_summary")
+    _update_theme = _lazy_import("sempy_labs.report._report_theme", "update_theme_colors")
+    if _show_theme is not None:
+        _rpt_fixer_cbs["Show Theme Summary"] = lambda **kw: _show_theme(report=kw.get("report", ""), workspace=kw.get("workspace"))
+    if _update_theme is not None:
+        def _apply_ibcs_theme(**kw):
+            """Apply IBCS-style data colors (black/grey/red/green)."""
+            _update_theme(
+                report=kw.get("report", ""), workspace=kw.get("workspace"),
+                data_colors=["#404040", "#808080", "#C0C0C0", "#CC0000", "#00CC00", "#FFB800", "#0066CC", "#993399"],
+                background="#FFFFFF", foreground="#404040", table_accent="#404040",
+                scan_only=kw.get("scan_only", False),
+            )
+        _rpt_fixer_cbs["Apply IBCS Theme"] = lambda **kw: _apply_ibcs_theme(**kw)
+
+    # -- Build fixer callbacks for Model Explorer actions dropdown (grouped) --
     _model_fixer_cbs = {}
-    if fix_discourage_implicit_measures is not None:
-        _model_fixer_cbs["Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(**kw)
+    _noop = lambda **kw: None  # no-op for separator labels
+
+    # ── Additive Actions ──
+    _model_fixer_cbs["── Add Objects ──"] = _noop
     if add_calculated_calendar is not None:
-        _model_fixer_cbs["Add Calendar Table"] = lambda **kw: add_calculated_calendar(**kw)
+        _model_fixer_cbs["  Add Calendar Table"] = lambda **kw: add_calculated_calendar(**kw)
     if add_last_refresh_table is not None:
-        _model_fixer_cbs["Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
+        _model_fixer_cbs["  Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
     if add_measure_table is not None:
-        _model_fixer_cbs["Add Measure Table"] = lambda **kw: add_measure_table(**kw)
+        _model_fixer_cbs["  Add Measure Table"] = lambda **kw: add_measure_table(**kw)
     if add_calc_group_units is not None:
-        _model_fixer_cbs["Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
+        _model_fixer_cbs["  Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
     if add_calc_group_time_intelligence is not None:
-        _model_fixer_cbs["Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
+        _model_fixer_cbs["  Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
     if add_measures_from_columns is not None:
-        _model_fixer_cbs["Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
+        _model_fixer_cbs["  Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
     if add_py_measures is not None:
-        _model_fixer_cbs["Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
+        _model_fixer_cbs["  Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
 
@@ -2473,7 +3311,43 @@ def pbi_fixer(
             tom.format_dax()
         print(f"\u2713 All DAX expressions formatted.")
 
-    _model_fixer_cbs["Format All DAX"] = lambda **kw: _format_all_dax(**kw)
+    # ── Formatting & Setup ──
+    _model_fixer_cbs["── Formatting & Setup ──"] = _noop
+    _model_fixer_cbs["  Format All DAX"] = lambda **kw: _format_all_dax(**kw)
+    if fix_discourage_implicit_measures is not None:
+        _model_fixer_cbs["  Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(**kw)
+
+    # Incremental Refresh setup
+    _setup_ir = _lazy_import("sempy_labs.semantic_model._Setup_IncrementalRefresh", "setup_incremental_refresh")
+    if _setup_ir is not None:
+        def _run_ir(**kw):
+            ds = kw.get("report", "")
+            ws = kw.get("workspace")
+            scan = kw.get("scan_only", False)
+            # Get selected table from the current tree selection
+            # If no table selected, print instructions
+            print(f"Setting up incremental refresh for all tables in '{ds}'\u2026")
+            from sempy_labs.tom import connect_semantic_model
+            import Microsoft.AnalysisServices.Tabular as TOM
+            with connect_semantic_model(dataset=ds, readonly=True, workspace=ws) as tom:
+                for table in tom.model.Tables:
+                    # Skip calculated tables and tables with existing refresh policy
+                    try:
+                        if table.CalculationGroup is not None:
+                            continue
+                    except Exception:
+                        pass
+                    if table.EnableRefreshPolicy:
+                        print(f"  '{table.Name}': already has refresh policy, skipping.")
+                        continue
+                    has_date = any(col.DataType == TOM.DataType.DateTime for col in table.Columns)
+                    if not has_date:
+                        continue
+                    _setup_ir(dataset=ds, table_name=table.Name, workspace=ws, scan_only=scan)
+        _model_fixer_cbs["  Setup Incremental Refresh"] = lambda **kw: _run_ir(**kw)
+
+    # ── BPA Auto-Fixers ──
+    _model_fixer_cbs["── BPA Fixers ──"] = _noop
 
     # BPA standalone fixers — also available as Model Explorer actions
     _bpa_fix_floating = _lazy_import("sempy_labs.semantic_model._Fix_FloatingPointDataType", "fix_floating_point_datatype")
@@ -2501,37 +3375,37 @@ def pbi_fixer(
         return lambda **kw: fn(dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     if _bpa_fix_floating is not None:
-        _model_fixer_cbs["Fix Floating Point Types"] = _sm_action(_bpa_fix_floating)
+        _model_fixer_cbs["  Fix Floating Point Types"] = _sm_action(_bpa_fix_floating)
     if _bpa_fix_mdx is not None:
-        _model_fixer_cbs["Fix IsAvailableInMDX (False)"] = _sm_action(_bpa_fix_mdx)
+        _model_fixer_cbs["  Fix IsAvailableInMDX (False)"] = _sm_action(_bpa_fix_mdx)
     if _bpa_fix_desc is not None:
-        _model_fixer_cbs["Fix Measure Descriptions"] = _sm_action(_bpa_fix_desc)
+        _model_fixer_cbs["  Fix Measure Descriptions"] = _sm_action(_bpa_fix_desc)
     if _bpa_fix_fk is not None:
-        _model_fixer_cbs["Hide Foreign Keys"] = _sm_action(_bpa_fix_fk)
+        _model_fixer_cbs["  Hide Foreign Keys"] = _sm_action(_bpa_fix_fk)
     if _bpa_fix_divide is not None:
-        _model_fixer_cbs["Fix DIVIDE Function"] = _sm_action(_bpa_fix_divide)
+        _model_fixer_cbs["  Fix DIVIDE Function"] = _sm_action(_bpa_fix_divide)
     if _bpa_fix_zero is not None:
-        _model_fixer_cbs["Fix Avoid Adding 0"] = _sm_action(_bpa_fix_zero)
+        _model_fixer_cbs["  Fix Avoid Adding 0"] = _sm_action(_bpa_fix_zero)
     if _bpa_fix_summarize is not None:
-        _model_fixer_cbs["Fix Do Not Summarize"] = _sm_action(_bpa_fix_summarize)
+        _model_fixer_cbs["  Fix Do Not Summarize"] = _sm_action(_bpa_fix_summarize)
     if _bpa_fix_pk is not None:
-        _model_fixer_cbs["Mark Primary Keys"] = _sm_action(_bpa_fix_pk)
+        _model_fixer_cbs["  Mark Primary Keys"] = _sm_action(_bpa_fix_pk)
     if _bpa_fix_trim is not None:
-        _model_fixer_cbs["Trim Object Names"] = _sm_action(_bpa_fix_trim)
+        _model_fixer_cbs["  Trim Object Names"] = _sm_action(_bpa_fix_trim)
     if _bpa_fix_cap is not None:
-        _model_fixer_cbs["Capitalize Object Names"] = _sm_action(_bpa_fix_cap)
+        _model_fixer_cbs["  Capitalize Object Names"] = _sm_action(_bpa_fix_cap)
     if _bpa_fix_pct is not None:
-        _model_fixer_cbs["Fix Percentage Format"] = _sm_action(_bpa_fix_pct)
+        _model_fixer_cbs["  Fix Percentage Format"] = _sm_action(_bpa_fix_pct)
     if _bpa_fix_whole is not None:
-        _model_fixer_cbs["Fix Whole Number Format"] = _sm_action(_bpa_fix_whole)
+        _model_fixer_cbs["  Fix Whole Number Format"] = _sm_action(_bpa_fix_whole)
     if _bpa_fix_flag is not None:
-        _model_fixer_cbs["Fix Flag Column Format"] = _sm_action(_bpa_fix_flag)
+        _model_fixer_cbs["  Fix Flag Column Format"] = _sm_action(_bpa_fix_flag)
     if _bpa_fix_mdx_true is not None:
-        _model_fixer_cbs["Fix IsAvailableInMDX (True)"] = _sm_action(_bpa_fix_mdx_true)
+        _model_fixer_cbs["  Fix IsAvailableInMDX (True)"] = _sm_action(_bpa_fix_mdx_true)
     if _bpa_fix_sort_month is not None:
-        _model_fixer_cbs["Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
+        _model_fixer_cbs["  Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
     if _bpa_fix_data_cat is not None:
-        _model_fixer_cbs["Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
+        _model_fixer_cbs["  Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
 
     # -- Clone callbacks (for action dropdowns — reuse shared impl) --
     def _clone_report(**kw):
@@ -2597,41 +3471,60 @@ def pbi_fixer(
     if _fixer_visible:
         tab_panels.append(fixer_content)
 
-    if perspective_editor_tab is not None:
-        persp_content = perspective_editor_tab(
+    if all_tabs:
+        if perspective_editor_tab is not None:
+            persp_content = perspective_editor_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )
+            tab_panels.append(persp_content)
+
+        # Translations tab
+        trans_content = _translations_tab(
             workspace_input=workspace_input, report_input=report_input
         )
-        tab_panels.append(persp_content)
+        tab_panels.append(trans_content)
 
-    # Memory Analyzer tab (renamed from Vertipaq)
-    vp_content = _vertipaq_tab(
-        workspace_input=workspace_input, report_input=report_input
-    )
-    tab_panels.append(vp_content)
+        # Memory Analyzer tab (renamed from Vertipaq)
+        vp_content = _vertipaq_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(vp_content)
 
-    # BPA tab
-    bpa_content = _bpa_tab(
-        workspace_input=workspace_input, report_input=report_input
-    )
-    tab_panels.append(bpa_content)
+        # BPA tab
+        bpa_content = _bpa_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(bpa_content)
 
-    # Report BPA tab
-    rpt_bpa_content = _report_bpa_tab(
-        workspace_input=workspace_input, report_input=report_input
-    )
-    tab_panels.append(rpt_bpa_content)
+        # Report BPA tab
+        rpt_bpa_content = _report_bpa_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(rpt_bpa_content)
 
-    # Delta Analyzer tab
-    da_content = _delta_analyzer_tab(
-        workspace_input=workspace_input, report_input=report_input
-    )
-    tab_panels.append(da_content)
+        # Delta Analyzer tab
+        da_content = _delta_analyzer_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(da_content)
 
-    # Prototype tab
-    proto_content = _prototype_tab(
-        workspace_input=workspace_input, report_input=report_input
-    )
-    tab_panels.append(proto_content)
+        # Prototype tab
+        proto_content = _prototype_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(proto_content)
+
+        # Model Diagram tab
+        diagram_content = _diagram_tab(
+            workspace_input=workspace_input, report_input=report_input
+        )
+        tab_panels.append(diagram_content)
+
+    # Script Runner tab (disabled for now)
+    # script_content = _script_tab(
+    #     workspace_input=workspace_input, report_input=report_input
+    # )
+    # tab_panels.append(script_content)
 
     # About tab
     about_content = widgets.HTML(
