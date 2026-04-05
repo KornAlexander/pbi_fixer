@@ -1025,12 +1025,13 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                         rpt = ""
                         page = None
                         if k.startswith("visual:"):
-                            v_raw = k.split(":")[1]
+                            v_raw = k.split(":", 1)[1]
                             if "\x1f" in v_raw:
-                                rpt, page = v_raw.split("\x1f", 1)
+                                rpt, rest = v_raw.split("\x1f", 1)
+                                page = rest.rsplit(":", 1)[0] if ":" in rest else rest
                             else:
                                 rpt = report_input.value.strip() if report_input else ""
-                                page = v_raw
+                                page = v_raw.rsplit(":", 1)[0] if ":" in v_raw else v_raw
                         elif k.startswith("page:"):
                             p_raw = k.split(":", 1)[1]
                             if "\x1f" in p_raw:
@@ -1191,12 +1192,18 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     rpt = report_input.value.strip() if report_input else ""
                     page = p_raw
             elif key.startswith("visual:"):
-                v_raw = key.split(":")[1]
+                # visual key formats:
+                #   multi-report: visual:{report}\x1f{page}:{visual}
+                #   single-report: visual:{page}:{visual}
+                v_raw = key.split(":", 1)[1]
                 if "\x1f" in v_raw:
-                    rpt, page = v_raw.split("\x1f", 1)
+                    rpt, rest = v_raw.split("\x1f", 1)
+                    # rest = "{page}:{visual}" — extract page only
+                    page = rest.rsplit(":", 1)[0] if ":" in rest else rest
                 else:
                     rpt = report_input.value.strip() if report_input else ""
-                    page = v_raw
+                    # v_raw = "{page}:{visual}" — extract page only
+                    page = v_raw.rsplit(":", 1)[0] if ":" in v_raw else v_raw
             if rpt:
                 targets.append((rpt, page))
         # Deduplicate
