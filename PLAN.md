@@ -53,6 +53,9 @@ src/
     _Fix_UpgradeToPbir.py
     _Fix_MigrateSlicerToSlicerbar.py
     _Fix_VisualAlignment.py
+    _Fix_RemoveUnusedCustomVisuals.py
+    _Fix_DisableShowItemsNoData.py
+    _Fix_MigrateReportLevelMeasures.py
     _report_prototype.py   # Standalone prototype generator (SVG + Excalidraw)
     _report_theme.py       # Theme get/set/update module
   semantic_model/        # SM fixers — additive + BPA auto-fixers (each standalone)
@@ -184,6 +187,9 @@ All report fixers have their own file in `report/`, accept `(report, page_name, 
 | Fix Page Size | `_Fix_PageSize.py` | `fix_page_size()` | ✅ | ✅ | ✅ |
 | Hide Visual Filters | `_Fix_HideVisualFilters.py` | `fix_hide_visual_filters()` | ✅ | ✅ | ✅ |
 | Fix Visual Alignment | `_Fix_VisualAlignment.py` | `fix_visual_alignment()` | ✅ | ❌ | ✅ |
+| Remove Unused Custom Visuals | `_Fix_RemoveUnusedCustomVisuals.py` | `fix_remove_unused_custom_visuals()` | ✅ | ✅ | ✅ |
+| Disable Show Items No Data | `_Fix_DisableShowItemsNoData.py` | `fix_disable_show_items_no_data()` | ✅ | ✅ | ✅ |
+| Migrate Report-Level Measures | `_Fix_MigrateReportLevelMeasures.py` | `fix_migrate_report_level_measures()` | ✅ | ✅ | ✅ |
 | Migrate Slicer to Slicerbar | `_Fix_MigrateSlicerToSlicerbar.py` | `fix_migrate_slicer_to_slicerbar()` | ✅ | ❌ | ❌ |
 
 ### Semantic Model Fixers (separate files with `scan_only` support)
@@ -241,7 +247,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (36 features)
+### Completed (44 features)
 
 #### 🏗 Core & Foundation
 
@@ -312,6 +318,19 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 50 | Deferred Tab Loading | v1.2.183 | 2026-04-05 | `all_tabs=True`: placeholder VBoxes created synchronously (all tab buttons visible instantly), content populated via background thread with per-tab progress |
 | 51 | CI Green Builds | v1.2.177 | 2026-04-05 | `pytest -s tests/ \\|\\| [ $? -eq 5 ]` — allows empty test suite (exit code 5) while failing on real test failures |
 
+#### 🔧 Bug Fixes & Polish (v1.2.178–v1.2.211)
+
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
+| 52 | Fixer Scope Fix | v1.2.206 | 2026-04-06 | Fixed page name extraction from visual keys in `on_run_action` — was passing `{page}:{visual}` as page_name instead of just `{page}` |
+| 53 | Visual Alignment Fixer Fix | v1.2.207 | 2026-04-06 | Narrowed `_CHART_TYPES` to actual charts only, fixed `funnelChart`→`funnel`, page matching now accepts both display name and internal name, added tolerance % input |
+| 54 | Icon Consistency Fix | v1.2.208 | 2026-04-06 | Fixed swapped tab/tree icons — 📄=Semantic Model, 📊=Report consistently everywhere |
+| 55 | Show Native Countdown & Close | v1.2.209 | 2026-04-06 | Show Native buttons in BPA, Report BPA, Delta Analyzer now do 3→2→1 countdown, close main container, then render natively |
+| 56 | Page Ordering | v1.2.204 | 2026-04-06 | Report Explorer pages reflect actual report order from `pageOrder` array in `pages.json` instead of alphabetical |
+| 57 | Tree & Preview Height Match | v1.2.205 | 2026-04-06 | Increased tree 420→520px, preview min-height 450→520px, embedded report 400→480px to match properties panel |
+| 58 | God Mode Fix All | v1.2.210 | 2026-04-06 | ⚡ Fix All button scans all fixers → grouped tree (Report → Fixer → Item) → deselect items → Fix Selected |
+| 59 | BPA-Based Report Fixers | v1.2.211 | 2026-04-06 | 3 new fixers from Report BPA rules: Remove Unused Custom Visuals, Disable Show Items No Data, Migrate Report-Level Measures |
+
 ---
 
 ## Remaining Work (prioritized)
@@ -321,6 +340,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | # | Feature | Description |
 |---|---------|-------------|
 | 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+| 60 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
 
 ### Prio 1 — High Priority
 
