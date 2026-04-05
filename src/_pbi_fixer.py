@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.210"
+__version__ = "1.2.211"
 
 import ipywidgets as widgets
 import io
@@ -2230,6 +2230,9 @@ def pbi_fixer(
     fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
     fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
     fix_upgrade_to_pbir = _lazy_import("sempy_labs.report._Fix_UpgradeToPbir", "fix_upgrade_to_pbir")
+    fix_remove_unused_cv = _lazy_import("sempy_labs.report._Fix_RemoveUnusedCustomVisuals", "fix_remove_unused_custom_visuals")
+    fix_disable_show_no_data = _lazy_import("sempy_labs.report._Fix_DisableShowItemsNoData", "fix_disable_show_items_no_data")
+    fix_migrate_rlm = _lazy_import("sempy_labs.report._Fix_MigrateReportLevelMeasures", "fix_migrate_report_level_measures")
     add_calculated_calendar = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_Calendar", "add_calculated_calendar")
     fix_discourage_implicit_measures = _lazy_import("sempy_labs.semantic_model._Fix_DiscourageImplicitMeasures", "fix_discourage_implicit_measures")
     add_last_refresh_table = _lazy_import("sempy_labs.semantic_model._Add_Table_LastRefresh", "add_last_refresh_table")
@@ -2821,6 +2824,9 @@ def pbi_fixer(
     cb_col = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_page_size = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_hide_filters = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    cb_remove_cv = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    cb_no_data = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    cb_migrate_rlm = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
 
     pie_row = widgets.HBox(
         [cb_pie, _fixer_label("Fix Pie Charts", "replaces all pie charts â†’ Clustered Bar Chart (default)")],
@@ -2840,6 +2846,18 @@ def pbi_fixer(
     )
     hide_filters_row = widgets.HBox(
         [cb_hide_filters, _fixer_label("Hide Visual Filters", "sets isHiddenInViewMode on all visual-level filters")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
+    remove_cv_row = widgets.HBox(
+        [cb_remove_cv, _fixer_label("Remove Unused Custom Visuals", "removes custom visuals not used by any visual")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
+    no_data_row = widgets.HBox(
+        [cb_no_data, _fixer_label("Disable Show Items No Data", "disables 'Show items with no data' on all visuals")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
+    migrate_rlm_row = widgets.HBox(
+        [cb_migrate_rlm, _fixer_label("Migrate Report-Level Measures", "moves report-level measures into the semantic model")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
 
@@ -2863,6 +2881,12 @@ def pbi_fixer(
         _report_fixer_rows.append(page_size_row)
     if fix_hide_visual_filters is not None:
         _report_fixer_rows.append(hide_filters_row)
+    if fix_remove_unused_cv is not None:
+        _report_fixer_rows.append(remove_cv_row)
+    if fix_disable_show_no_data is not None:
+        _report_fixer_rows.append(no_data_row)
+    if fix_migrate_rlm is not None:
+        _report_fixer_rows.append(migrate_rlm_row)
 
     report_fixers_box = widgets.VBox(
         _report_fixer_rows,
@@ -3008,6 +3032,9 @@ def pbi_fixer(
             (cb_col, "Fix Column Charts", lambda r, p, w, s: fix_columncharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_columncharts else None,
             (cb_page_size, "Fix Page Size", lambda r, p, w, s: fix_page_size(report=r, page_name=p, workspace=w, scan_only=s)) if fix_page_size else None,
             (cb_hide_filters, "Hide Visual Filters", lambda r, p, w, s: fix_hide_visual_filters(report=r, page_name=p, workspace=w, scan_only=s)) if fix_hide_visual_filters else None,
+            (cb_remove_cv, "Remove Unused Custom Visuals", lambda r, p, w, s: fix_remove_unused_cv(report=r, page_name=p, workspace=w, scan_only=s)) if fix_remove_unused_cv else None,
+            (cb_no_data, "Disable Show Items No Data", lambda r, p, w, s: fix_disable_show_no_data(report=r, page_name=p, workspace=w, scan_only=s)) if fix_disable_show_no_data else None,
+            (cb_migrate_rlm, "Migrate Report-Level Measures", lambda r, p, w, s: fix_migrate_rlm(report=r, page_name=p, workspace=w, scan_only=s)) if fix_migrate_rlm else None,
         ] if x is not None
     ]
 
@@ -3214,7 +3241,7 @@ def pbi_fixer(
 
     def on_god_btn(_):
         """Select all fixers and run."""
-        all_cbs = [cb_pie, cb_bar, cb_col, cb_page_size, cb_hide_filters]
+        all_cbs = [cb_pie, cb_bar, cb_col, cb_page_size, cb_hide_filters, cb_remove_cv, cb_no_data, cb_migrate_rlm]
         if fix_upgrade_to_pbir is not None:
             all_cbs.append(cb_upgrade)
         for cb in all_cbs:
@@ -3270,6 +3297,12 @@ def pbi_fixer(
         _rpt_fixer_cbs["Fix Page Size"] = lambda **kw: fix_page_size(**kw)
     if fix_hide_visual_filters is not None:
         _rpt_fixer_cbs["Hide Visual Filters"] = lambda **kw: fix_hide_visual_filters(**kw)
+    if fix_remove_unused_cv is not None:
+        _rpt_fixer_cbs["Remove Unused Custom Visuals"] = lambda **kw: fix_remove_unused_cv(**kw)
+    if fix_disable_show_no_data is not None:
+        _rpt_fixer_cbs["Disable Show Items No Data"] = lambda **kw: fix_disable_show_no_data(**kw)
+    if fix_migrate_rlm is not None:
+        _rpt_fixer_cbs["Migrate Report-Level Measures"] = lambda **kw: fix_migrate_rlm(**kw)
 
     # Visual Alignment fixer
     fix_visual_alignment = _lazy_import("sempy_labs.report._Fix_VisualAlignment", "fix_visual_alignment")
