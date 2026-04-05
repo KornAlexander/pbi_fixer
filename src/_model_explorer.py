@@ -629,6 +629,18 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _apply_tree_filter(change.get("new", ""))
     tree_search.observe(_on_tree_search, names="value")
 
+    def _reselect_key_in_tree(key):
+        """Re-select a tree item by its key after a tree refresh, keeping it highlighted."""
+        rev_map = {v: k for k, v in _key_map.items()}
+        label = rev_map.get(key)
+        if label and label in tree.options:
+            tree.unobserve(on_select, names="value")
+            try:
+                tree.value = (label,)
+            except Exception:
+                pass
+            tree.observe(on_select, names="value")
+
     # -- expression panel --
     preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="160px", font_family="monospace"))
 
@@ -1272,6 +1284,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 else:
                     _expanded.add(m_name)
                 _refresh_tree()
+                # Re-select the model node so it stays highlighted
+                _reselect_key_in_tree(key)
                 # Fall through to show model properties/expression
             elif key.startswith("table:"):
                 t_name = key.split(":", 1)[1]
@@ -1280,12 +1294,14 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 else:
                     _expanded.add(t_name)
                 _refresh_tree()
+                _reselect_key_in_tree(key)
             if key.startswith("rels:"):
                 if key in _expanded:
                     _expanded.discard(key)
                 else:
                     _expanded.add(key)
                 _refresh_tree()
+                _reselect_key_in_tree(key)
                 return
             if key.startswith("folder:"):
                 if key in _expanded:
@@ -1293,6 +1309,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 else:
                     _expanded.add(key)
                 _refresh_tree()
+                _reselect_key_in_tree(key)
                 return
         # Update properties/expression for last selected item
         # Restore pending changes if this item was previously edited
@@ -1529,26 +1546,36 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             elif parts[0] == "column" and len(parts) > 2:
                 sel_columns.append(parts[2])
 
-        set_status(conn_status, f"Running {action}\u2026", GRAY_COLOR)
+        # Split comma-separated models and run action for each individually
+        items = [x.strip() for x in ds.split(",") if x.strip()]
+        set_status(conn_status, f"Running {action} on {len(items)} model(s)\u2026", GRAY_COLOR)
+        succeeded = 0
+        failed = 0
+        last_error = ""
         try:
             import io as _io
             from contextlib import redirect_stdout as _redirect
-            buf = _io.StringIO()
-            # Build kwargs, passing selection if action supports it
-            kwargs = {"report": ds, "workspace": ws, "scan_only": False}
-            if sel_measures and action in ("Add PY Measures (Y-1)",):
-                kwargs["measures"] = sel_measures
-            if sel_columns and action in ("Auto-Create Measures from Columns",):
-                kwargs["columns"] = sel_columns
-            with _redirect(buf):
-                fixer_callbacks[action](**kwargs)
-            captured = buf.getvalue().rstrip()
-            msg = f"\u2713 {action} complete."
-            if captured:
-                # Show first line of output in status
-                first_line = captured.splitlines()[0][:80]
-                msg += f" {first_line}"
-            set_status(conn_status, msg, "#34c759")
+            for i, item in enumerate(items):
+                if len(items) > 1:
+                    set_status(conn_status, f"Running {action} on '{item}' ({i+1}/{len(items)})\u2026", GRAY_COLOR)
+                buf = _io.StringIO()
+                kwargs = {"report": item, "workspace": ws, "scan_only": False}
+                if sel_measures and action in ("Add PY Measures (Y-1)",):
+                    kwargs["measures"] = sel_measures
+                if sel_columns and action in ("Auto-Create Measures from Columns",):
+                    kwargs["columns"] = sel_columns
+                try:
+                    with _redirect(buf):
+                        fixer_callbacks[action](**kwargs)
+                    succeeded += 1
+                except Exception as e:
+                    failed += 1
+                    last_error = str(e)[:60]
+            if failed == 0:
+                msg = f"\u2713 {action} complete on {succeeded} model(s)."
+            else:
+                msg = f"\u2713 {succeeded} ok, \u2717 {failed} failed. Last error: {last_error}"
+            set_status(conn_status, msg, "#34c759" if failed == 0 else "#ff9500")
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
 

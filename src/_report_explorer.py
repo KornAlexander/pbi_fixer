@@ -384,6 +384,18 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         _apply_tree_filter(change.get("new", ""))
     tree_search.observe(_on_tree_search, names="value")
 
+    def _reselect_key_in_tree(key):
+        """Re-select a tree item by its key after a tree refresh, keeping it highlighted."""
+        rev_map = {v: k for k, v in _key_map.items()}
+        label = rev_map.get(key)
+        if label and label in tree.options:
+            tree.unobserve(on_select, names="value")
+            try:
+                tree.value = (label,)
+            except Exception:
+                pass
+            tree.observe(on_select, names="value")
+
     # -- preview (top-right, powerbiclient Report widget) --
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Preview</div>'
@@ -947,6 +959,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 else:
                     _expanded.add(r_name)
                 _refresh_tree()
+                _reselect_key_in_tree(key)
                 return
             if key.startswith("page:"):
                 p_name = key.split(":", 1)[1]
@@ -955,6 +968,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 else:
                     _expanded.add(p_name)
                 _refresh_tree()
+                _reselect_key_in_tree(key)
         # Update properties + preview navigation
         props_html.value = _get_properties_html(_report_data, key)
         _populate_report_props(key)
