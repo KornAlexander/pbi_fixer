@@ -158,12 +158,14 @@ Two conversion approaches exist in Semantic Link Labs:
 | Report BPA | 📄 | `_pbi_fixer.py` (`_report_bpa_tab`) | Report BPA via `run_report_bpa()`, auto-converts PBIRLegacy |
 | Delta Analyzer | 📐 | `_pbi_fixer.py` (`_delta_analyzer_tab`) | Delta table analysis: summary, parquet files, row groups, column chunks |
 | Prototype | 📐 | `report/_report_prototype.py` | Report prototype with SVG + Excalidraw export, optional page screenshots |
-| Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram between tables |
-| About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits |
+| Translations | 🌐 | `_pbi_fixer.py` (`_translations_tab`) | Load, auto-translate (Azure AI Translator via SynapseML), preview diff, apply via XMLA |
+| Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram with nearest-edge connections |
+| About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits (SLL, ipywidgets, powerbiclient, SynapseML, DAX Formatter) |
 
 * **Fixer tab** is hidden by default (`show_fixer_tab=False`); all fixers are accessible via actions dropdowns in SM and Report tabs.
 * **Script Runner tab** exists but is disabled pending security review.
-* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
+* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Translations → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
+* `all_tabs=True`: All tabs shown. Tabs after Fixer are loaded via deferred placeholders (instant display, background population). `all_tabs=False` (default): Only SM, Report, About.
 
 ---
 
@@ -239,7 +241,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (34 features)
+### Completed (36 features)
 
 #### 🏗 Core & Foundation
 
@@ -250,7 +252,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 6 | UI Polish | v1.2.14–1.2.42 | 2026-03-28 | Full-width layout, multi-select, deduplication, branded header, About tab, version footer |
 | 11 | UI Alignment & Consistency | v1.2.105 | 2026-04-04 | Three-panel layout alignment, border/padding audit, full-width stretch |
 | 12 | Dropdown Item Selector | v1.2.106 | 2026-04-04 | `widgets.Combobox` with API-populated dropdown, icon prefixes 📄/📊, List Items |
-| 16 | Stop Load Button | v1.2.111 | 2026-04-04 | ⏹ Stop button on both Explorers, `_cancel_load` flag |
+| 16 | Stop Load Button | v1.2.111–1.2.177 | 2026-04-05 | ⏹ Stop button on both Explorers, `_cancel_load` flag. v1.2.177: Model Explorer loading moved to background thread so stop button actually works |
 | 20 | Search & Filter Tree | v1.2.141 | 2026-04-04 | Real-time keystroke filtering above both Explorer trees |
 
 #### 📊 Semantic Model Explorer
@@ -260,7 +262,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 2 | SM Properties & Editing | v1.2.x | 2026-03-27 | Properties panel, editable DAX, save button, Perspective Editor tab |
 | 19 | Table Data Preview | v1.2.114 | 2026-04-04 | Top N rows via `evaluate_dax(TOPN(...))` in preview panel |
 | 21 | Incremental Refresh Setup | v1.2.142 | 2026-04-04 | `_Setup_IncrementalRefresh.py`, auto date column detection |
-| 25 | Model Diagram Tab | v1.2.146 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
+| 25 | Model Diagram Tab | v1.2.146–1.2.180 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown. v1.2.180: actual box heights + nearest-edge connection lines |
 | 29a | Extended Properties (in-memory) | v1.2.165 | 2026-04-05 | Columns: is_key, sort_by, data_category, encoding, nullable. Measures: is_hidden. Relationships: security_filtering, rely_on_rri |
 | 31 | Read Stats from Data Toggle | v1.2.160 | 2026-04-05 | `read_stats_from_data=True` checkbox for Direct Lake models in Memory Analyzer |
 | 43 | Translations Editor | v1.2.162 | 2026-04-05 | 🌐 Load, auto-translate (Azure AI Translator via SynapseML), preview diff, apply via XMLA |
@@ -272,9 +274,9 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 3 | Report Preview & Properties | v1.2.x | 2026-03-27 | `powerbiclient.Report` embed, visual properties, page navigation |
 | 22 | Fix Visual Alignment | v1.2.143 | 2026-04-05 | `_Fix_VisualAlignment.py`, tolerance %, Report Explorer action |
 | 23 | Design Theme Editor | v1.2.144 | 2026-04-05 | `_report_theme.py` — get/set/update theme colors, Apply IBCS Theme |
-| 24 | Format Overview | v1.2.145 | 2026-04-05 | Workspace-wide PBIR/PBIRLegacy status, Convert All Legacy button |
+| 24 | PBIR Status Check | v1.2.145–1.2.182 | 2026-04-05 | Workspace-wide PBIR/PBIRLegacy status, Convert All Legacy button. v1.2.182: renamed from Format Overview, compact table, rendered below main UI |
 | 26 | Report Prototyping | v1.2.123–1.2.153 | 2026-04-04 | 📐 Prototype tab, SVG + Excalidraw, page screenshots, progress bar |
-| 30 | Editable Report Properties | v1.2.163 | 2026-04-05 | Pages: display name, width, height, hidden. Visuals: x, y, width, height, title. Save/discard |
+| 30 | Editable Report Properties | v1.2.163–1.2.182 | 2026-04-05 | Pages: display name, width, height, hidden. Visuals: x, y, width, height, title. Save/discard. v1.2.182: fix key parsing (was showing 0), remove duplicate static props |
 
 #### ⚡ Fixers & BPA
 
@@ -302,6 +304,13 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 13 | Clone Report + Semantic Model | v1.2.107 | 2026-04-04 | Clone via `getDefinition` → `createItem`, auto-increment suffix |
 | 15 | Clone Buttons & Name Mismatch | v1.2.110 | 2026-04-04 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
 | 27 | Script Runner Tab | v1.2.147 | 2026-04-05 | ⚙️ Python script runner with TOM in scope. Disabled pending review. |
+
+#### 🚀 Performance & UX
+
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
+| 50 | Deferred Tab Loading | v1.2.183 | 2026-04-05 | `all_tabs=True`: placeholder VBoxes created synchronously (all tab buttons visible instantly), content populated via background thread with per-tab progress |
+| 51 | CI Green Builds | v1.2.177 | 2026-04-05 | `pytest -s tests/ \\|\\| [ $? -eq 5 ]` — allows empty test suite (exit code 5) while failing on real test failures |
 
 ---
 
@@ -342,11 +351,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 29c | Full Property Grid (Advanced) | All TOM properties with collapsible "Advanced" section. See detailed spec below. |
 | 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
-| 42 | Batch Rename Objects | Multi-select → batch rename with pattern (prefix/suffix/find-replace/case). |
-| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. |
-| 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. |
-| 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). |
-| 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. |
 | 48 | Deployment Wizard | Deploy model to target workspace with options (skip partitions, skip roles, etc.). |
 | 49 | Model Comparison / Diff | Compare two models side by side, highlight differences (schema diff). |
 | 41 | AI Assistant | SLL has no SM AI chat module yet. Would need custom LLM integration. Lowest priority. |
