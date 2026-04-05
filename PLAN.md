@@ -237,12 +237,12 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (28 features)
+### Completed (34 features)
 
 #### 🏗 Core & Foundation
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 1 | Foundation | v1.1.0 | 2026-03-27 | `_ui_components.py`, `_model_explorer.py`, `_report_explorer.py`, `_pbi_fixer.py` tab wrapper |
 | 4 | Multi-Item Connection & PBIR Gate | v1.2.8–1.2.24 | 2026-03-28 | Comma-separated input, blank=all, PBIR format check, PBIRLegacy warnings, Convert All |
 | 6 | UI Polish | v1.2.14–1.2.42 | 2026-03-28 | Full-width layout, multi-select, deduplication, branded header, About tab, version footer |
@@ -253,27 +253,31 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 📊 Semantic Model Explorer
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 2 | SM Properties & Editing | v1.2.x | 2026-03-27 | Properties panel, editable DAX, save button, Perspective Editor tab |
 | 19 | Table Data Preview | v1.2.114 | 2026-04-04 | Top N rows via `evaluate_dax(TOPN(...))` in preview panel |
 | 21 | Incremental Refresh Setup | v1.2.142 | 2026-04-04 | `_Setup_IncrementalRefresh.py`, auto date column detection |
 | 25 | Model Diagram Tab | v1.2.146 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
+| 29a | Extended Properties (in-memory) | v1.2.165 | 2026-04-05 | Columns: is_key, sort_by, data_category, encoding, nullable. Measures: is_hidden. Relationships: security_filtering, rely_on_rri |
+| 31 | Read Stats from Data Toggle | v1.2.160 | 2026-04-05 | `read_stats_from_data=True` checkbox for Direct Lake models in Memory Analyzer |
+| 43 | Translations Editor | v1.2.162 | 2026-04-05 | 🌐 Load, auto-translate (deep-translator), preview diff, apply via XMLA |
 
 #### 📄 Report Explorer
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 3 | Report Preview & Properties | v1.2.x | 2026-03-27 | `powerbiclient.Report` embed, visual properties, page navigation |
 | 22 | Fix Visual Alignment | v1.2.143 | 2026-04-05 | `_Fix_VisualAlignment.py`, tolerance %, Report Explorer action |
 | 23 | Design Theme Editor | v1.2.144 | 2026-04-05 | `_report_theme.py` — get/set/update theme colors, Apply IBCS Theme |
 | 24 | Format Overview | v1.2.145 | 2026-04-05 | Workspace-wide PBIR/PBIRLegacy status, Convert All Legacy button |
 | 26 | Report Prototyping | v1.2.123–1.2.153 | 2026-04-04 | 📐 Prototype tab, SVG + Excalidraw, page screenshots, progress bar |
+| 30 | Editable Report Properties | v1.2.163 | 2026-04-05 | Pages: display name, width, height, hidden. Visuals: x, y, width, height, title. Save/discard |
 
 #### ⚡ Fixers & BPA
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 5 | Fixer Tab Redesign | v1.2.8–1.2.24 | 2026-03-28 | God Button, fixers in Explorer dropdowns, tab hidden by default |
 | 7 | Scan Mode & Violation Counts | v1.2.26–1.2.43 | 2026-03-28 | Scan button per tab, violation badges, "Fix this" buttons, re-scan |
 | 9 | BPA Integration & Auto-Fixers | v1.2.44–1.2.99 | 2026-03-29 | 📋 BPA tab + 📄 Report BPA, category tabs, Fix All/Fix Rule/Fix Row |
@@ -283,16 +287,16 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 💾 Analysis Tabs
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 8 | VertipaqAnalyzer & Memory | v1.2.36–1.2.38 | 2026-03-28 | 💾 Memory Analyzer tab with subtabs, DataFrame rendering, cache |
 | 10 | Delta Analyzer & Download | v1.2.44–1.2.99 | 2026-03-29 | 📐 Delta Analyzer tab, ⬇ Download .pbix/.pbip buttons |
 | 17 | Native BPA & Memory Analyzer | v1.2.112 | 2026-04-04 | BPA category ToggleButtons, Memory Analyzer direct DataFrames |
 
 #### 📋 Clone & Utilities
 
-| # | # | Version | Date | Summary |
-|---|-------|---------|------|---------|
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
 | 13 | Clone Report + Semantic Model | v1.2.107 | 2026-04-04 | Clone via `getDefinition` → `createItem`, auto-increment suffix |
 | 15 | Clone Buttons & Name Mismatch | v1.2.110 | 2026-04-04 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
 | 27 | Script Runner Tab | v1.2.147 | 2026-04-05 | ⚙️ Python script runner with TOM in scope. Disabled pending review. |
@@ -301,36 +305,26 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Remaining Work (prioritized)
 
-### Prio 0 — Done (implement immediately)
-
-| # | Feature | Status |
-|-------|---------|--------|
-| 31 | Read Stats from Data Toggle | ✅ Done (v1.2.160) |
-| 30 | Editable Report Explorer Properties | ✅ Done (v1.2.163) |
-| 43 | Translations / Cultures Editor | ✅ Done (v1.2.162) |
-
 ### Prio 1 — High Priority
 
 | # | Feature | Description |
-|-------|---------|-------------|
-| 29 | Extended Model Explorer Properties | Columns: encoding, sort-by, is-key, data category. Tables: mode, row count, source expression. Relationships: cross-filter, active, RRI. |
-| 30 | Editable Report Explorer Properties | ✅ Done (v1.2.163). Pages: display name, width, height, hidden. Visuals: x, y, width, height, title, hidden. Save/discard buttons. |
+|---|---------|-------------|
+| 29b | Extended Properties (expensive) | Tables: row count (evaluate_dax), storage mode per table. Deferred from 29a — requires extra API calls. |
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
 | 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 41 | AI Assistant | SLL `rti._copilot.nl_to_kql()` exists but no SM AI chat yet. Would need custom LLM integration. Low quick-win potential — defer unless SLL adds `_ai` module. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
-| 43 | Translations / Cultures Editor | ✅ Done (v1.2.162). Load, auto-translate (deep-translator), preview diff, apply via XMLA. |
 | 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. Core TE2 feature. |
 
 ### Prio 2 — Medium Priority
 
 | # | Feature | Description |
-|-------|---------|-------------|
+|---|---------|-------------|
 | 40 | Design Preview Before Fix | Show 2–4 design preset previews (HTML/SVG mockups) before applying a fix. |
 | 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
 | 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
 | 38 | Enhanced Fix Page Size | Proportionally resize all visuals + scale fonts on page size change. |
+| 41 | AI Assistant | SLL has no SM AI chat module yet. Would need custom LLM integration. Defer. |
 | 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. TE2 feature. |
 | 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). TE2 feature. |
 | 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. TE2 core feature. |
@@ -338,7 +332,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 ### Prio 4 — Low Priority / Nice to Have
 
 | # | Feature | Description |
-|-------|---------|-------------|
+|---|---------|-------------|
 | 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
 | 48 | Deployment Wizard | Deploy model to target workspace with options (skip partitions, skip roles, etc.). |
@@ -353,7 +347,7 @@ Key TE2 open-source features **not yet in PBI Fixer**:
 | TE2 Feature | PBI Fixer Status | # |
 |-------------|-----------------|-------|
 | Tree with display folders | ✅ Done (nested, v1.2.157) | — |
-| Property grid (all properties) | ⚡ Partial (basic props) | 29 |
+| Property grid (all properties) | ✅ Done (basic + extended in-memory, v1.2.165) | 29a |
 | DAX editor + formatter | ✅ Done | — |
 | BPA (Best Practice Analyzer) | ✅ Done (19 auto-fixers) | — |
 | C# scripting | ✅ Replaced with Python scripting (Feature 27, disabled) | — |
