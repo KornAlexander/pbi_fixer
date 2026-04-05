@@ -64,7 +64,7 @@ src/
     _Add_CalcGroup_TimeIntelligence.py
     _Add_MeasuresFromColumns.py
     _Add_PYMeasures.py
-    _Setup_IncrementalRefresh.py  # Incremental refresh setup (Phase 27)
+    _Setup_IncrementalRefresh.py  # Incremental refresh setup (Feature 27)
     _Fix_FloatingPointDataType.py
     _Fix_IsAvailableInMdx.py
     _Fix_IsAvailableInMdxTrue.py
@@ -203,7 +203,7 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 
 ### BPA Auto-Fixers (19 total — standalone files + grouped checkbox UI in `_bpa_tab`)
 
-These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab organizes them into 6 category groups with select-all checkboxes (Phase 41).
+These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab organizes them into 6 category groups with select-all checkboxes (Feature 41).
 
 | # | BPA Rule | Fix Action | Category |
 |---|----------|------------|----------|
@@ -235,13 +235,13 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ---
 
-## Implementation Phases
+## Release History
 
-### Completed (28 phases)
+### Completed (28 features)
 
 #### 🏗 Core & Foundation
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 1 | Foundation | v1.1.0 | 2026-03-27 | `_ui_components.py`, `_model_explorer.py`, `_report_explorer.py`, `_pbi_fixer.py` tab wrapper |
 | 4 | Multi-Item Connection & PBIR Gate | v1.2.8–1.2.24 | 2026-03-28 | Comma-separated input, blank=all, PBIR format check, PBIRLegacy warnings, Convert All |
@@ -253,7 +253,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 📊 Semantic Model Explorer
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 2 | SM Properties & Editing | v1.2.x | 2026-03-27 | Properties panel, editable DAX, save button, Perspective Editor tab |
 | 19 | Table Data Preview | v1.2.114 | 2026-04-04 | Top N rows via `evaluate_dax(TOPN(...))` in preview panel |
@@ -262,7 +262,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 📄 Report Explorer
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 3 | Report Preview & Properties | v1.2.x | 2026-03-27 | `powerbiclient.Report` embed, visual properties, page navigation |
 | 22 | Fix Visual Alignment | v1.2.143 | 2026-04-05 | `_Fix_VisualAlignment.py`, tolerance %, Report Explorer action |
@@ -272,7 +272,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### ⚡ Fixers & BPA
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 5 | Fixer Tab Redesign | v1.2.8–1.2.24 | 2026-03-28 | God Button, fixers in Explorer dropdowns, tab hidden by default |
 | 7 | Scan Mode & Violation Counts | v1.2.26–1.2.43 | 2026-03-28 | Scan button per tab, violation badges, "Fix this" buttons, re-scan |
@@ -283,7 +283,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 💾 Analysis Tabs
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 8 | VertipaqAnalyzer & Memory | v1.2.36–1.2.38 | 2026-03-28 | 💾 Memory Analyzer tab with subtabs, DataFrame rendering, cache |
 | 10 | Delta Analyzer & Download | v1.2.44–1.2.99 | 2026-03-29 | 📐 Delta Analyzer tab, ⬇ Download .pbix/.pbip buttons |
@@ -291,7 +291,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 #### 📋 Clone & Utilities
 
-| # | Phase | Version | Date | Summary |
+| # | # | Version | Date | Summary |
 |---|-------|---------|------|---------|
 | 13 | Clone Report + Semantic Model | v1.2.107 | 2026-04-04 | Clone via `getDefinition` → `createItem`, auto-increment suffix |
 | 15 | Clone Buttons & Name Mismatch | v1.2.110 | 2026-04-04 | 📋 Clone Both/Report/Model buttons, name mismatch warning |
@@ -303,14 +303,14 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ### Prio 0 — Done (implement immediately)
 
-| Phase | Feature | Status |
+| # | Feature | Status |
 |-------|---------|--------|
 | 31 | Read Stats from Data Toggle | ✅ Done (v1.2.160) |
 | 40 | Design Preview Before Fix | ✅ Planned — show preview mockups before applying fixers |
 
 ### Prio 1 — High Priority
 
-| Phase | Feature | Description |
+| # | Feature | Description |
 |-------|---------|-------------|
 | 29 | Extended Model Explorer Properties | Columns: encoding, sort-by, is-key, data category. Tables: mode, row count, source expression. Relationships: cross-filter, active, RRI. |
 | 30 | Editable Report Explorer Properties | Pages: display name, width, height, background, hidden. Visuals: position, size, title, hidden. Save with dirty-state. |
@@ -324,7 +324,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ### Prio 2 — Medium Priority
 
-| Phase | Feature | Description |
+| # | Feature | Description |
 |-------|---------|-------------|
 | 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
 | 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
@@ -335,7 +335,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ### Prio 4 — Low Priority / Nice to Have
 
-| Phase | Feature | Description |
+| # | Feature | Description |
 |-------|---------|-------------|
 | 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
 | 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
@@ -348,13 +348,13 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 Key TE2 open-source features **not yet in PBI Fixer**:
 
-| TE2 Feature | PBI Fixer Status | Phase |
+| TE2 Feature | PBI Fixer Status | # |
 |-------------|-----------------|-------|
 | Tree with display folders | ✅ Done (nested, v1.2.157) | — |
 | Property grid (all properties) | ⚡ Partial (basic props) | 29 |
 | DAX editor + formatter | ✅ Done | — |
 | BPA (Best Practice Analyzer) | ✅ Done (19 auto-fixers) | — |
-| C# scripting | ✅ Replaced with Python scripting (Phase 27, disabled) | — |
+| C# scripting | ✅ Replaced with Python scripting (Feature 27, disabled) | — |
 | Perspectives editor | ✅ Done | — |
 | Batch rename | ❌ Missing | 42 |
 | Translations / Cultures | ✅ Done (v1.2.162, with AI auto-translate) | 43 |
@@ -430,7 +430,7 @@ Exceptions: XMLA warning box uses `#ffc107` border.
 
 ## API Dependencies
 
-| Feature | Semantic Link Labs API | Notes |
+| # | Semantic Link Labs API | Notes |
 | --- | --- | --- |
 | SM tree | `connect_semantic_model(readonly=True)` → `tm.model.Tables`, `.Columns`, `.Measures`, `.Hierarchies` | TOM object model via .NET interop |
 | DAX preview | `measure.Expression`, `calc_item.Expression` | Pre-fetched during Load |
@@ -505,9 +505,9 @@ To add a new fixer:
 
 ---
 
-## Detailed Phase Descriptions (Future Work)
+## Detailed Feature Descriptions (Future Work)
 
-### Phase 29 — Extended Model Explorer Properties
+### Feature 29 — Extended Model Explorer Properties
 
 Add comprehensive property editing to the Model Explorer, matching Tabular Editor 2's property grid:
 
@@ -518,7 +518,7 @@ Add comprehensive property editing to the Model Explorer, matching Tabular Edito
 * All properties read from TOM via the existing `_model_data` cache. Editable properties written back via `connect_semantic_model(readonly=False)` + `SaveChanges()`.
 * Extend `_populate_props()` in `_model_explorer.py` with new property rows. Reuse the compact `_prop_input()` helper.
 
-### Phase 30 — Editable Report Explorer Properties
+### Feature 30 — Editable Report Explorer Properties
 
 Make Report Explorer visual and page properties editable via `connect_report`:
 
@@ -527,7 +527,7 @@ Make Report Explorer visual and page properties editable via `connect_report`:
 * Add a **Save button** with dirty-state tracking (same pattern as Model Explorer). Writes go through `connect_report(readonly=False)` in read-write mode, modifying the PBIR JSON definition.
 * Show validation: page size must be ≥ 320×240 and ≤ 3840×2160. Visual position must be within page bounds.
 
-### Phase 34 — Batch Fixer Presets
+### Feature 34 — Batch Fixer Presets
 
 Add named presets that run multiple fixers in sequence:
 
@@ -537,7 +537,7 @@ Add named presets that run multiple fixers in sequence:
 * **UI**: Dropdown in the Fixer tab or a "⚡ Preset" button next to the Run button. Selecting a preset auto-checks the corresponding fixers.
 * **Custom presets**: Allow saving the current checkbox selection as a named preset (stored in lakehouse Files as JSON).
 
-### Phase 37 — Standard Design Themes
+### Feature 37 — Standard Design Themes
 
 Dropdown of built-in Microsoft theme presets applied in one click:
 
@@ -547,7 +547,7 @@ Dropdown of built-in Microsoft theme presets applied in one click:
 * Apply via `connect_report` → modify `StaticResources/SharedResources/BaseThemes/CY24SU11.json` (or equivalent theme file in PBIR definition).
 * Use `_report_theme.py`'s `set_report_theme()` for the actual write.
 
-### Phase 39 — Fix Variance Charts
+### Feature 39 — Fix Variance Charts
 
 IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`):
 
@@ -557,7 +557,7 @@ IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`):
 * Support waterfall (bridge) chart formatting: running total bars in grey, positive deltas green, negative red.
 * `scan_only` mode: detect potential variance charts by naming convention (columns containing "Variance", "Delta", "Δ", "vs", "Diff").
 
-### Phase 42 — Batch Rename Objects
+### Feature 42 — Batch Rename Objects
 
 Multi-select objects in Model Explorer → batch rename with pattern:
 
@@ -568,7 +568,7 @@ Multi-select objects in Model Explorer → batch rename with pattern:
 * Apply via `connect_semantic_model(readonly=False)` — rename each object in a single XMLA session.
 * Works on tables, columns, measures, hierarchies.
 
-### Phase 44 — Add/Delete Objects (CRUD)
+### Feature 44 — Add/Delete Objects (CRUD)
 
 Full create/delete support for model objects:
 
@@ -579,7 +579,7 @@ Full create/delete support for model objects:
 * **Delete objects**: Ctrl+select in tree → "🗑 Delete" button. Confirmation dialog showing all objects to be removed. Uses `tom.remove_object()`.
 * **Safety**: deletion checks for dependencies (measures referencing the column, relationships involving the table). Warn if breaking dependencies exist.
 
-### Phase 35 — Background Editor
+### Feature 35 — Background Editor
 
 Set/change page backgrounds in Report Explorer:
 
@@ -589,7 +589,7 @@ Set/change page backgrounds in Report Explorer:
 * Modifies the PBIR page JSON `background` property via `connect_report`.
 * **Wallpaper**: separate setting for page wallpaper (visible in normal view but not in focus mode).
 
-### Phase 36 — Logo Uploader
+### Feature 36 — Logo Uploader
 
 Add a logo/image to report pages:
 
@@ -599,7 +599,7 @@ Add a logo/image to report pages:
 * Inserts as an Image visual in the PBIR definition via `connect_report`.
 * **Apply scope**: current page or all pages.
 
-### Phase 38 — Enhanced Fix Page Size
+### Feature 38 — Enhanced Fix Page Size
 
 Extend `_Fix_PageSize.py` with proportional visual resizing:
 
@@ -609,7 +609,7 @@ Extend `_Fix_PageSize.py` with proportional visual resizing:
 * Maintain relative spacing between visuals.
 * `scan_only` compatible: show what would change without applying.
 
-### Phase 45 — RLS Editor
+### Feature 45 — RLS Editor
 
 View and edit Row-Level Security roles:
 
@@ -620,7 +620,7 @@ View and edit Row-Level Security roles:
 * Save via `connect_semantic_model(readonly=False)` → `tom.model.Roles`.
 * Read via TOM: `tom.model.Roles[i].TablePermissions[j].FilterExpression`.
 
-### Phase 46 — Object Annotations Editor
+### Feature 46 — Object Annotations Editor
 
 View and edit object annotations (custom metadata key-value pairs):
 
@@ -630,7 +630,7 @@ View and edit object annotations (custom metadata key-value pairs):
 * Used for storing metadata like last-modified date, author, review status.
 * Save via TOM `Annotations.Add()` / `Annotations.Remove()`.
 
-### Phase 47 — Undo/Redo
+### Feature 47 — Undo/Redo
 
 Ctrl+Z / Ctrl+Y support for property and expression changes:
 
@@ -640,7 +640,7 @@ Ctrl+Z / Ctrl+Y support for property and expression changes:
 * **Limitation**: only covers PBI Fixer UI changes, not external XMLA writes.
 * UI: "↩ Undo" and "↪ Redo" buttons in the save row, with count badges.
 
-### Phase 48 — Deployment Wizard
+### Feature 48 — Deployment Wizard
 
 Deploy a model to a target workspace with granular options:
 
@@ -650,7 +650,7 @@ Deploy a model to a target workspace with granular options:
 * Progress bar with per-table status.
 * **Comparison mode**: show what would change before deploying (schema diff preview).
 
-### Phase 49 — Model Comparison / Diff
+### Feature 49 — Model Comparison / Diff
 
 Compare two semantic models side by side:
 
