@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.183"
+__version__ = "1.2.184"
 
 import ipywidgets as widgets
 import io
@@ -3517,31 +3517,34 @@ def pbi_fixer(
     if _fixer_visible:
         tab_panels.append(fixer_content)
 
-    # -- Deferred tab placeholders (created synchronously, populated in thread) --
-    _deferred_placeholders = {}  # label -> VBox placeholder
     if all_tabs:
-        _loading_msg = f'<div style="padding:40px; text-align:center; color:{gray_color}; font-size:13px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; font-style:italic;">Loading…</div>'
-        _deferred_tab_specs = []
         if perspective_editor_tab is not None:
-            _deferred_tab_specs.append("\U0001F441 Perspectives")
-        _deferred_tab_specs.extend([
-            "\U0001F310 Translations",
-            "\U0001F4BE Memory Analyzer",
-            "\U0001F4CB BPA",
-            "\U0001F4C4 Report BPA",
-            "\U0001F4D0 Delta Analyzer",
-            "\U0001F4D0 Prototype",
-            "\U0001F5FA Model Diagram",
-        ])
-        for label in _deferred_tab_specs:
-            placeholder = widgets.VBox(
-                [widgets.HTML(value=_loading_msg)],
-                layout=widgets.Layout(display="none", padding="12px"),
-            )
-            _deferred_placeholders[label] = placeholder
-            tab_panels.append(placeholder)
+            tab_panels.append(perspective_editor_tab(
+                workspace_input=workspace_input, report_input=report_input
+            ))
+        tab_panels.append(_translations_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_vertipaq_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_bpa_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_report_bpa_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_delta_analyzer_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_prototype_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
+        tab_panels.append(_diagram_tab(
+            workspace_input=workspace_input, report_input=report_input
+        ))
 
-    # About tab (always last in core tabs, will move to end after deferred tabs load)
+    # About tab
     about_content = widgets.HTML(
         value=(
             f'<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:24px; max-width:600px;">'
@@ -3608,60 +3611,6 @@ def pbi_fixer(
             border_radius="12px",
         ),
     )
-
-    # -- Deferred tab population (background thread fills placeholders) --
-    if all_tabs and _deferred_placeholders:
-        def _populate_deferred_tabs():
-            builders = {}
-            if perspective_editor_tab is not None:
-                builders["\U0001F441 Perspectives"] = lambda: perspective_editor_tab(
-                    workspace_input=workspace_input, report_input=report_input
-                )
-            builders["\U0001F310 Translations"] = lambda: _translations_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F4BE Memory Analyzer"] = lambda: _vertipaq_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F4CB BPA"] = lambda: _bpa_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F4C4 Report BPA"] = lambda: _report_bpa_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F4D0 Delta Analyzer"] = lambda: _delta_analyzer_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F4D0 Prototype"] = lambda: _prototype_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            builders["\U0001F5FA Model Diagram"] = lambda: _diagram_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-
-            total = len(_deferred_placeholders)
-            for i, (label, placeholder) in enumerate(_deferred_placeholders.items()):
-                builder = builders.get(label)
-                if not builder:
-                    continue
-                try:
-                    # Update loading message with progress
-                    placeholder.children = [widgets.HTML(
-                        value=f'<div style="padding:40px; text-align:center; color:{gray_color}; font-size:13px; '
-                        f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; font-style:italic;">'
-                        f'Loading {label}… ({i+1}/{total})</div>'
-                    )]
-                    content = builder()
-                    # Replace placeholder contents with real tab content
-                    placeholder.children = [content]
-                    placeholder.layout.padding = "0px"
-                except Exception:
-                    placeholder.children = [widgets.HTML(
-                        value=f'<div style="padding:20px; color:#ff3b30; font-size:13px;">Failed to load {label}</div>'
-                    )]
-
-        import threading
-        threading.Thread(target=_populate_deferred_tabs, daemon=True).start()
 
     return container
 
