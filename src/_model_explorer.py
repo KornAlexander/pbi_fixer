@@ -620,7 +620,23 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         except Exception:
             pass
         if query:
-            tree.options = [o for o in _all_tree_options if query in o.lower()]
+            # Include parent nodes (model/table/folder) above any matching item
+            all_opts = _all_tree_options
+            matched = set()
+            for i, o in enumerate(all_opts):
+                if query in o.lower():
+                    matched.add(i)
+                    # Walk backwards to find parent nodes (lower indent level)
+                    cur_indent = len(o) - len(o.lstrip())
+                    for j in range(i - 1, -1, -1):
+                        p = all_opts[j]
+                        p_indent = len(p) - len(p.lstrip())
+                        if p_indent < cur_indent:
+                            matched.add(j)
+                            cur_indent = p_indent
+                            if p_indent == 0:
+                                break
+            tree.options = [all_opts[i] for i in sorted(matched)]
         else:
             tree.options = _all_tree_options
         tree.observe(on_select, names="value")
