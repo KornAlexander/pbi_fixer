@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.177"
+__version__ = "1.2.178"
 
 import ipywidgets as widgets
 import io
@@ -460,9 +460,11 @@ def _translations_tab(workspace_input=None, report_input=None):
 
                 set_status(conn_status, "Initializing Spark session…", GRAY_COLOR)
                 spark = _create_spark_session()
+                schema = StructType([StructField("text", StringType(), True)])
                 total = 0
                 lang_count = len(_languages)
                 translated_langs = 0
+                _first_call = [True]
 
                 for lang_idx, lang in enumerate(_languages):
                     target_lang = lang.split("-")[0].lower()
@@ -482,11 +484,18 @@ def _translations_tab(workspace_input=None, report_input=None):
                         translated_langs += 1
                         continue
 
-                    set_status(conn_status, f"Language {lang_idx+1}/{lang_count}: Translating {len(to_translate)} names → {lang}…", GRAY_COLOR)
                     auto_translate_btn.description = f"{lang} ({lang_idx+1}/{lang_count})"
 
-                    _CHUNK_SIZE = 50
-                    schema = StructType([StructField("text", StringType(), True)])
+                    # Create Translate object once per language
+                    translate = (
+                        Translate()
+                        .setTextCol("text")
+                        .setToLanguage(target_lang)
+                        .setOutputCol("translation")
+                        .setConcurrency(5)
+                    )
+
+                    _CHUNK_SIZE = 1000
                     lang_translated = 0
 
                     for chunk_start in range(0, len(to_translate), _CHUNK_SIZE):
@@ -494,18 +503,12 @@ def _translations_tab(workspace_input=None, report_input=None):
                         chunk_names = to_translate[chunk_start:chunk_end]
                         chunk_keys = keys_to_update[chunk_start:chunk_end]
 
-                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} names…", GRAY_COLOR)
-
-                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} — calling Azure AI Translator (first call may take 30-60s)…", GRAY_COLOR)
+                        if _first_call[0]:
+                            set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): translating {len(chunk_names)} names — first call may take 2-5 min (SynapseML cold start)…", GRAY_COLOR)
+                        else:
+                            set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} names…", GRAY_COLOR)
 
                         df_names = spark.createDataFrame([(n,) for n in chunk_names], schema)
-                        translate = (
-                            Translate()
-                            .setTextCol("text")
-                            .setToLanguage(target_lang)
-                            .setOutputCol("translation")
-                            .setConcurrency(5)
-                        )
                         df_result = (
                             translate.transform(df_names)
                             .withColumn("translation", flatten(col("translation.translations")))
@@ -514,6 +517,7 @@ def _translations_tab(workspace_input=None, report_input=None):
                         )
 
                         results = df_result.collect()
+                        _first_call[0] = False
                         for row, key in zip(results, chunk_keys):
                             translated_list = row["translation"]
                             if translated_list and len(translated_list) > 0:
