@@ -319,7 +319,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
 | 41 | AI Assistant | SLL `rti._copilot.nl_to_kql()` exists but no SM AI chat yet. Would need custom LLM integration. Low quick-win potential — defer unless SLL adds `_ai` module. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
-| 43 | Translations / Cultures Editor | View/edit model translations (cultures). Core TE2 feature. |
+| 43 | Translations / Cultures Editor | ✅ Done (v1.2.162). Load, auto-translate (deep-translator), preview diff, apply via XMLA. |
 | 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. Core TE2 feature. |
 
 ### Prio 2 — Medium Priority
@@ -357,7 +357,7 @@ Key TE2 open-source features **not yet in PBI Fixer**:
 | C# scripting | ✅ Replaced with Python scripting (Phase 27, disabled) | — |
 | Perspectives editor | ✅ Done | — |
 | Batch rename | ❌ Missing | 42 |
-| Translations / Cultures | ❌ Missing | 43 |
+| Translations / Cultures | ✅ Done (v1.2.162, with AI auto-translate) | 43 |
 | Add/Delete objects (measures, tables, calc groups) | ❌ Missing | 44 |
 | RLS role editor | ❌ Missing | 45 |
 | Annotations editor | ❌ Missing | 46 |
@@ -502,3 +502,161 @@ To add a new fixer:
 4. Add the fixer to the appropriate Explorer actions dropdown (`_rpt_fixer_cbs` or `_model_fixer_cbs`)
 5. The fixer will automatically appear in the Fixer tab UI and/or the Explorer actions
 6. The fixer **must** also work standalone: `fix_your_fixer(report="X", workspace="Y", scan_only=False)`
+
+---
+
+## Detailed Phase Descriptions (Future Work)
+
+### Phase 29 — Extended Model Explorer Properties
+
+Add comprehensive property editing to the Model Explorer, matching Tabular Editor 2's property grid:
+
+* **Columns**: encoding hint (`ValueEncoding`/`HashEncoding`), sort-by column dropdown (select another column in same table), is-key (checkbox), is-nullable, lineage tag (read-only), data category dropdown (`City`, `Country`, `WebUrl`, `ImageUrl`, etc.).
+* **Tables**: storage mode (`Import`/`DirectLake`/`Dual`) as read-only label, row count from Vertipaq cache (or `evaluate_dax`), source expression (M query from partition, read-only textarea), data category, lineage tag.
+* **Measures**: is-hidden toggle, lineage tag (read-only), KPI properties (target expression, status expression, trend expression) if KPI is defined.
+* **Relationships**: cross-filter direction dropdown (`Both`/`Single`), security filtering behavior (`Both`/`One`), is-active toggle, rely-on-referential-integrity checkbox.
+* All properties read from TOM via the existing `_model_data` cache. Editable properties written back via `connect_semantic_model(readonly=False)` + `SaveChanges()`.
+* Extend `_populate_props()` in `_model_explorer.py` with new property rows. Reuse the compact `_prop_input()` helper.
+
+### Phase 30 — Editable Report Explorer Properties
+
+Make Report Explorer visual and page properties editable via `connect_report`:
+
+* **Pages**: editable display name (`Text` input), width/height (`IntText`), background color (hex `Text`), hidden flag (checkbox), page type indicator (read-only).
+* **Visuals**: editable position X/Y (`IntText`), size width/height (`IntText`), title text (`Text`), hidden flag (checkbox), visual type (read-only).
+* Add a **Save button** with dirty-state tracking (same pattern as Model Explorer). Writes go through `connect_report(readonly=False)` in read-write mode, modifying the PBIR JSON definition.
+* Show validation: page size must be ≥ 320×240 and ≤ 3840×2160. Visual position must be within page bounds.
+
+### Phase 34 — Batch Fixer Presets
+
+Add named presets that run multiple fixers in sequence:
+
+* **"IBCS Standard"**: Fix Pie Charts → Fix Bar Charts → Fix Column Charts → Fix Page Size (1920×1080) → Hide Visual Filters.
+* **"Quick Cleanup"**: Discourage Implicit Measures → Hide Foreign Keys → Fix Do Not Summarize → Trim Object Names.
+* **"Full Model BPA Fix"**: Run all 19 BPA auto-fixers in order.
+* **UI**: Dropdown in the Fixer tab or a "⚡ Preset" button next to the Run button. Selecting a preset auto-checks the corresponding fixers.
+* **Custom presets**: Allow saving the current checkbox selection as a named preset (stored in lakehouse Files as JSON).
+
+### Phase 37 — Standard Design Themes
+
+Dropdown of built-in Microsoft theme presets applied in one click:
+
+* Source themes from Microsoft's official Power BI theme gallery (JSON files).
+* Presets: "Default", "Executive", "Innovate", "Academic", "Accessible", "IBCS (custom)".
+* Preview: show color swatches before applying.
+* Apply via `connect_report` → modify `StaticResources/SharedResources/BaseThemes/CY24SU11.json` (or equivalent theme file in PBIR definition).
+* Use `_report_theme.py`'s `set_report_theme()` for the actual write.
+
+### Phase 39 — Fix Variance Charts
+
+IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`):
+
+* Detect bar/column charts that show actual vs. budget/plan/target comparisons.
+* Apply IBCS-compliant formatting: positive variance = green fill, negative variance = red fill.
+* Remove unnecessary gridlines, axis labels, and legends that clutter variance displays.
+* Support waterfall (bridge) chart formatting: running total bars in grey, positive deltas green, negative red.
+* `scan_only` mode: detect potential variance charts by naming convention (columns containing "Variance", "Delta", "Δ", "vs", "Diff").
+
+### Phase 42 — Batch Rename Objects
+
+Multi-select objects in Model Explorer → batch rename with pattern:
+
+* **Find & Replace**: regex or plain text find/replace across selected object names.
+* **Prefix/Suffix**: add or remove a prefix/suffix to all selected objects.
+* **Case conversion**: UPPER, lower, Title Case, camelCase.
+* **Preview**: show before→after table of all affected names before applying.
+* Apply via `connect_semantic_model(readonly=False)` — rename each object in a single XMLA session.
+* Works on tables, columns, measures, hierarchies.
+
+### Phase 44 — Add/Delete Objects (CRUD)
+
+Full create/delete support for model objects:
+
+* **Create Measure**: dialog with name, table (dropdown), DAX expression (textarea), format string, display folder. Uses `tom.add_measure()`.
+* **Create Calculated Column**: name, table, DAX expression, data type. Uses `tom.add_calculated_column()`.
+* **Create Calculation Group**: name + N calculation items with names + ordinal + DAX expressions. Uses `tom.add_calculation_group()` + `tom.add_calculation_item()`.
+* **Create Table**: M expression, name. Uses `tom.add_m_partition()` on a new table.
+* **Delete objects**: Ctrl+select in tree → "🗑 Delete" button. Confirmation dialog showing all objects to be removed. Uses `tom.remove_object()`.
+* **Safety**: deletion checks for dependencies (measures referencing the column, relationships involving the table). Warn if breaking dependencies exist.
+
+### Phase 35 — Background Editor
+
+Set/change page backgrounds in Report Explorer:
+
+* **Solid color**: hex color picker (`Text` input with `#` prefix), preview swatch.
+* **Transparency slider**: 0% (opaque) to 100% (transparent), `IntSlider` widget.
+* **Apply scope**: "This page" or "All pages" radio buttons.
+* Modifies the PBIR page JSON `background` property via `connect_report`.
+* **Wallpaper**: separate setting for page wallpaper (visible in normal view but not in focus mode).
+
+### Phase 36 — Logo Uploader
+
+Add a logo/image to report pages:
+
+* **URL input**: paste an image URL (public or OneDrive). Preview inline.
+* **Position**: dropdown (top-left, top-right, bottom-left, bottom-right) or custom X/Y.
+* **Size**: width/height inputs with aspect ratio lock checkbox.
+* Inserts as an Image visual in the PBIR definition via `connect_report`.
+* **Apply scope**: current page or all pages.
+
+### Phase 38 — Enhanced Fix Page Size
+
+Extend `_Fix_PageSize.py` with proportional visual resizing:
+
+* When page size changes (e.g. 1280×720 → 1920×1080), proportionally scale all visual positions and sizes.
+* **`resize_visuals=True`**: scale X, Y, width, height of each visual by the same ratio.
+* **`resize_fonts=True`**: scale font sizes in visual configs by the ratio (e.g. 12pt → 18pt at 1.5× scale).
+* Maintain relative spacing between visuals.
+* `scan_only` compatible: show what would change without applying.
+
+### Phase 45 — RLS Editor
+
+View and edit Row-Level Security roles:
+
+* List all roles in the model with their table filter expressions.
+* Editable DAX filter expression per role per table (textarea).
+* Add new role (name input), delete role (with confirmation).
+* Add/remove role members (email/UPN list).
+* Save via `connect_semantic_model(readonly=False)` → `tom.model.Roles`.
+* Read via TOM: `tom.model.Roles[i].TablePermissions[j].FilterExpression`.
+
+### Phase 46 — Object Annotations Editor
+
+View and edit object annotations (custom metadata key-value pairs):
+
+* Annotations are TOM properties: `object.Annotations["key"].Value`.
+* Grid view: select an object → show all its annotations as key-value pairs.
+* Add/edit/delete annotations. Common keys: `TabularEditor_*`, `PBI_*`, custom user keys.
+* Used for storing metadata like last-modified date, author, review status.
+* Save via TOM `Annotations.Add()` / `Annotations.Remove()`.
+
+### Phase 47 — Undo/Redo
+
+Ctrl+Z / Ctrl+Y support for property and expression changes:
+
+* Maintain a stack of `(key, field, old_value, new_value)` tuples.
+* Each edit pushes to the undo stack. Undo pops and applies `old_value`, pushes to redo stack.
+* Works for: expression edits, property changes, name changes, translation changes.
+* **Limitation**: only covers PBI Fixer UI changes, not external XMLA writes.
+* UI: "↩ Undo" and "↪ Redo" buttons in the save row, with count badges.
+
+### Phase 48 — Deployment Wizard
+
+Deploy a model to a target workspace with granular options:
+
+* **Target workspace** dropdown (populated from REST API).
+* **Options**: Deploy connections (yes/no), Deploy partitions (yes/no), Deploy roles (yes/no), Deploy role members (yes/no).
+* Deployment via `getDefinition` → `createItem` / `updateDefinition` on the target workspace.
+* Progress bar with per-table status.
+* **Comparison mode**: show what would change before deploying (schema diff preview).
+
+### Phase 49 — Model Comparison / Diff
+
+Compare two semantic models side by side:
+
+* **Source/target selectors**: two dropdowns (model A, model B) from loaded models or workspace items.
+* **Diff view**: table showing objects that exist in A only, B only, or both with differences.
+* Color-coded: green = added, red = removed, yellow = modified.
+* **Drilldown**: click a modified object to see property-level diff (old value → new value).
+* **Merge**: select individual changes to apply from source → target (cherry-pick merge).
+* Uses TOM comparison of table/column/measure/relationship definitions.
