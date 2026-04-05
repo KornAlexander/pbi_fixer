@@ -1052,6 +1052,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(
             flex="0 0 220px",
             min_height="450px",
+            max_height="480px",
+            overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}",
             border_radius="8px",
             padding="6px",
