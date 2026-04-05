@@ -263,7 +263,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 25 | Model Diagram Tab | v1.2.146 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown, export SVG |
 | 29a | Extended Properties (in-memory) | v1.2.165 | 2026-04-05 | Columns: is_key, sort_by, data_category, encoding, nullable. Measures: is_hidden. Relationships: security_filtering, rely_on_rri |
 | 31 | Read Stats from Data Toggle | v1.2.160 | 2026-04-05 | `read_stats_from_data=True` checkbox for Direct Lake models in Memory Analyzer |
-| 43 | Translations Editor | v1.2.162 | 2026-04-05 | 🌐 Load, auto-translate (deep-translator), preview diff, apply via XMLA |
+| 43 | Translations Editor | v1.2.162 | 2026-04-05 | 🌐 Load, auto-translate (Azure AI Translator via SynapseML), preview diff, apply via XMLA |
 
 #### 📄 Report Explorer
 
