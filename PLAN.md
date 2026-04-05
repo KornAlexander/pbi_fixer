@@ -299,76 +299,73 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ---
 
-## Remaining Work
+## Remaining Work (prioritized)
 
-### Phase 29 — Extended Model Explorer Properties
+### Prio 0 — Done (implement immediately)
 
-* **Columns**: encoding hint, sort-by column, is-key, is-nullable, lineage tag, data category.
-* **Tables**: mode (Import/DirectLake/Dual), row count, source expression (M/partition query), data category, lineage tag.
-* **Measures**: is-hidden, lineage tag, KPI properties (if any).
-* **Relationships**: cross-filter direction, security filtering, is-active, rely-on-referential-integrity.
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 31 | Read Stats from Data Toggle | ✅ Done (v1.2.160) |
+| 40 | Design Preview Before Fix | ✅ Planned — show preview mockups before applying fixers |
 
-### Phase 30 — Editable Report Explorer Properties
+### Prio 1 — High Priority
 
-* **Pages**: editable display name, width, height, background color, hidden flag.
-* **Visuals**: editable position (x, y), size (width, height), title text, hidden flag.
-* Save button with dirty-state tracking. Writes via `connect_report` in read-write mode.
+| Phase | Feature | Description |
+|-------|---------|-------------|
+| 29 | Extended Model Explorer Properties | Columns: encoding, sort-by, is-key, data category. Tables: mode, row count, source expression. Relationships: cross-filter, active, RRI. |
+| 30 | Editable Report Explorer Properties | Pages: display name, width, height, background, hidden. Visuals: position, size, title, hidden. Save with dirty-state. |
+| 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
+| 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
+| 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+| 41 | AI Assistant | SLL `rti._copilot.nl_to_kql()` exists but no SM AI chat yet. Would need custom LLM integration. Low quick-win potential — defer unless SLL adds `_ai` module. |
+| 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
+| 43 | Translations / Cultures Editor | View/edit model translations (cultures). Core TE2 feature. |
+| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. Core TE2 feature. |
 
-### Phase 31 — Read Stats from Data Toggle
+### Prio 2 — Medium Priority
 
-* `read_stats_from_data=True` checkbox in Memory Analyzer nav row for Direct Lake models.
+| Phase | Feature | Description |
+|-------|---------|-------------|
+| 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
+| 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
+| 38 | Enhanced Fix Page Size | Proportionally resize all visuals + scale fonts on page size change. |
+| 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. TE2 feature. |
+| 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). TE2 feature. |
+| 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. TE2 core feature. |
 
-### Phase 32 — Measure Dependency Tree
+### Prio 4 — Low Priority / Nice to Have
 
-* Measure dependency tree/DAG visualization leveraging `anytree` patterns in SLL.
-* Show which measures reference which other measures/columns.
+| Phase | Feature | Description |
+|-------|---------|-------------|
+| 32 | Measure Dependency Tree | DAG visualization of measure→measure/column references. |
+| 33 | Export Scan Results | Export scan results to DataFrame/CSV. "Export" button next to Scan. |
+| 48 | Deployment Wizard | Deploy model to target workspace with options (skip partitions, skip roles, etc.). |
+| 49 | Model Comparison / Diff | Compare two models side by side, highlight differences (schema diff). |
 
-### Phase 33 — Export Scan Results
+---
 
-* Export scan results to DataFrame / CSV for external reporting.
-* "Export" button next to the Scan button.
+### Tabular Editor 2 Gap Analysis
 
-### Phase 34 — Batch Fixer Presets
+Key TE2 open-source features **not yet in PBI Fixer**:
 
-* Presets (e.g. "IBCS Standard" = pie fix + bar fix + page size fix + slicer migration).
-* Preset dropdown in the Fixer tab or as a top-level action.
-
-### Phase 35 — Background Editor
-
-* Set/change page backgrounds: solid color picker (hex input), transparency slider (0–100%).
-* Apply to current page or all pages. Modifies PBIR page `background` property.
-
-### Phase 36 — Logo Uploader
-
-* Add a logo/image to report pages via URL input.
-* Preview inline, insert as Image visual at configurable position/size.
-
-### Phase 37 — Standard Design Themes
-
-* Dropdown of built-in Microsoft theme presets applied in one click.
-* Source from Microsoft's official theme gallery. Apply via `updateDefinition`.
-
-### Phase 38 — Enhanced Fix Page Size
-
-* Extend `_Fix_PageSize.py`: proportionally resize all visuals + scale font sizes.
-* `resize_visuals=True` and `resize_fonts=True` parameters. `scan_only` compatible.
-
-### Phase 39 — Fix Variance Charts
-
-* IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`).
-* Positive/negative color formatting, axis/label cleanup, waterfall chart support.
-
-### Phase 40 — Design Preview Before Fix
-
-* Show 2–4 design preset previews (HTML/SVG mockups) before applying a fix.
-* User selects preset, confirms with "Apply". Framework in `_ui_components.py`.
-
-### Phase 41 — AI Assistant
-
-* Integrate SLL AI/Copilot chat interface as a tab or slide-out panel.
-* Context-aware: pass loaded model/report metadata (tables, measures, relationships) to AI.
-* Quick-action buttons from AI suggestions (e.g. "Hide this column" → one-click XMLA apply).
-* Research Michael Kovalsky's `sempy_labs._ai` / `sempy_labs.rti._copilot` integration points.
+| TE2 Feature | PBI Fixer Status | Phase |
+|-------------|-----------------|-------|
+| Tree with display folders | ✅ Done (nested, v1.2.157) | — |
+| Property grid (all properties) | ⚡ Partial (basic props) | 29 |
+| DAX editor + formatter | ✅ Done | — |
+| BPA (Best Practice Analyzer) | ✅ Done (19 auto-fixers) | — |
+| C# scripting | ✅ Replaced with Python scripting (Phase 27, disabled) | — |
+| Perspectives editor | ✅ Done | — |
+| Batch rename | ❌ Missing | 42 |
+| Translations / Cultures | ❌ Missing | 43 |
+| Add/Delete objects (measures, tables, calc groups) | ❌ Missing | 44 |
+| RLS role editor | ❌ Missing | 45 |
+| Annotations editor | ❌ Missing | 46 |
+| Undo/Redo | ❌ Missing | 47 |
+| Deployment wizard | ❌ Missing | 48 |
+| Model diff/compare | ❌ Missing | 49 |
+| Drag-and-drop display folders | ❌ Not feasible (ipywidgets limitation) | — |
+| IntelliSense in DAX editor | ❌ Not feasible (ipywidgets Textarea) | — |
 
 ---
 
