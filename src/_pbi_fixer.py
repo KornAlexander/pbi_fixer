@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.178"
+__version__ = "1.2.179"
 
 import ipywidgets as widgets
 import io
@@ -2757,16 +2757,6 @@ def pbi_fixer(
         _tab_options.append("\U0001F4C4 Report")
     if _fixer_visible:
         _tab_options.append("\u26A1 Fixer")
-    if all_tabs:
-        if perspective_editor_tab is not None:
-            _tab_options.append("\U0001F441 Perspectives")
-        _tab_options.append("\U0001F310 Translations")
-        _tab_options.append("\U0001F4BE Memory Analyzer")
-        _tab_options.append("\U0001F4CB BPA")
-        _tab_options.append("\U0001F4C4 Report BPA")
-        _tab_options.append("\U0001F4D0 Delta Analyzer")
-        _tab_options.append("\U0001F4D0 Prototype")
-        _tab_options.append("\U0001F5FA Model Diagram")
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -3475,62 +3465,7 @@ def pbi_fixer(
     if _fixer_visible:
         tab_panels.append(fixer_content)
 
-    if all_tabs:
-        if perspective_editor_tab is not None:
-            persp_content = perspective_editor_tab(
-                workspace_input=workspace_input, report_input=report_input
-            )
-            tab_panels.append(persp_content)
-
-        # Translations tab
-        trans_content = _translations_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(trans_content)
-
-        # Memory Analyzer tab (renamed from Vertipaq)
-        vp_content = _vertipaq_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(vp_content)
-
-        # BPA tab
-        bpa_content = _bpa_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(bpa_content)
-
-        # Report BPA tab
-        rpt_bpa_content = _report_bpa_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(rpt_bpa_content)
-
-        # Delta Analyzer tab
-        da_content = _delta_analyzer_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(da_content)
-
-        # Prototype tab
-        proto_content = _prototype_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(proto_content)
-
-        # Model Diagram tab
-        diagram_content = _diagram_tab(
-            workspace_input=workspace_input, report_input=report_input
-        )
-        tab_panels.append(diagram_content)
-
-    # Script Runner tab (disabled for now)
-    # script_content = _script_tab(
-    #     workspace_input=workspace_input, report_input=report_input
-    # )
-    # tab_panels.append(script_content)
-
-    # About tab
+    # About tab (always last in core tabs, will move to end after deferred tabs load)
     about_content = widgets.HTML(
         value=(
             f'<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:24px; max-width:600px;">'
@@ -3591,6 +3526,91 @@ def pbi_fixer(
             border_radius="12px",
         ),
     )
+
+    # -- Deferred tab loading (background thread) --
+    if all_tabs:
+        loading_status = widgets.HTML(
+            value=f'<div style="text-align:center; font-size:12px; color:{gray_color}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; '
+            f'padding:4px 0;">Loading additional tabs…</div>'
+        )
+        # Insert loading status before version_footer
+        children = list(container.children)
+        children.insert(-1, loading_status)
+        container.children = tuple(children)
+
+        def _load_deferred_tabs():
+            deferred = []
+            deferred_labels = []
+            tab_specs = []
+
+            if perspective_editor_tab is not None:
+                tab_specs.append(("\U0001F441 Perspectives", lambda: perspective_editor_tab(
+                    workspace_input=workspace_input, report_input=report_input
+                )))
+            tab_specs.append(("\U0001F310 Translations", lambda: _translations_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F4BE Memory Analyzer", lambda: _vertipaq_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F4CB BPA", lambda: _bpa_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F4C4 Report BPA", lambda: _report_bpa_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F4D0 Delta Analyzer", lambda: _delta_analyzer_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F4D0 Prototype", lambda: _prototype_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+            tab_specs.append(("\U0001F5FA Model Diagram", lambda: _diagram_tab(
+                workspace_input=workspace_input, report_input=report_input
+            )))
+
+            for i, (label, builder) in enumerate(tab_specs):
+                loading_status.value = (
+                    f'<div style="text-align:center; font-size:12px; color:{gray_color}; '
+                    f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; '
+                    f'padding:4px 0;">Loading tabs… {i+1}/{len(tab_specs)} ({label})</div>'
+                )
+                try:
+                    content = builder()
+                    content.layout.display = "none"
+                    deferred.append(content)
+                    deferred_labels.append(label)
+                except Exception:
+                    pass
+
+            # Insert deferred tabs before About, update tab_options and container
+            about_idx = _tab_options.index("\u2139\ufe0f About")
+            for label in deferred_labels:
+                _tab_options.insert(about_idx, label)
+                about_idx += 1
+
+            # Insert deferred panels before about_content in tab_panels
+            about_panel_idx = tab_panels.index(about_content)
+            for panel in deferred:
+                tab_panels.insert(about_panel_idx, panel)
+                about_panel_idx += 1
+
+            tab_selector.options = _tab_options
+
+            # Rebuild container children
+            children = list(container.children)
+            # Remove loading_status
+            children = [c for c in children if c is not loading_status]
+            # Rebuild: header stuff + tab_selector + all tab_panels + version_footer
+            fixed_prefix = [header, shared_inputs_box, download_row, tab_selector]
+            container.children = tuple(fixed_prefix + tab_panels + [version_footer])
+
+            loading_status.close()
+            _switch_tab()
+
+        import threading
+        threading.Thread(target=_load_deferred_tabs, daemon=True).start()
 
     return container
 
