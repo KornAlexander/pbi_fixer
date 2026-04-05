@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.212"
+__version__ = "1.2.213"
 
 import ipywidgets as widgets
 import io
@@ -2765,10 +2765,269 @@ def pbi_fixer(
     )
 
     # -----------------------------
+    # ⚡ FIX ALL TAB (God Mode — report + model + BPA + Report BPA)
+    # -----------------------------
+    _fa_scan_btn = widgets.Button(description="\U0001F50D Scan Everything", button_style="danger", layout=widgets.Layout(width="170px"))
+    _fa_fix_btn = widgets.Button(description="\u2705 Fix Selected", button_style="success", layout=widgets.Layout(width="140px"))
+    _fa_select_all_btn = widgets.Button(description="Select All", layout=widgets.Layout(width="100px"))
+    _fa_deselect_all_btn = widgets.Button(description="Deselect All", layout=widgets.Layout(width="100px"))
+    _fa_status = status_html()
+    _fa_tree = widgets.SelectMultiple(options=[], rows=22, layout=widgets.Layout(width="100%", height="520px", font_family="monospace"))
+    _fa_findings = []   # [(category, item_name, fixer_name, detail_line), ...]
+    _fa_key_map = {}    # display_line -> (kind, category, item, fixer, idx)
+
+    _fa_btn_row = widgets.HBox(
+        [_fa_scan_btn, _fa_fix_btn, _fa_select_all_btn, _fa_deselect_all_btn, _fa_status],
+        layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+    _fa_header = widgets.HTML(
+        value=(
+            f'<div style="font-size:12px; font-weight:600; color:{icon_accent}; font-family:{font_family}; '
+            f'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">\u26A1 Fix All \u2014 God Mode</div>'
+            f'<div style="font-size:11px; color:#888; font-family:{font_family}; font-style:italic; margin-bottom:4px;">'
+            f'\u2139\ufe0f Scans all report fixers, model BPA fixers, Model BPA, and Report BPA across all items. '
+            f'Deselect findings to exclude, then Fix Selected.</div>'
+        )
+    )
+
+    def _fa_do_scan():
+        """Scan everything: report fixers + model fixers + Model BPA + Report BPA."""
+        _fa_findings.clear()
+        _fa_key_map.clear()
+        ws = workspace_input.value.strip() or None
+        rpt_input = report_input.value.strip()
+        items = [x.strip() for x in rpt_input.split(",") if x.strip()] if rpt_input else []
+        if not items:
+            return "Enter report/model name(s)."
+
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        import IPython.display as _ipd
+        _orig_display = _ipd.display
+
+        _skip_rpt = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme"}
+        _skip_sm = {"── Add Objects ──", "── Formatting & Setup ──", "── BPA Fixers ──",
+                     "  Format All DAX", "  Setup Incremental Refresh"}
+        scannable_rpt = {k: v for k, v in _rpt_fixer_cbs.items() if k not in _skip_rpt}
+        scannable_sm = {k: v for k, v in _model_fixer_cbs.items()
+                        if k not in _skip_sm and not k.startswith("──") and _model_fixer_cbs[k] is not _noop}
+
+        for item in items:
+            # 1) Report fixers (scan_only)
+            for fixer_name, fixer_fn in scannable_rpt.items():
+                try:
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        fixer_fn(report=item, page_name=None, workspace=ws, scan_only=True)
+                    output = buf.getvalue().strip()
+                    if output and "no changes" not in output.lower() and "0 changes" not in output.lower():
+                        for line in output.splitlines():
+                            line = line.strip()
+                            if line:
+                                _fa_findings.append(("\U0001F4CA Report Fixers", item, fixer_name, line))
+                except Exception:
+                    pass
+
+            # 2) Model fixers (scan_only)
+            for fixer_name, fixer_fn in scannable_sm.items():
+                try:
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        fixer_fn(report=item, workspace=ws, scan_only=True)
+                    output = buf.getvalue().strip()
+                    if output and "no changes" not in output.lower() and "0 changes" not in output.lower():
+                        for line in output.splitlines():
+                            line = line.strip()
+                            if line:
+                                _fa_findings.append(("\U0001F4C4 Model Fixers", item, fixer_name.strip(), line))
+                except Exception:
+                    pass
+
+            # 3) Model BPA
+            try:
+                _ipd.display = lambda *a, **kw: None
+                try:
+                    from sempy_labs import run_model_bpa
+                    df = run_model_bpa(dataset=item, workspace=ws, return_dataframe=True)
+                finally:
+                    _ipd.display = _orig_display
+                if df is not None and len(df) > 0:
+                    for _, row in df.iterrows():
+                        rule = str(row.get("Rule Name", ""))
+                        obj = str(row.get("Object Name", ""))
+                        sev = str(row.get("Severity", ""))
+                        detail = f"[Sev {sev}] {rule}: {obj}"
+                        _fa_findings.append(("\U0001F4CB Model BPA", item, rule, detail))
+            except Exception:
+                pass
+
+            # 4) Report BPA
+            try:
+                _ipd.display = lambda *a, **kw: None
+                try:
+                    from sempy_labs.report import run_report_bpa
+                    df = run_report_bpa(report=item, workspace=ws, return_dataframe=True)
+                finally:
+                    _ipd.display = _orig_display
+                if df is not None and len(df) > 0:
+                    for _, row in df.iterrows():
+                        rule = str(row.get("Rule Name", ""))
+                        obj = str(row.get("Object Name", ""))
+                        sev = str(row.get("Severity", ""))
+                        detail = f"[Sev {sev}] {rule}: {obj}"
+                        _fa_findings.append(("\U0001F4C4 Report BPA", item, rule, detail))
+            except Exception:
+                pass
+        return None
+
+    def _fa_build_tree():
+        """Build tree: Category → Item → Fixer/Rule → Finding."""
+        from sempy_labs._ui_components import EXPANDED as _EXP
+        options = []
+        _fa_key_map.clear()
+
+        from collections import OrderedDict
+        grouped = OrderedDict()
+        for i, (cat, item, fixer, detail) in enumerate(_fa_findings):
+            grouped.setdefault(cat, OrderedDict()).setdefault(item, OrderedDict()).setdefault(fixer, []).append((i, detail))
+
+        for cat, items in grouped.items():
+            cat_count = sum(len(fs) for it in items.values() for fs in it.values())
+            cat_line = f"{_EXP} {cat}  [{cat_count}]"
+            options.append(cat_line)
+            _fa_key_map[cat_line] = ("category", cat, None, None, None)
+            for item_name, fixers in items.items():
+                item_count = sum(len(fs) for fs in fixers.values())
+                item_line = f"    {_EXP} {item_name}  [{item_count}]"
+                while item_line in _fa_key_map:
+                    item_line += "\u200b"
+                options.append(item_line)
+                _fa_key_map[item_line] = ("item", cat, item_name, None, None)
+                for fixer_name, findings_list in fixers.items():
+                    fixer_line = f"        {_EXP} {fixer_name}  [{len(findings_list)}]"
+                    while fixer_line in _fa_key_map:
+                        fixer_line += "\u200b"
+                    options.append(fixer_line)
+                    _fa_key_map[fixer_line] = ("fixer", cat, item_name, fixer_name, None)
+                    for idx, detail in findings_list:
+                        d_line = f"            \u2022 {detail}"
+                        while d_line in _fa_key_map:
+                            d_line += "\u200b"
+                        options.append(d_line)
+                        _fa_key_map[d_line] = ("detail", cat, item_name, fixer_name, idx)
+        _fa_tree.options = options
+        _fa_tree.value = list(options)
+
+    def _on_fa_scan(_):
+        ws = workspace_input.value.strip() or None
+        rpt_input = report_input.value.strip()
+        items = [x.strip() for x in rpt_input.split(",") if x.strip()] if rpt_input else []
+        if not items:
+            set_status(_fa_status, "Enter report/model name(s) above.", "#ff3b30")
+            return
+        _fa_scan_btn.disabled = True
+        _fa_scan_btn.description = "Scanning\u2026"
+        set_status(_fa_status, f"Scanning {len(items)} item(s)\u2026", gray_color)
+        err = _fa_do_scan()
+        if err:
+            set_status(_fa_status, err, "#ff3b30")
+            _fa_scan_btn.disabled = False
+            _fa_scan_btn.description = "\U0001F50D Scan Everything"
+            return
+        if not _fa_findings:
+            set_status(_fa_status, "\u2713 No fixable issues found across all categories.", "#34c759")
+            _fa_tree.options = []
+        else:
+            _fa_build_tree()
+            set_status(_fa_status, f"\U0001F50D {len(_fa_findings)} finding(s). Deselect items to exclude, then Fix Selected.", "#ff9500")
+        _fa_scan_btn.disabled = False
+        _fa_scan_btn.description = "\U0001F50D Scan Everything"
+
+    def _on_fa_fix(_):
+        ws = workspace_input.value.strip() or None
+        selected = set(_fa_tree.value)
+        if not selected:
+            set_status(_fa_status, "Nothing selected.", "#ff9500")
+            return
+
+        # Collect (category, item, fixer) tuples to run
+        from collections import OrderedDict
+        to_run = OrderedDict()
+        for opt in selected:
+            if opt not in _fa_key_map:
+                continue
+            kind, cat, item_name, fixer_name, idx = _fa_key_map[opt]
+            if kind == "category":
+                for v in _fa_key_map.values():
+                    if v[1] == cat and v[0] in ("fixer", "detail"):
+                        to_run[(cat, v[2], v[3])] = True
+            elif kind == "item":
+                for v in _fa_key_map.values():
+                    if v[1] == cat and v[2] == item_name and v[0] in ("fixer", "detail"):
+                        to_run[(cat, item_name, v[3])] = True
+            elif kind == "fixer":
+                to_run[(cat, item_name, fixer_name)] = True
+            elif kind == "detail":
+                to_run[(cat, item_name, fixer_name)] = True
+
+        if not to_run:
+            set_status(_fa_status, "Nothing actionable selected.", "#ff9500")
+            return
+
+        _fa_fix_btn.disabled = True
+        _fa_fix_btn.description = "Fixing\u2026"
+        import io as _io
+        from contextlib import redirect_stdout as _redirect
+        ok = 0
+        err = 0
+        for (cat, item_name, fixer_name) in to_run:
+            try:
+                buf = _io.StringIO()
+                with _redirect(buf):
+                    if cat == "\U0001F4CA Report Fixers":
+                        if fixer_name in _rpt_fixer_cbs:
+                            _rpt_fixer_cbs[fixer_name](report=item_name, page_name=None, workspace=ws, scan_only=False)
+                    elif cat == "\U0001F4C4 Model Fixers":
+                        if fixer_name in _model_fixer_cbs:
+                            _model_fixer_cbs[fixer_name](report=item_name, workspace=ws, scan_only=False)
+                    # BPA findings are informational — no auto-fix from here
+                    # (user should use the BPA tab's Fix Rule feature)
+                ok += 1
+            except Exception:
+                err += 1
+
+        summary = f"\u2713 Applied {ok} fixer(s) across {len(set(i for _, i, _ in to_run))} item(s)."
+        if err:
+            summary = f"\u26a0\ufe0f {ok} OK, {err} error(s)."
+        set_status(_fa_status, summary, "#34c759" if not err else "#ff9500")
+        _fa_fix_btn.disabled = False
+        _fa_fix_btn.description = "\u2705 Fix Selected"
+
+    def _on_fa_select_all(_):
+        _fa_tree.value = list(_fa_tree.options)
+    def _on_fa_deselect_all(_):
+        _fa_tree.value = []
+
+    _fa_scan_btn.on_click(_on_fa_scan)
+    _fa_fix_btn.on_click(_on_fa_fix)
+    _fa_select_all_btn.on_click(_on_fa_select_all)
+    _fa_deselect_all_btn.on_click(_on_fa_deselect_all)
+
+    fix_all_content = widgets.VBox(
+        [_fa_header, _fa_btn_row, _fa_tree],
+        layout=widgets.Layout(
+            padding="12px", gap="6px",
+            border=f"1px solid {border_color}",
+            border_radius="8px",
+            background_color=section_bg,
+        ),
+    )
+
+    # -----------------------------
     # TAB SELECTOR (ToggleButtons — more reliable than widgets.Tab in Fabric)
     # -----------------------------
     _fixer_visible = show_fixer_tab
-    _tab_options = []
+    _tab_options = ["\u26A1 Fix All"]
     if model_explorer_tab is not None:
         _tab_options.append("\U0001F4C4 Semantic Model")
     if report_explorer_tab is not None:
@@ -2792,7 +3051,7 @@ def pbi_fixer(
 
     tab_selector = widgets.ToggleButtons(
         options=_tab_options,
-        value=_tab_options[0],
+        value=_tab_options[1] if len(_tab_options) > 1 else _tab_options[0],
         layout=widgets.Layout(margin="0 0 12px 0"),
     )
     tab_selector.style.button_width = "155px"
@@ -3489,7 +3748,7 @@ def pbi_fixer(
     # Clone Model removed from dropdown — available as top-level button
 
     # -- Build tab panels (show/hide via layout.display) --
-    tab_panels = []
+    tab_panels = [fix_all_content]
     _rpt_format_container = None
 
     if model_explorer_tab is not None:
