@@ -201,31 +201,33 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 | Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
 | Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
 
-### BPA Auto-Fixers (19 total — standalone files + grouped checkbox UI in `_bpa_tab`)
+### BPA Auto-Fixers (19 total — standalone files + dropdown in `_bpa_tab`)
 
-These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab organizes them into 6 category groups with select-all checkboxes (Feature 41).
+These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab uses a rule dropdown + Fix Rule button.
 
-| # | BPA Rule | Fix Action | Category |
-|---|----------|------------|----------|
-| 1 | Do not use floating point data types | Column DataType → Decimal | 🔢 Data Types |
-| 2 | Set IsAvailableInMdx to false | `IsAvailableInMDX = False` | 📡 MDX |
-| 3 | Set IsAvailableInMdx to true | `IsAvailableInMDX = True` | 📡 MDX |
-| 4 | Visible objects with no description (Measures) | Set description to DAX expression | 📝 Documentation |
-| 5 | Provide format string for 'Date' columns | Format → `mm/dd/yyyy` | 📊 Formatting |
-| 6 | Provide format string for 'Month' columns | Format → `MMMM yyyy` | 📊 Formatting |
-| 7 | Provide format string for measures | Format → `#,0` | 📊 Formatting |
-| 8 | Percentages should be formatted | Format → `#,0.0%;-#,0.0%;#,0.0%` | 📊 Formatting |
-| 9 | Format flag columns as Yes/No | Format → `"Yes";"Yes";"No"` | 📊 Formatting |
-| 10 | Hide foreign keys | `IsHidden = True` | 🔗 Schema |
-| 11 | Do not summarize numeric columns | `SummarizeBy = None` | 🔗 Schema |
-| 12 | Mark primary keys | `IsKey = True` | 🔗 Schema |
-| 13 | Objects should not start or end with a space | Trim whitespace | 🏷 Naming |
-| 14 | First letter must be capitalized | Capitalize first letter | 🏷 Naming |
-| 15 | Use the DIVIDE function for division | Regex-replace `/ ` → `DIVIDE()` | 📊 Formatting |
-| 16 | Avoid adding 0 to a measure | Strip `0+` prefix | 📊 Formatting |
-| 17 | Whole numbers should be formatted | Format → `#,0` | 📊 Formatting |
-| 18 | Month (as a string) must be sorted | Set SortByColumn | 📊 Formatting |
-| 19 | Add data category for columns | Set DataCategory by naming convention | 📊 Formatting |
+**TE2 comparison**: Only 4 of these 19 rules have a FixExpression in the standard TE2 BPA file. The PBI Fixer auto-fixes **15 rules that TE2 cannot fix automatically**.
+
+| # | BPA Rule | Fix Action | Category | TE2 Fix? |
+|---|----------|------------|----------|----------|
+| 1 | Do not use floating point data types | Column DataType → Decimal | 🔢 Data Types | ✅ Yes |
+| 2 | Set IsAvailableInMdx to false | `IsAvailableInMDX = False` | 📡 MDX | ✅ Yes |
+| 3 | Set IsAvailableInMdx to true | `IsAvailableInMDX = True` | 📡 MDX | ❌ No |
+| 4 | Visible objects with no description (Measures) | Set description to DAX expression | 📝 Documentation | ❌ No |
+| 5 | Provide format string for 'Date' columns | Format → `mm/dd/yyyy` | 📊 Formatting | ❌ Detect only |
+| 6 | Provide format string for 'Month' columns | Format → `MMMM yyyy` | 📊 Formatting | ❌ No rule |
+| 7 | Provide format string for measures | Format → `#,0` | 📊 Formatting | ❌ Detect only |
+| 8 | Percentages should be formatted | Format → `#,0.0%;-#,0.0%;#,0.0%` | 📊 Formatting | ❌ No rule |
+| 9 | Format flag columns as Yes/No | Format → `"Yes";"Yes";"No"` | 📊 Formatting | ❌ No rule |
+| 10 | Hide foreign keys | `IsHidden = True` | 🔗 Schema | ✅ Yes |
+| 11 | Do not summarize numeric columns | `SummarizeBy = None` | 🔗 Schema | ✅ Yes |
+| 12 | Mark primary keys | `IsKey = True` | 🔗 Schema | ❌ No rule |
+| 13 | Objects should not start or end with a space | Trim whitespace | 🏷 Naming | ❌ No rule |
+| 14 | First letter must be capitalized | Capitalize first letter | 🏷 Naming | ❌ Detect only |
+| 15 | Use the DIVIDE function for division | Regex-replace `/ ` → `DIVIDE()` | 📊 Formatting | ❌ Detect only |
+| 16 | Avoid adding 0 to a measure | Strip `0+` prefix | 📊 Formatting | ❌ No rule |
+| 17 | Whole numbers should be formatted | Format → `#,0` | 📊 Formatting | ❌ No rule |
+| 18 | Month (as a string) must be sorted | Set SortByColumn | 📊 Formatting | ❌ No rule |
+| 19 | Add data category for columns | Set DataCategory by naming convention | 📊 Formatting | ❌ No rule |
 
 ### Optional / Not Now
 
