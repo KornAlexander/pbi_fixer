@@ -254,10 +254,7 @@ def _get_properties_html(report_data, key):
         v_name = parts[2] if len(parts) > 2 else ""
         p = _resolve_page(report_data, p_key) or {}
         v = p.get("visuals", {}).get(v_name, {})
-        rows = _prop_row("Display Type", v.get("display_type", ""))
-        rows += _prop_row("Internal Name", v_name)
-        p_display = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
-        rows += _prop_row("Page", p.get("display_name", p_display))
+        rows = ""
 
         # Show used semantic model objects
         p_name_raw = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
@@ -269,8 +266,9 @@ def _get_properties_html(report_data, key):
                 icon = "\U0001F4D0" if obj["type"] == "Measure" else "\U0001F4CF"
                 obj_lines.append(f'{icon} {obj["table"]}[{obj["object"]}] ({obj["type"]})')
             rows += _prop_row("Used Objects", "<br>".join(obj_lines))
+            return _props_table(rows)
 
-        return _props_table(rows)
+        return ""
 
     return ""
 
@@ -464,6 +462,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
     rp_display_name, rp_display_name_row = _rprop("Display Name")
     rp_type, rp_type_row = _rprop("Type", disabled=True)
+    rp_internal_name, rp_internal_name_row = _rprop("Internal Name", disabled=True)
+    rp_page, rp_page_row = _rprop("Page", disabled=True)
     rp_width, rp_width_row = _rprop_int("Width")
     rp_height, rp_height_row = _rprop_int("Height")
     rp_x, rp_x_row = _rprop_int("X Position")
@@ -483,7 +483,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     # Page-specific props container
     page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
     # Visual-specific props container
-    visual_props = widgets.VBox([rp_type_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+    visual_props = widgets.VBox([rp_type_row, rp_internal_name_row, rp_page_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
 
     def _rp_mark_dirty(*_):
         if _rp_suppressing[0]:
@@ -574,7 +574,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     if v_name in p_data.get("visuals", {}):
                         v = p_data["visuals"][v_name]
                         break
-            rp_type.value = v.get("type", "")
+            rp_type.value = v.get("display_type", "") or v.get("type", "")
+            rp_internal_name.value = v_name
+            p_display = p_key.split("\x1f")[-1] if "\x1f" in p_key else p_key
+            rp_page.value = (p or {}).get("display_name", p_display) if p else p_display
             rp_title.value = v.get("title", "")
             rp_x.value = int(v.get("x", 0))
             rp_y.value = int(v.get("y", 0))
