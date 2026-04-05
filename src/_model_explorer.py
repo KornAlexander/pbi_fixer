@@ -1546,8 +1546,22 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             elif parts[0] == "column" and len(parts) > 2:
                 sel_columns.append(parts[2])
 
-        # Split comma-separated models and run action for each individually
-        items = [x.strip() for x in ds.split(",") if x.strip()]
+        # Determine target model(s) from tree selection
+        all_items = [x.strip() for x in ds.split(",") if x.strip()]
+        cur_key = _current_key[0] or ""
+        selected_model = None
+        # Extract model name from current selection key
+        if cur_key.startswith("model:"):
+            selected_model = cur_key.split(":", 1)[1]
+        elif "\x1f" in cur_key:
+            # Keys like table:ModelName\x1fTableName or measure:ModelName\x1fTable\x1fMeasure
+            raw = cur_key.split(":", 1)[1] if ":" in cur_key else cur_key
+            selected_model = raw.split("\x1f")[0]
+
+        if selected_model and len(all_items) > 1:
+            items = [selected_model]
+        else:
+            items = all_items
         set_status(conn_status, f"Running {action} on {len(items)} model(s)\u2026", GRAY_COLOR)
         succeeded = 0
         failed = 0
