@@ -205,9 +205,9 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 
 These fix specific Model BPA violations. Each has a **standalone fixer file** in `semantic_model/` with `scan_only` support. The BPA tab uses a rule dropdown + Fix Rule button.
 
-**TE2 comparison**: Only 4 of these 19 rules have a FixExpression in the standard TE2 BPA file. The PBI Fixer auto-fixes **15 rules that TE2 cannot fix automatically**.
+**Comparison**: Only 4 of these 19 rules have a built-in FixExpression in the standard BPA rules file. The PBI Fixer auto-fixes **15 rules that have no standard auto-fix**.
 
-| # | BPA Rule | Fix Action | Category | TE2 Fix? |
+| # | BPA Rule | Fix Action | Category | Std Fix? |
 |---|----------|------------|----------|----------|
 | 1 | Do not use floating point data types | Column DataType → Decimal | 🔢 Data Types | ✅ Yes |
 | 2 | Set IsAvailableInMdx to false | `IsAvailableInMDX = False` | 📡 MDX | ✅ Yes |
@@ -319,8 +319,8 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 |---|---------|-------------|
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
-| 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). Core TE2 feature. |
-| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. Core TE2 feature. |
+| 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). |
+| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. |
 
 ### Prio 2 — Medium Priority
 
@@ -330,9 +330,9 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
 | 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
 | 38 | Enhanced Fix Page Size | Proportionally resize all visuals + scale fonts on page size change. |
-| 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. TE2 feature. |
-| 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). TE2 feature. |
-| 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. TE2 core feature. |
+| 45 | RLS Editor | View/edit Row-Level Security roles and DAX filter expressions. |
+| 46 | Object Annotations Editor | View/edit object annotations (custom metadata key-value pairs). |
+| 47 | Undo/Redo | Ctrl+Z/Ctrl+Y for property and expression changes. |
 
 ### Prio 4 — Low Priority / Nice to Have
 
@@ -493,7 +493,7 @@ To add a new fixer:
 
 ### Feature 29 — Extended Model Explorer Properties
 
-Add comprehensive property editing to the Model Explorer, matching Tabular Editor 2's property grid:
+Add comprehensive property editing to the Model Explorer with a full property grid:
 
 * **Columns**: encoding hint (`ValueEncoding`/`HashEncoding`), sort-by column dropdown (select another column in same table), is-key (checkbox), is-nullable, lineage tag (read-only), data category dropdown (`City`, `Country`, `WebUrl`, `ImageUrl`, etc.).
 * **Tables**: storage mode (`Import`/`DirectLake`/`Dual`) as read-only label, row count from Vertipaq cache (or `evaluate_dax`), source expression (M query from partition, read-only textarea), data category, lineage tag.
