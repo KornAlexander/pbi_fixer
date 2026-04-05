@@ -306,14 +306,15 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | # | Feature | Status |
 |-------|---------|--------|
 | 31 | Read Stats from Data Toggle | ✅ Done (v1.2.160) |
-| 40 | Design Preview Before Fix | ✅ Planned — show preview mockups before applying fixers |
+| 30 | Editable Report Explorer Properties | ✅ Done (v1.2.163) |
+| 43 | Translations / Cultures Editor | ✅ Done (v1.2.162) |
 
 ### Prio 1 — High Priority
 
 | # | Feature | Description |
 |-------|---------|-------------|
 | 29 | Extended Model Explorer Properties | Columns: encoding, sort-by, is-key, data category. Tables: mode, row count, source expression. Relationships: cross-filter, active, RRI. |
-| 30 | Editable Report Explorer Properties | Pages: display name, width, height, background, hidden. Visuals: position, size, title, hidden. Save with dirty-state. |
+| 30 | Editable Report Explorer Properties | ✅ Done (v1.2.163). Pages: display name, width, height, hidden. Visuals: x, y, width, height, title, hidden. Save/discard buttons. |
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
 | 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
@@ -326,6 +327,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |-------|---------|-------------|
+| 40 | Design Preview Before Fix | Show 2–4 design preset previews (HTML/SVG mockups) before applying a fix. |
 | 35 | Background Editor | Page backgrounds: color picker, transparency slider. Apply to page or all. |
 | 36 | Logo Uploader | Add logo/image to pages via URL. Insert as Image visual. |
 | 38 | Enhanced Fix Page Size | Proportionally resize all visuals + scale fonts on page size change. |
