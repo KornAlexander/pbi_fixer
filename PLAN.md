@@ -275,7 +275,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (49 features)
+### Completed (51 features)
 
 #### 🏗 Core & Foundation
 
@@ -372,6 +372,8 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 71 | Calendar Auto-Relationship | v1.2.228 | 2026-04-06 | `add_calculated_calendar` now auto-detects Date/DateTime columns and creates Many→One relationships to CalcCalendar[Date] when `relationships=None`. Interactive UI proposal still available via SM Explorer widget. |
 | 72 | Fix Column→Bar (IBCS) | v1.2.228 | 2026-04-06 | `fix_column_to_bar()` in `_Fix_Charts.py` — converts non-time column charts to bar charts. Standalone: preserves stacked/clustered. `force_clustered=True`: always clusteredBarChart. Checks DataType + column name pattern for time detection. |
 | 73 | PBIR >100 Visuals Warning | v1.2.229 | 2026-04-06 | `_Fix_UpgradeToPbir.py` — counts visual.json parts from report definition in both scan and fix modes. If >100 visuals, prints warning that PBIR conversion may fail. Conversion still proceeds but alerts user to check manually. |
+| 44a | Delete Objects (CRUD Phase 1) | v1.2.230 | 2026-04-07 | SM: `Delete Selected` action — parses tree selection keys, confirmation widget, `tom.remove_object()` for measures/columns/tables/hierarchies/calc items/relationships. Report: `Delete Selected` — deletes visuals (removes visual folder) and pages (removes all page files + updates pages.json pageOrder). Both use interactive confirmation widgets. |
+| 44b | Create/Duplicate Objects (CRUD Phase 2) | v1.2.230 | 2026-04-07 | SM: `Create Measure` (table dropdown, name, DAX, format, folder), `Create Calculated Column` (+ data type), `Create Calculated Table` (name, DAX, hidden + refresh hint). Report: `Duplicate Selected` — duplicates visuals (new folder + 30px offset) and pages (new folder + "(Copy)" suffix + pageOrder insert). All via interactive ipywidgets forms in scan_results_box / crud_output_box. |
 
 ---
 
@@ -389,9 +391,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). |
-| 44a | Delete Objects | Select in tree → 🗑 Delete button → confirmation → remove. SM: `tom.remove_object()`. Report: `rw.remove()`. Dependency check before delete. |
-| 44b | Create Simple Objects | Create Measure/Calculated Column dialogs. Duplicate Visual/Page. |
-| 44c | Create Complex Objects | Create Calc Group, Table (M partition), Calculated Table, Add Visual. |
+| 44c | Create Complex Objects | Create Calc Group, Table (M partition), Add Visual from scratch. |
 
 ### Prio 2 — Medium Priority
 
@@ -645,37 +645,18 @@ Split into phases by difficulty:
 
 #### Phase 1 — Delete Objects (Easy)
 
-All delete operations use existing APIs (`tom.remove_object()` for SM, `rw.remove()` for report). UI: select in tree → "🗑 Delete" button → confirmation list → execute.
+All delete operations use exis✅ (v1.2.230)
 
-| Operation | API | Complexity | Notes |
-|-----------|-----|------------|-------|
-| Delete Measure | `tom.remove_object(measure)` | Easy | Check for dependent measures referencing it via DAX |
-| Delete Calculated Column | `tom.remove_object(column)` | Easy | Check for measures/relationships referencing it |
-| Delete Calculated Table | `tom.remove_object(table)` | Easy | Check for relationships + measures in the table |
-| Delete Hierarchy | `tom.remove_object(hierarchy)` | Easy | No dependencies |
-| Delete Relationship | `tom.remove_object(relationship)` | Easy | No dependencies |
-| Delete Visual | `rw.remove("definition/pages/{page}/{visual}/visual.json")` | Easy | Just removes the file from PBIR definition |
-| Delete Page | `rw.remove("definition/pages/{page}/*")` + update `pages.json` | Easy | Remove all files in page folder + remove from pageOrder array |
-| Delete Calculation Group Item | `tom.remove_object(calc_item)` | Easy | No dependencies |
+Implemented in `_pbi_fixer.py`. SM: `Delete Selected` action in `_model_fixer_cbs`. Report: `Delete Selected` action in `_rpt_fixer_cbs`. Both show interactive confirmation widgets before executing.
 
-**Safety checks**: Before deleting a SM object, scan all DAX expressions for references to it. Show warnings like "⚠ Measure [Revenue Δ PY] references [Revenue]". User must confirm to proceed.
+#### Phase 2 — Create Simple Objects ✅ (v1.2.230)
 
-#### Phase 2 — Create Simple Objects (Medium)
-
-| Operation | API | Complexity | Notes |
-|-----------|-----|------------|-------|
-| Create Measure | `tom.add_measure()` | Medium | Dialog: name, table (dropdown), DAX textarea, format string, display folder |
-| Create Calculated Column | `tom.add_calculated_column()` | Medium | Dialog: name, table, DAX, data type dropdown |
-| Duplicate Visual | `rw.get()` → modify name/position → `rw.add()` | Medium | Copy visual.json, offset position by +20px |
-| Duplicate Page | Copy all page files → new folder → update `pages.json` | Medium | Deep copy all visuals + page.json |
-
-#### Phase 3 — Create Complex Objects (Hard)
+Implemented in `_pbi_fixer.py`. SM: `Create Measure`, `Create Calculated Column`, `Create Calculated Table` — all as interactive ipywidgets forms. Report: `Duplicate Selected` — duplicates visuals or pages.
 
 | Operation | API | Complexity | Notes |
 |-----------|-----|------------|-------|
 | Create Calculation Group | `tom.add_calculation_group()` + N calc items | Hard | Dynamic form: add/remove items with ordinal + DAX per item |
 | Create Table (M partition) | `tom.add_m_partition()` | Hard | M expression editor, column definitions needed after refresh |
-| Create Calculated Table | `tom.add_calculated_table()` | Hard | DAX expression + column definitions auto-detected after evaluation |
 | Add Visual to Page | Build visual.json from scratch | Hard | Need visual type picker, field bindings, positioning. Very complex UI. |
 
 ### Feature 35 — Background Editor
