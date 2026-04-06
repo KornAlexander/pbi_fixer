@@ -366,6 +366,8 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | # | Feature | Description |
 |---|---------|-------------|
 | 64 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+| 65 | Fix Column-to-Line Chart | Change column chart to line chart when too many data points (e.g. daily dates instead of months). Detects date/datetime columns on the axis and switches visual type if cardinality exceeds threshold. |
+| 66 | Unified Chart Fixer | Merge `_Fix_BarChart.py`, `_Fix_ColumnChart.py`, and new line chart fixes into a single `_Fix_Charts.py` / `fix_charts()`. All three share the same helpers (`_get_visual_property`, `_set_visual_property`) and structure — only the visual type set and axis semantics differ. Covers `barChart`, `clusteredBarChart`, `columnChart`, `clusteredColumnChart`, `lineChart`, `lineClusteredColumnComboChart`. Applies: remove axis titles, remove value axis labels, add data labels, remove gridlines. **Exception for line charts:** keep the Y value axis visible (only remove the title and gridlines). Old `fix_barcharts()` and `fix_columncharts()` become thin wrappers around `fix_charts(chart_types=...)` for backward compatibility. |
 
 ### Prio 1 — High Priority
 
