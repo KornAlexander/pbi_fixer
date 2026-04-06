@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.219"
+__version__ = "1.2.220"
 
 import ipywidgets as widgets
 import io
@@ -3957,12 +3957,46 @@ def pbi_fixer(
     return container
 
 
-# Alias — v2 is the primary name going forward
-pbi_fixer_v2 = pbi_fixer
+def pbi_fixer_v2(
+    all_tabs: bool = False,
+    workspace: Optional[str | UUID] = None,
+    report: Optional[str | UUID] = None,
+    page_name: Optional[str] = None,
+    show_fixer_tab: bool = False,
+):
+    """
+    Launches PBI Fixer with ``all_tabs`` as the first parameter for convenience.
+
+    Parameters
+    ----------
+    all_tabs : bool, default=False
+        If True, shows all tabs. If False (default), only Fix All, SM, Report, About.
+    workspace : str | uuid.UUID, default=None
+        The Fabric workspace name or ID.
+    report : str | uuid.UUID, default=None
+        Name(s) or ID(s) of the report(s). Supports comma-separated values.
+    page_name : str, default=None
+        The display name of the page.
+    show_fixer_tab : bool, default=False
+        If True, shows the legacy Fixer tab.
+
+    Examples
+    --------
+    >>> pbi_fixer_v2()                              # Minimal tabs
+    >>> pbi_fixer_v2(True)                           # All tabs
+    >>> pbi_fixer_v2(True, "My Workspace", "Report") # All tabs, pre-filled
+    """
+    return pbi_fixer(
+        workspace=workspace,
+        report=report,
+        page_name=page_name,
+        show_fixer_tab=show_fixer_tab,
+        all_tabs=all_tabs,
+    )
 
 
 # Sample usage (must be last line of notebook cell so Jupyter renders the returned widget):
 # pbi_fixer_v2()
-# pbi_fixer_v2(workspace="Your Workspace Name")
-# pbi_fixer_v2(workspace="Your Workspace Name", report="My Report")
-# pbi_fixer_v2(workspace="Your Workspace Name", report="Report A, Report B")
+# pbi_fixer_v2(True)
+# pbi_fixer_v2(True, "Your Workspace Name")
+# pbi_fixer_v2(True, "Your Workspace Name", "My Report")
