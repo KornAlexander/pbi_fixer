@@ -3109,7 +3109,7 @@ def pbi_fixer(
         value=_tab_options[1] if len(_tab_options) > 1 else _tab_options[0],
         layout=widgets.Layout(margin="0"),
     )
-    tab_selector.style.button_width = "120px"
+    tab_selector.style.button_width = "110px"
 
     # -----------------------------
     # SECTION HEADING HELPER
