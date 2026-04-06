@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.222"
+__version__ = "1.2.223"
 
 import ipywidgets as widgets
 import io
@@ -2799,7 +2799,7 @@ def pbi_fixer(
 
         _skip_rpt = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme"}
         _skip_sm = {"── Add Objects ──", "── Formatting & Setup ──", "── BPA Fixers ──",
-                     "  Format All DAX", "  Setup Incremental Refresh"}
+                     "  Format All DAX", "  Setup Incremental Refresh", "  Direct Lake Pre-warm Cache"}
         scannable_rpt = {k: v for k, v in _rpt_fixer_cbs.items() if k not in _skip_rpt}
         scannable_sm = {k: v for k, v in _model_fixer_cbs.items()
                         if k not in _skip_sm and not k.startswith("──") and _model_fixer_cbs[k] is not _noop}
@@ -3685,6 +3685,13 @@ def pbi_fixer(
                         continue
                     _setup_ir(dataset=ds, table_name=table.Name, workspace=ws, scan_only=scan)
         _model_fixer_cbs["  Setup Incremental Refresh"] = lambda **kw: _run_ir(**kw)
+
+    # Direct Lake Pre-warm Cache
+    _setup_cache_warming = _lazy_import("sempy_labs.semantic_model._Setup_CacheWarming", "setup_cache_warming")
+    if _setup_cache_warming is not None:
+        _model_fixer_cbs["  Direct Lake Pre-warm Cache"] = lambda **kw: _setup_cache_warming(
+            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
+        )
 
     # ── BPA Auto-Fixers ──
     _model_fixer_cbs["── BPA Fixers ──"] = _noop
