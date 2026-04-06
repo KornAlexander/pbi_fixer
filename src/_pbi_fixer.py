@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.232"
+__version__ = "1.2.233"
 
 import ipywidgets as widgets
 import io
@@ -3937,52 +3937,52 @@ def pbi_fixer(
                         # connect_report auto-saves on exit
                         status_lbl.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Page duplicated as \'{new_display_name}\'.</div>'
 
-                else:
-                    # Duplicate visual: copy visual.json with new folder name, offset position
-                    new_visual_folder = str(uuid.uuid4()).replace("-", "")[:16]
-                    src_visual_prefix = None
-                    # Find the visual's folder by matching visual name
-                    for part in rw._report_definition["parts"]:
-                        fp = part.get("path", "")
-                        if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
-                            v_folder = fp.split("/")[-2]
-                            if v_folder == visual_name:
-                                src_visual_prefix = f"definition/pages/{page_folder}/visuals/{v_folder}/"
-                                break
-                    if not src_visual_prefix:
-                        # Try matching by checking name in visual.json
+                    else:
+                        # Duplicate visual: copy visual.json with new folder name, offset position
+                        new_visual_folder = str(uuid.uuid4()).replace("-", "")[:16]
+                        src_visual_prefix = None
+                        # Find the visual's folder by matching visual name
                         for part in rw._report_definition["parts"]:
                             fp = part.get("path", "")
                             if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
-                                vj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
-                                if vj.get("name", "") == visual_name:
-                                    v_folder = fp.split("/")[-2]
+                                v_folder = fp.split("/")[-2]
+                                if v_folder == visual_name:
                                     src_visual_prefix = f"definition/pages/{page_folder}/visuals/{v_folder}/"
                                     break
+                        if not src_visual_prefix:
+                            # Try matching by checking name in visual.json
+                            for part in rw._report_definition["parts"]:
+                                fp = part.get("path", "")
+                                if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
+                                    vj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                                    if vj.get("name", "") == visual_name:
+                                        v_folder = fp.split("/")[-2]
+                                        src_visual_prefix = f"definition/pages/{page_folder}/visuals/{v_folder}/"
+                                        break
 
-                    if not src_visual_prefix:
-                        status_lbl.value = '<div style="color:#ff3b30; font-size:12px;">Visual not found.</div>'
-                        _btn.disabled = False
-                        _btn.description = "Duplicate"
-                        return
+                        if not src_visual_prefix:
+                            status_lbl.value = '<div style="color:#ff3b30; font-size:12px;">Visual not found.</div>'
+                            _btn.disabled = False
+                            _btn.description = "Duplicate"
+                            return
 
-                    new_parts = []
-                    for part in rw._report_definition["parts"]:
-                        fp = part.get("path", "")
-                        if fp.startswith(src_visual_prefix):
-                            new_path = fp.replace(src_visual_prefix, f"definition/pages/{page_folder}/visuals/{new_visual_folder}/")
-                            new_payload = part["payload"]
-                            # Offset visual position for the copy
-                            if fp.endswith("/visual.json"):
-                                vj = json.loads(base64.b64decode(new_payload).decode("utf-8"))
-                                if "position" in vj:
-                                    vj["position"]["x"] = vj["position"].get("x", 0) + 30
-                                    vj["position"]["y"] = vj["position"].get("y", 0) + 30
-                                new_payload = base64.b64encode(json.dumps(vj).encode("utf-8")).decode("utf-8")
-                            new_parts.append({"path": new_path, "payload": new_payload, "payloadType": part.get("payloadType", "InlineBase64")})
-                    rw._report_definition["parts"].extend(new_parts)
-                    # connect_report auto-saves on exit
-                    status_lbl.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Visual duplicated (offset +30px).</div>'
+                        new_parts = []
+                        for part in rw._report_definition["parts"]:
+                            fp = part.get("path", "")
+                            if fp.startswith(src_visual_prefix):
+                                new_path = fp.replace(src_visual_prefix, f"definition/pages/{page_folder}/visuals/{new_visual_folder}/")
+                                new_payload = part["payload"]
+                                # Offset visual position for the copy
+                                if fp.endswith("/visual.json"):
+                                    vj = json.loads(base64.b64decode(new_payload).decode("utf-8"))
+                                    if "position" in vj:
+                                        vj["position"]["x"] = vj["position"].get("x", 0) + 30
+                                        vj["position"]["y"] = vj["position"].get("y", 0) + 30
+                                    new_payload = base64.b64encode(json.dumps(vj).encode("utf-8")).decode("utf-8")
+                                new_parts.append({"path": new_path, "payload": new_payload, "payloadType": part.get("payloadType", "InlineBase64")})
+                        rw._report_definition["parts"].extend(new_parts)
+                        # connect_report auto-saves on exit
+                        status_lbl.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Visual duplicated (offset +30px).</div>'
 
                 _btn.description = "\u2713 Done"
                 _btn.button_style = ""
