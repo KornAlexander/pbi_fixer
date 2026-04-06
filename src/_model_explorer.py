@@ -1254,7 +1254,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                     loaded += 1
                 except Exception as e:
                     errors += 1
-                    set_status(conn_status, f"Model {i+1}/{len(items)}: '{ds}' failed", "#ff9500")
+                    set_status(conn_status, f"Error: {e}", "#ff3b30")
 
             _model_data = merged_data
 
