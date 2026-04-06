@@ -275,7 +275,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (51 features)
+### Completed (54 features)
 
 #### 🏗 Core & Foundation
 
@@ -374,6 +374,9 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 73 | PBIR >100 Visuals Warning | v1.2.229 | 2026-04-06 | `_Fix_UpgradeToPbir.py` — counts visual.json parts from report definition in both scan and fix modes. If >100 visuals, prints warning that PBIR conversion may fail. Conversion still proceeds but alerts user to check manually. |
 | 44a | Delete Objects (CRUD Phase 1) | v1.2.230 | 2026-04-07 | SM: `Delete Selected` action — parses tree selection keys, confirmation widget, `tom.remove_object()` for measures/columns/tables/hierarchies/calc items/relationships. Report: `Delete Selected` — deletes visuals (removes visual folder) and pages (removes all page files + updates pages.json pageOrder). Both use interactive confirmation widgets. |
 | 44b | Create/Duplicate Objects (CRUD Phase 2) | v1.2.230 | 2026-04-07 | SM: `Create Measure` (table dropdown, name, DAX, format, folder), `Create Calculated Column` (+ data type), `Create Calculated Table` (name, DAX, hidden + refresh hint). Report: `Duplicate Selected` — duplicates visuals (new folder + 30px offset) and pages (new folder + "(Copy)" suffix + pageOrder insert). All via interactive ipywidgets forms in scan_results_box / crud_output_box. |
+| 74 | Tab Width Reduction | v1.2.231 | 2026-04-07 | Reduced `tab_selector.style.button_width` from 155px to 120px for more compact tab bar layout. |
+| 75 | Page Navigation Detection + Perf | v1.2.232 | 2026-04-07 | Prototype: extracts real page navigation edges from `visualLink` data in all visuals (PageNavigation with navigationSection target). Blue dashed arrows for button nav, orange for drillthrough. Perf: pre-resolve reportId once (skip N×list_items), backoff polling (1→2→3s), `_return_bytes` skips lakehouse file I/O. Status shows nav link count. |
+| 76 | Duplicate Indent Fix | v1.2.233 | 2026-04-07 | Fixed SyntaxError: `else:` block in `_rpt_duplicate_selected` was at indent 16 instead of 20, misaligned with its `if item_type == "page":`. |
 
 ---
 
