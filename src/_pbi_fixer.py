@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.221"
+__version__ = "1.2.222"
 
 import ipywidgets as widgets
 import io
@@ -3081,7 +3081,7 @@ def pbi_fixer(
     tab_selector = widgets.ToggleButtons(
         options=_tab_options,
         value=_tab_options[1] if len(_tab_options) > 1 else _tab_options[0],
-        layout=widgets.Layout(margin="0 0 12px 0"),
+        layout=widgets.Layout(margin="0"),
     )
     tab_selector.style.button_width = "155px"
 
@@ -3952,7 +3952,7 @@ def pbi_fixer(
     # "Show All Tabs" button — dynamically adds extra tabs without restart
     _show_all_btn = widgets.Button(
         description="\u2795 Show All Tabs",
-        layout=widgets.Layout(width="140px", display="" if not all_tabs else "none"),
+        layout=widgets.Layout(width="140px", height="34px", display="" if not all_tabs else "none"),
         button_style="",
     )
 
