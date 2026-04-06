@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.231"
+__version__ = "1.2.232"
 
 import ipywidgets as widgets
 import io
@@ -1733,6 +1733,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
             total = len(result["pages"])
             n_screenshots = result["screenshots"]
             export_errors = result["errors"]
+            n_nav = len(result.get("nav_edges", []))
 
             _svg_cache[0] = svg
             _excalidraw_cache[0] = excalidraw
@@ -1740,7 +1741,8 @@ def _prototype_tab(workspace_input=None, report_input=None):
             export_excalidraw_btn.layout.display = ""
             export_svg_btn.layout.display = ""
             err_msg = f" Export errors: {'; '.join(export_errors[:2])}" if export_errors else ""
-            set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots.{err_msg}", "#34c759" if not export_errors else "#ff9500")
+            nav_msg = f", {n_nav} nav links" if n_nav else ""
+            set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots{nav_msg}.{err_msg}", "#34c759" if not export_errors else "#ff9500")
 
         except Exception as e:
             set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")

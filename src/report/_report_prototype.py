@@ -17,6 +17,7 @@ def generate_report_prototype(
     cols: int = 4,
     thumb_width: int = 480,
     thumb_height: int = 270,
+    on_progress=None,
 ) -> dict:
     """
     Generates a visual prototype of a Power BI report as SVG + Excalidraw.
@@ -56,8 +57,9 @@ def generate_report_prototype(
     header_h = 30
     footer_h = 25
 
-    # 1. Load page metadata
+    # 1. Load page metadata + navigation edges
     pages_data = []
+    nav_edges = []  # (source_page_name, target_page_name)
     with connect_report(report=report, readonly=True, workspace=workspace) as rw:
         pages_df = rw.list_pages()
         for _, row in pages_df.iterrows():
@@ -72,6 +74,54 @@ def generate_report_prototype(
                 "data_visual_count": int(row.get("Data Visual Count", 0)),
             })
 
+        # Extract page navigation from visualLink on all visuals
+        page_names = {p["name"] for p in pages_data}
+        for part in rw._report_definition.get("parts", []):
+            path = part.get("path", "")
+            if not path.endswith("/visual.json"):
+                continue
+            # Derive source page from path: .../pages/<page_id>/visuals/<vid>/visual.json
+            segments = path.replace("\\", "/").split("/")
+            try:
+                pi = segments.index("pages")
+                source_page = segments[pi + 1]
+            except (ValueError, IndexError):
+                continue
+            if source_page not in page_names:
+                continue
+            payload = part.get("payload", {})
+            vis_links = (
+                payload.get("visual", {})
+                .get("visualContainerObjects", {})
+                .get("visualLink", [])
+            )
+            for link in vis_links:
+                props = link.get("properties", {})
+                show_val = (
+                    props.get("show", {})
+                    .get("expr", {})
+                    .get("Literal", {})
+                    .get("Value", "false")
+                )
+                if show_val != "true":
+                    continue
+                action_type = (
+                    props.get("type", {})
+                    .get("expr", {})
+                    .get("Literal", {})
+                    .get("Value", "")
+                    .strip("'")
+                )
+                target_page = (
+                    props.get("navigationSection", {})
+                    .get("expr", {})
+                    .get("Literal", {})
+                    .get("Value", "")
+                    .strip("'")
+                )
+                if action_type == "PageNavigation" and target_page and target_page in page_names:
+                    nav_edges.append((source_page, target_page))
+
     if not pages_data:
         return {"svg": "", "excalidraw": "", "pages": [], "screenshots": 0, "errors": ["No pages found"]}
 
@@ -79,51 +129,122 @@ def generate_report_prototype(
     page_images = {}
     export_errors = []
     if screenshots:
-        from sempy_labs._helper_functions import _mount
         from sempy_labs.report import export_report
+        import sempy.fabric as fabric
+        import sys
         import io as _io
         import threading
-        from contextlib import redirect_stdout as _redirect
 
-        local_path = _mount()
+        # Pre-resolve report ID once (Win 1: avoids N×list_items calls)
+        _resolved_report_id = None
+        try:
+            dfI = fabric.list_items(workspace=workspace)
+            dfI_filt = dfI[
+                (dfI["Type"] == "Report") & (dfI["Display Name"] == report)
+            ]
+            if not dfI_filt.empty:
+                _resolved_report_id = dfI_filt["Id"].iloc[0]
+        except Exception:
+            pass
+
         target_pages = [(idx, pg) for idx, pg in enumerate(pages_data) if include_hidden or not pg["hidden"]]
+        total_pages = len(target_pages)
         _lock = threading.Lock()
+        _done_count = [0]
 
         def _export_one(idx, pg):
+            # Suppress all output inside each thread
+            import sys as _tsys
+            import io as _tio
+            _t_old_stdout = _tsys.stdout
+            _tsys.stdout = _tio.StringIO()
             try:
-                buf = _io.StringIO()
-                with _redirect(buf):
-                    export_report(
-                        report=report,
-                        export_format="PNG",
-                        file_name=f"_prototype_{idx:02d}",
-                        page_name=pg["name"],
-                        workspace=workspace,
-                    )
-                png_path = f"{local_path}/Files/_prototype_{idx:02d}.png"
-                if os.path.exists(png_path):
-                    with open(png_path, "rb") as f:
-                        png_bytes = f.read()
+                import IPython.display as _tipd
+                _tipd_orig = _tipd.display
+                _tipd.display = lambda *a, **kw: None
+            except Exception:
+                _tipd = None
+                _tipd_orig = None
+            try:
+                # Win 3: get PNG bytes directly, skip file I/O
+                png_bytes = export_report(
+                    report=report,
+                    export_format="PNG",
+                    file_name=f"_prototype_{idx:02d}",
+                    page_name=pg["name"],
+                    workspace=workspace,
+                    _report_id=_resolved_report_id,
+                    _return_bytes=True,
+                )
+                if png_bytes:
                     with _lock:
                         page_images[pg["name"]] = base64.b64encode(png_bytes).decode("ascii")
-                    os.remove(png_path)
                 else:
                     with _lock:
-                        export_errors.append(f"'{pg['display_name']}': file not found")
+                        export_errors.append(f"'{pg['display_name']}': empty response")
             except Exception as e:
                 with _lock:
                     export_errors.append(f"'{pg['display_name']}': {str(e)[:200]}")
+            finally:
+                _tsys.stdout = _t_old_stdout
+                if _tipd and _tipd_orig:
+                    _tipd.display = _tipd_orig
+                with _lock:
+                    _done_count[0] += 1
+                    done = _done_count[0]
+                if on_progress:
+                    try:
+                        on_progress(done, total_pages, pg["display_name"])
+                    except Exception:
+                        pass
 
-        threads = [threading.Thread(target=_export_one, args=(idx, pg)) for idx, pg in target_pages]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        # Redirect stdout AND suppress IPython.display to prevent notebook output overflow
+        _real_stdout = sys.stdout
+        sys.stdout = _io.StringIO()
+
+        # Monkey-patch IPython display to a no-op during exports
+        _ipd = None
+        _ipd_orig = None
+        _idf = None
+        _idf_orig = None
+        try:
+            import IPython.display as _ipd_mod
+            _ipd = _ipd_mod
+            _ipd_orig = _ipd_mod.display
+            _ipd_mod.display = lambda *a, **kw: None
+        except Exception:
+            pass
+        try:
+            import IPython.core.display_functions as _idf_mod
+            _idf = _idf_mod
+            _idf_orig = _idf_mod.display
+            _idf_mod.display = lambda *a, **kw: None
+        except Exception:
+            pass
+
+        try:
+            if on_progress:
+                on_progress(0, total_pages, "starting exports...")
+            threads = [threading.Thread(target=_export_one, args=(idx, pg)) for idx, pg in target_pages]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            sys.stdout = _real_stdout
+            if _ipd and _ipd_orig:
+                _ipd.display = _ipd_orig
+            if _idf and _idf_orig:
+                _idf.display = _idf_orig
+
+    # Deduplicate navigation edges
+    nav_edges = list(set(nav_edges))
 
     # 3. Build diagram
     svg_str, excalidraw_str = _build_diagram(
         pages_data, page_images, include_hidden,
         cols, thumb_width, thumb_height, pad_x, pad_y, header_h, footer_h,
+        nav_edges,
     )
 
     print(f"\u2713 Prototype: {len(pages_data)} pages, {len(page_images)} screenshots.")
@@ -137,6 +258,7 @@ def generate_report_prototype(
         "pages": pages_data,
         "screenshots": len(page_images),
         "errors": export_errors,
+        "nav_edges": nav_edges,
     }
 
 
@@ -187,7 +309,7 @@ def save_report_prototype(
     return result
 
 
-def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x, pad_y, header_h, footer_h):
+def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x, pad_y, header_h, footer_h, nav_edges=None):
     """Build SVG + Excalidraw JSON from page metadata and images."""
     font_family = "-apple-system,BlinkMacSystemFont,sans-serif"
 
@@ -293,21 +415,41 @@ def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x,
                 "strokeColor": colors["text"], "rawText": dt_label,
             })
 
-    # Navigation arrows
+    # Navigation arrows — real edges from visualLink data
+    if nav_edges:
+        page_idx_map = {p["name"]: i for i, p in enumerate(visible)}
+        seen_edges = set()
+        for src_name, tgt_name in nav_edges:
+            if src_name not in page_idx_map or tgt_name not in page_idx_map:
+                continue
+            edge_key = (src_name, tgt_name)
+            if edge_key in seen_edges:
+                continue
+            seen_edges.add(edge_key)
+            si = page_idx_map[src_name]
+            di = page_idx_map[tgt_name]
+            src_col, src_row = si % cols, si // cols
+            dst_col, dst_row = di % cols, di // cols
+            x1 = pad_x + src_col * (thumb_w + pad_x) + thumb_w // 2
+            y1 = pad_y + src_row * (thumb_h + header_h + footer_h + pad_y) + header_h + thumb_h + footer_h
+            x2 = pad_x + dst_col * (thumb_w + pad_x) + thumb_w // 2
+            y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
+            svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead-nav)"/>')
+
+    # Drillthrough arrows — from non-hidden non-DT pages to DT target pages
     dt_pages = {p["name"]: i for i, p in enumerate(visible) if p["drillthrough"]}
     non_dt = [i for i, p in enumerate(visible) if not p["drillthrough"] and not p["hidden"]]
     for src_idx in non_dt:
         for dt_name, dt_idx in dt_pages.items():
-            if src_idx == 0:
-                src_col, src_row = src_idx % cols, src_idx // cols
-                dst_col, dst_row = dt_idx % cols, dt_idx // cols
-                x1 = pad_x + src_col * (thumb_w + pad_x) + thumb_w // 2
-                y1 = pad_y + src_row * (thumb_h + header_h + footer_h + pad_y) + header_h + thumb_h + footer_h
-                x2 = pad_x + dst_col * (thumb_w + pad_x) + thumb_w // 2
-                y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
-                svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead)"/>')
+            src_col, src_row = src_idx % cols, src_idx // cols
+            dst_col, dst_row = dt_idx % cols, dt_idx // cols
+            x1 = pad_x + src_col * (thumb_w + pad_x) + thumb_w // 2
+            y1 = pad_y + src_row * (thumb_h + header_h + footer_h + pad_y) + header_h + thumb_h + footer_h
+            x2 = pad_x + dst_col * (thumb_w + pad_x) + thumb_w // 2
+            y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
+            svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrowhead-dt)"/>')
 
-    svg_parts.insert(1, '<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#c2410c"/></marker></defs>')
+    svg_parts.insert(1, '<defs><marker id="arrowhead-nav" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker><marker id="arrowhead-dt" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#c2410c"/></marker></defs>')
     svg_parts.append('</svg>')
 
     excalidraw_json = {
