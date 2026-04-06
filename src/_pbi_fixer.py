@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.215"
+__version__ = "1.2.216"
 
 import ipywidgets as widgets
 import io
@@ -1658,20 +1658,14 @@ def _prototype_tab(workspace_input=None, report_input=None):
     )
 
     generate_btn = widgets.Button(description="\U0001F4D0 Generate Prototype", button_style="primary", layout=widgets.Layout(width="200px"))
-    stop_proto_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
-    _cancel_proto = [False]
     screenshots_cb = widgets.Checkbox(value=False, description="Screenshots", indent=False, layout=widgets.Layout(width="auto"))
     hidden_cb = widgets.Checkbox(value=False, description="Include hidden pages", indent=False, layout=widgets.Layout(width="auto"))
     export_excalidraw_btn = widgets.Button(description="\u2B07 Save .excalidraw", layout=widgets.Layout(width="150px", display="none"))
     export_svg_btn = widgets.Button(description="\u2B07 Save .svg", layout=widgets.Layout(width="120px", display="none"))
     conn_status = status_html()
 
-    def _on_stop_proto(_):
-        _cancel_proto[0] = True
-    stop_proto_btn.on_click(_on_stop_proto)
-
     nav_row = widgets.HBox(
-        [generate_btn, stop_proto_btn, screenshots_cb, hidden_cb, export_excalidraw_btn, export_svg_btn, conn_status],
+        [generate_btn, screenshots_cb, hidden_cb, export_excalidraw_btn, export_svg_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
@@ -1715,8 +1709,6 @@ def _prototype_tab(workspace_input=None, report_input=None):
 
         generate_btn.disabled = True
         generate_btn.description = "Generating\u2026"
-        stop_proto_btn.layout.display = ""
-        _cancel_proto[0] = False
         _page_images.clear()
         _rpt_name[0] = rpt
 
@@ -1755,8 +1747,6 @@ def _prototype_tab(workspace_input=None, report_input=None):
         finally:
             generate_btn.disabled = False
             generate_btn.description = "\U0001F4D0 Generate Prototype"
-            stop_proto_btn.layout.display = "none"
-            _cancel_proto[0] = False
 
     def _on_export_excalidraw(_):
         if not _excalidraw_cache[0]:
