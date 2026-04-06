@@ -76,7 +76,6 @@ src/
     _Fix_RemoveUnusedCustomVisuals.py
     _Fix_DisableShowItemsNoData.py
     _Fix_MigrateReportLevelMeasures.py
-    _Fix_MigrateSlicerToSlicerbar.py
     _fix_report_bpa.py     # Standalone fix_report_bpa() — scan Report BPA + auto-fix via fixer files
     _report_prototype.py   # Standalone prototype generator (SVG + Excalidraw)
     _report_theme.py       # Theme get/set/update module
@@ -214,7 +213,6 @@ All report fixers have their own file in `report/`, accept `(report, page_name, 
 | Remove Unused Custom Visuals | `_Fix_RemoveUnusedCustomVisuals.py` | `fix_remove_unused_custom_visuals()` | ✅ | ✅ | ✅ |
 | Disable Show Items No Data | `_Fix_DisableShowItemsNoData.py` | `fix_disable_show_items_no_data()` | ✅ | ✅ | ✅ |
 | Migrate Report-Level Measures | `_Fix_MigrateReportLevelMeasures.py` | `fix_migrate_report_level_measures()` | ✅ | ✅ | ✅ |
-| Migrate Slicer to Slicerbar | `_Fix_MigrateSlicerToSlicerbar.py` | `fix_migrate_slicer_to_slicerbar()` | ✅ | ❌ | ❌ |
 
 ### Semantic Model Fixers (separate files with `scan_only` support)
 
@@ -368,7 +366,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | # | Feature | Description |
 |---|---------|-------------|
 | 64 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 65 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
 
 ### Prio 1 — High Priority
 
