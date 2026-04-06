@@ -376,168 +376,32 @@ def save_report_prototype(
 
 
 def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x, pad_y, header_h, footer_h, nav_edges=None):
-    """Build SVG + Excalidraw JSON from page metadata and images."""
-    font_family = "-apple-system,BlinkMacSystemFont,sans-serif"
+    """Build SVG + Excalidraw JSON from page metadata and images.
+
+    Layout: pages are grouped into columns based on navigation edges (visualLink).
+    Each connected component (BFS from root pages) becomes one column.
+    Pages are stacked vertically within each column in BFS order.
+    Standalone pages (no edges) go into a final column.
+    """
+    # --- Constants matching reference Excalidraw layout ---
+    IMG_W = 960       # screenshot width (50% of 1920)
+    IMG_H = 472       # screenshot height (50% of 1080 minus some)
+    COL_W = 1040      # column spacing (IMG_W + 80px gap)
+    TITLE_FS = 20     # page title font size
+    DESC_FS = 14      # description font size
+    CAT_FS = 36       # category header font size
+    SLOT_GAP = 574    # vertical spacing per page slot
+    LABEL_Y_OFF = 60  # title y offset from category top
+    DESC_Y_OFF = 90   # description y offset from category top
+    IMG_Y_OFF = 122   # image y offset from category top
 
     visible = [p for p in pages if include_hidden or not p["hidden"]]
-    n = len(visible)
-    cols = min(cols, n) if n > 0 else 1
-    rows_count = (n + cols - 1) // cols
+    if not visible:
+        return "", json.dumps({"type": "excalidraw", "version": 2, "source": "pbi_fixer", "elements": [], "files": {}})
 
-    svg_w = cols * (thumb_w + pad_x) + pad_x
-    svg_h = rows_count * (thumb_h + header_h + footer_h + pad_y) + pad_y
+    page_map = {p["name"]: p for p in visible}
 
-    svg_parts = [f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">']
-    svg_parts.append(f'<rect width="{svg_w}" height="{svg_h}" fill="#ffffff"/>')
-
-    exc_elements = []
-    exc_files = {}
-
-    _COLORS = {
-        "normal": {"bg": "#dbeafe", "stroke": "#2563eb", "text": "#1e40af"},
-        "drillthrough": {"bg": "#ffedd5", "stroke": "#c2410c", "text": "#9a3412"},
-        "hidden": {"bg": "#f3f4f6", "stroke": "#9ca3af", "text": "#6b7280"},
-    }
-
-    for idx, pg in enumerate(visible):
-        col = idx % cols
-        row = idx // cols
-        x = pad_x + col * (thumb_w + pad_x)
-        y = pad_y + row * (thumb_h + header_h + footer_h + pad_y)
-
-        ptype = "hidden" if pg["hidden"] else ("drillthrough" if pg["drillthrough"] else "normal")
-        colors = _COLORS[ptype]
-
-        # Header
-        svg_parts.append(f'<rect x="{x}" y="{y}" width="{thumb_w}" height="{header_h}" rx="6" ry="6" fill="{colors["bg"]}" stroke="{colors["stroke"]}" stroke-width="1.5"/>')
-        label = pg["display_name"][:35]
-        if pg["drillthrough"]:
-            label = f"\u2192 {label}"
-        if pg["hidden"]:
-            label = f"[H] {label}"
-        svg_parts.append(f'<text x="{x + 10}" y="{y + 20}" font-family="{font_family}" font-size="13" font-weight="600" fill="{colors["text"]}">{label}</text>')
-        badge_text = f'{pg["visual_count"]}v / {pg["data_visual_count"]}d'
-        svg_parts.append(f'<text x="{x + thumb_w - 10}" y="{y + 20}" font-family="{font_family}" font-size="11" fill="{colors["text"]}" text-anchor="end">{badge_text}</text>')
-
-        img_y = y + header_h
-
-        # Screenshot or placeholder
-        if pg["name"] in images:
-            b64 = images[pg["name"]]
-            svg_parts.append(f'<image x="{x}" y="{img_y}" width="{thumb_w}" height="{thumb_h}" href="data:image/png;base64,{b64}" preserveAspectRatio="xMidYMid meet"/>')
-            file_id = str(uuid.uuid4())
-            exc_files[file_id] = {"mimeType": "image/png", "id": file_id, "dataURL": f"data:image/png;base64,{b64}"}
-            exc_elements.append({
-                "type": "image", "id": str(uuid.uuid4()), "x": x, "y": img_y,
-                "width": thumb_w, "height": thumb_h, "fileId": file_id,
-                "status": "saved", "scale": [1, 1],
-            })
-        else:
-            svg_parts.append(f'<rect x="{x}" y="{img_y}" width="{thumb_w}" height="{thumb_h}" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>')
-            svg_parts.append(f'<text x="{x + thumb_w // 2}" y="{img_y + thumb_h // 2}" font-family="{font_family}" font-size="14" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">{pg["display_name"]}</text>')
-            svg_parts.append(f'<text x="{x + thumb_w // 2}" y="{img_y + thumb_h // 2 + 20}" font-family="{font_family}" font-size="11" fill="#d1d5db" text-anchor="middle">(no screenshot)</text>')
-
-        # Excalidraw header
-        exc_elements.append({
-            "type": "rectangle", "id": str(uuid.uuid4()), "x": x, "y": y,
-            "width": thumb_w, "height": header_h,
-            "backgroundColor": colors["bg"], "strokeColor": colors["stroke"],
-            "fillStyle": "solid", "strokeWidth": 1, "roundness": {"type": 3},
-        })
-        exc_elements.append({
-            "type": "text", "id": str(uuid.uuid4()), "x": x + 10, "y": y + 5,
-            "width": thumb_w - 20, "height": header_h - 5,
-            "text": label, "fontSize": 14, "fontFamily": 1,
-            "textAlign": "left", "verticalAlign": "top", "rawText": label,
-        })
-        exc_elements.append({
-            "type": "text", "id": str(uuid.uuid4()),
-            "x": x + thumb_w - 80, "y": y + 5,
-            "width": 70, "height": 20,
-            "text": badge_text, "fontSize": 11, "fontFamily": 1,
-            "textAlign": "right", "verticalAlign": "top", "rawText": badge_text,
-        })
-
-        # Footer
-        footer_y = img_y + thumb_h + 3
-        size_text = f'{pg["width"]}\u00d7{pg["height"]}'
-        svg_parts.append(f'<text x="{x + 5}" y="{footer_y + 14}" font-family="{font_family}" font-size="10" fill="#9ca3af">{size_text}</text>')
-        dt_label = "Drillthrough" if pg["drillthrough"] else ("Hidden" if pg["hidden"] else "")
-        svg_parts.append(f'<text x="{x + thumb_w - 5}" y="{footer_y + 14}" font-family="{font_family}" font-size="10" fill="{colors["text"]}" text-anchor="end">{dt_label}</text>')
-
-        exc_elements.append({
-            "type": "text", "id": str(uuid.uuid4()),
-            "x": x + 5, "y": footer_y, "width": 100, "height": 20,
-            "text": size_text, "fontSize": 10, "fontFamily": 1,
-            "textAlign": "left", "verticalAlign": "top",
-            "strokeColor": "#9ca3af", "rawText": size_text,
-        })
-        if dt_label:
-            exc_elements.append({
-                "type": "text", "id": str(uuid.uuid4()),
-                "x": x + thumb_w - 100, "y": footer_y, "width": 95, "height": 20,
-                "text": dt_label, "fontSize": 10, "fontFamily": 1,
-                "textAlign": "right", "verticalAlign": "top",
-                "strokeColor": colors["text"], "rawText": dt_label,
-            })
-
-    # Navigation arrows — real edges from visualLink data
-    if nav_edges:
-        page_idx_map = {p["name"]: i for i, p in enumerate(visible)}
-        seen_edges = set()
-        for src_name, tgt_name in nav_edges:
-            if src_name not in page_idx_map or tgt_name not in page_idx_map:
-                continue
-            edge_key = (src_name, tgt_name)
-            if edge_key in seen_edges:
-                continue
-            seen_edges.add(edge_key)
-            si = page_idx_map[src_name]
-            di = page_idx_map[tgt_name]
-            src_col, src_row = si % cols, si // cols
-            dst_col, dst_row = di % cols, di // cols
-            x1 = pad_x + src_col * (thumb_w + pad_x) + thumb_w // 2
-            y1 = pad_y + src_row * (thumb_h + header_h + footer_h + pad_y) + header_h + thumb_h + footer_h
-            x2 = pad_x + dst_col * (thumb_w + pad_x) + thumb_w // 2
-            y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
-            svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead-nav)"/>')
-
-    svg_parts.insert(1, '<defs><marker id="arrowhead-nav" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker></defs>')
-    svg_parts.append('</svg>')
-
-    # Excalidraw: add navigation map (box diagram) below the screenshot grid
-    _add_nav_map(exc_elements, visible, nav_edges, svg_h + 80)
-
-    excalidraw_json = {
-        "type": "excalidraw",
-        "version": 2,
-        "source": "pbi_fixer",
-        "elements": exc_elements,
-        "files": exc_files,
-    }
-
-    return "\n".join(svg_parts), json.dumps(excalidraw_json, indent=2)
-
-
-def _add_nav_map(elements, visible_pages, nav_edges, start_y):
-    """Add a navigation map box diagram with colored boxes and arrows below the screenshot grid."""
-    if not visible_pages:
-        return
-
-    LEVEL_COLORS = [
-        {"bg": "#ccfbf1", "stroke": "#0d9488"},  # L0 Teal — Root/Landing
-        {"bg": "#dbeafe", "stroke": "#2563eb"},  # L1 Blue
-        {"bg": "#ede9fe", "stroke": "#7c3aed"},  # L2 Purple
-        {"bg": "#ffedd5", "stroke": "#c2410c"},  # L3 Orange
-        {"bg": "#fee2e2", "stroke": "#dc2626"},  # L4+ Red
-    ]
-    HIDDEN_COLOR = {"bg": "#f3f4f6", "stroke": "#9ca3af"}
-    BOX_W, BOX_H, INDENT, V_GAP = 300, 40, 50, 12
-    COL_SPACING = BOX_W + INDENT * 5 + 60
-
-    page_map = {p["name"]: p for p in visible_pages}
-
-    # Build adjacency from nav_edges
+    # --- Build navigation graph ---
     children_map = {}
     has_parent = set()
     edge_set = set()
@@ -549,15 +413,15 @@ def _add_nav_map(elements, visible_pages, nav_edges, start_y):
                 children_map.setdefault(src, []).append(tgt)
                 has_parent.add(tgt)
 
-    # Find roots (pages with outgoing but no incoming edges)
-    roots = [p["name"] for p in visible_pages
+    # Find roots: pages with outgoing edges but no incoming
+    roots = [p["name"] for p in visible
              if p["name"] not in has_parent and p["name"] in children_map]
     if not roots and children_map:
         roots = [max(children_map, key=lambda k: len(children_map[k]))]
 
-    # BFS to build branches (one per root)
+    # BFS to build branches (one per root / connected component)
     visited = set()
-    branches = []
+    branches = []  # list of [(page_name, level), ...]
     for root in roots:
         if root in visited:
             continue
@@ -575,118 +439,326 @@ def _add_nav_map(elements, visible_pages, nav_edges, start_y):
                     queue.append((child, level + 1))
         branches.append(branch)
 
-    # Standalone pages (no nav_edges)
-    standalone = [p["name"] for p in visible_pages if p["name"] not in visited]
+    # Standalone pages (no nav edges)
+    standalone = [p["name"] for p in visible if p["name"] not in visited]
     if standalone:
         branches.append([(name, 0) for name in standalone])
 
-    # Title
+    # --- Build Excalidraw elements ---
+    exc_elements = []
+    exc_files = {}
+
+    # Level labels for display
+    LEVEL_LABELS = ["L1", "L2", "L3", "L4", "L5"]
+    LEVEL_COLORS = {
+        "L1": "#0d9488",  # Teal
+        "L2": "#2563eb",  # Blue
+        "L3": "#7c3aed",  # Purple
+        "L4": "#c2410c",  # Orange
+        "L5": "#dc2626",  # Red
+        "TT": "#9ca3af",  # Gray (tooltip)
+        "H": "#9ca3af",   # Gray (hidden)
+    }
+
+    col_x = 0
+    page_positions = {}  # page_name -> (x, y, col_idx, slot_idx)
+
+    for branch_idx, branch in enumerate(branches):
+        if not branch:
+            continue
+
+        # Category header: use display name of first page in branch
+        first_pg = page_map[branch[0][0]]
+        if len(branch) == 1 and branch[0][0] in standalone:
+            cat_label = first_pg["display_name"]
+        else:
+            cat_label = first_pg["display_name"]
+
+        exc_elements.append({
+            "type": "text", "id": str(uuid.uuid4()),
+            "x": col_x, "y": 0, "width": IMG_W, "height": CAT_FS + 10,
+            "text": cat_label, "fontSize": CAT_FS, "fontFamily": 1,
+            "textAlign": "left", "verticalAlign": "top",
+            "strokeColor": "#1e293b", "roughness": 0, "rawText": cat_label,
+        })
+
+        for slot_idx, (page_name, level) in enumerate(branch):
+            pg = page_map[page_name]
+            x = col_x
+            y_base = slot_idx * SLOT_GAP
+
+            # Determine level label
+            if pg["hidden"]:
+                lvl_label = "H"
+            elif pg.get("drillthrough"):
+                # Drillthrough pages keep their BFS level
+                lvl_label = LEVEL_LABELS[min(level, len(LEVEL_LABELS) - 1)]
+            else:
+                lvl_label = LEVEL_LABELS[min(level, len(LEVEL_LABELS) - 1)]
+
+            lvl_color = LEVEL_COLORS.get(lvl_label, "#333")
+
+            # Title: [L#] Page Display Name
+            title_text = f"[{lvl_label}] {pg['display_name']}"
+            exc_elements.append({
+                "type": "text", "id": str(uuid.uuid4()),
+                "x": x, "y": y_base + LABEL_Y_OFF, "width": IMG_W, "height": TITLE_FS + 4,
+                "text": title_text, "fontSize": TITLE_FS, "fontFamily": 1,
+                "textAlign": "left", "verticalAlign": "top",
+                "strokeColor": lvl_color, "roughness": 0, "rawText": title_text,
+            })
+
+            # Description line
+            desc_parts = []
+            desc_parts.append(f"{pg['visual_count']}v / {pg['data_visual_count']}d")
+            desc_parts.append(f"{pg['width']}\u00d7{pg['height']}")
+            if pg.get("drillthrough"):
+                desc_parts.append("Drillthrough")
+            if pg["hidden"]:
+                desc_parts.append("Hidden")
+            desc_text = " \u2022 ".join(desc_parts)
+            exc_elements.append({
+                "type": "text", "id": str(uuid.uuid4()),
+                "x": x, "y": y_base + DESC_Y_OFF, "width": IMG_W, "height": DESC_FS + 4,
+                "text": desc_text, "fontSize": DESC_FS, "fontFamily": 1,
+                "textAlign": "left", "verticalAlign": "top",
+                "strokeColor": "#6b7280", "roughness": 0, "rawText": desc_text,
+            })
+
+            # Screenshot image or placeholder rectangle
+            img_x = x
+            img_y = y_base + IMG_Y_OFF
+            if pg["name"] in images:
+                b64 = images[pg["name"]]
+                file_id = str(uuid.uuid4())
+                exc_files[file_id] = {"mimeType": "image/png", "id": file_id, "dataURL": f"data:image/png;base64,{b64}"}
+                exc_elements.append({
+                    "type": "image", "id": str(uuid.uuid4()),
+                    "x": img_x, "y": img_y, "width": IMG_W, "height": IMG_H,
+                    "fileId": file_id, "status": "saved", "scale": [1, 1],
+                })
+            else:
+                # Placeholder box
+                exc_elements.append({
+                    "type": "rectangle", "id": str(uuid.uuid4()),
+                    "x": img_x, "y": img_y, "width": IMG_W, "height": IMG_H,
+                    "backgroundColor": "#f9fafb", "strokeColor": "#e5e7eb",
+                    "fillStyle": "solid", "strokeWidth": 1, "roughness": 0,
+                    "roundness": {"type": 3},
+                })
+                exc_elements.append({
+                    "type": "text", "id": str(uuid.uuid4()),
+                    "x": img_x + IMG_W // 2 - 80, "y": img_y + IMG_H // 2 - 10,
+                    "width": 160, "height": 20,
+                    "text": "(no screenshot)", "fontSize": 14, "fontFamily": 1,
+                    "textAlign": "center", "verticalAlign": "top",
+                    "strokeColor": "#d1d5db", "roughness": 0, "rawText": "(no screenshot)",
+                })
+
+            page_positions[page_name] = (x, y_base, branch_idx, slot_idx)
+
+        col_x += COL_W
+
+    # --- Build SVG (simplified — only inline preview, Excalidraw is the primary output) ---
+    n_cols = len(branches)
+    max_slots = max((len(b) for b in branches), default=1)
+    svg_w = max(n_cols * COL_W, 800)
+    svg_h = max(max_slots * SLOT_GAP + IMG_Y_OFF + IMG_H + 40, 400)
+
+    svg_parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}">',
+        f'<rect width="{svg_w}" height="{svg_h}" fill="#ffffff"/>',
+    ]
+    font_family = "-apple-system,BlinkMacSystemFont,sans-serif"
+
+    svg_col_x = 0
+    for branch_idx, branch in enumerate(branches):
+        for slot_idx, (page_name, level) in enumerate(branch):
+            pg = page_map[page_name]
+            x = svg_col_x
+            y_base = slot_idx * SLOT_GAP
+
+            lvl = LEVEL_LABELS[min(level, len(LEVEL_LABELS) - 1)]
+            if pg["hidden"]:
+                lvl = "H"
+            lvl_color = LEVEL_COLORS.get(lvl, "#333")
+
+            title = f"[{lvl}] {pg['display_name']}"
+            svg_parts.append(f'<text x="{x}" y="{y_base + LABEL_Y_OFF + 16}" font-family="{font_family}" font-size="{TITLE_FS}" font-weight="600" fill="{lvl_color}">{title[:50]}</text>')
+
+            if pg["name"] in images:
+                b64 = images[pg["name"]]
+                svg_parts.append(f'<image x="{x}" y="{y_base + IMG_Y_OFF}" width="{IMG_W}" height="{IMG_H}" href="data:image/png;base64,{b64}" preserveAspectRatio="xMidYMid meet"/>')
+            else:
+                svg_parts.append(f'<rect x="{x}" y="{y_base + IMG_Y_OFF}" width="{IMG_W}" height="{IMG_H}" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>')
+                svg_parts.append(f'<text x="{x + IMG_W // 2}" y="{y_base + IMG_Y_OFF + IMG_H // 2}" font-family="{font_family}" font-size="14" fill="#9ca3af" text-anchor="middle">{pg["display_name"]}</text>')
+
+        svg_col_x += COL_W
+
+    svg_parts.append('</svg>')
+
+    # --- Add navigation map (box diagram) below screenshots ---
+    nav_map_y = max_slots * SLOT_GAP + IMG_Y_OFF + IMG_H + 120
+    _add_nav_map(exc_elements, branches, page_map, edge_set, nav_map_y)
+
+    excalidraw_json = {
+        "type": "excalidraw",
+        "version": 2,
+        "source": "pbi_fixer",
+        "elements": exc_elements,
+        "files": exc_files,
+    }
+
+    return "\n".join(svg_parts), json.dumps(excalidraw_json, indent=2)
+
+
+def _add_nav_map(elements, branches, page_map, edge_set, start_y):
+    """Add navigation map box diagrams below the screenshots.
+
+    Each branch gets a BEFORE column with page hierarchy boxes + arrows.
+    First column shows a TOTAL SUMMARY.
+    Layout matches the reference Excalidraw: colored boxes (280×36) with
+    50px indentation per level, arrows connecting parent→child.
+    """
+    if not branches:
+        return
+
+    LEVEL_COLORS_BOX = [
+        {"bg": "#ccfbf1", "stroke": "#0d9488"},  # L1 Teal
+        {"bg": "#dbeafe", "stroke": "#2563eb"},  # L2 Blue
+        {"bg": "#ede9fe", "stroke": "#7c3aed"},  # L3 Purple
+        {"bg": "#ffedd5", "stroke": "#c2410c"},  # L4 Orange
+        {"bg": "#fee2e2", "stroke": "#dc2626"},  # L5 Red
+    ]
+    HIDDEN_BOX = {"bg": "#f3f4f6", "stroke": "#9ca3af"}
+
+    BOX_W = 280
+    BOX_H = 36
+    INDENT = 50
+    V_GAP = 16
+    COL_W = 1040
+
+    # --- TOTAL SUMMARY (column 0) ---
+    total_pages = sum(len(b) for b in branches)
+    max_level = 0
+    for branch in branches:
+        for _, lvl in branch:
+            if lvl > max_level:
+                max_level = lvl
+    max_level_display = max_level + 1  # 0-based → 1-based
+
     elements.append({
         "type": "text", "id": str(uuid.uuid4()),
         "x": 0, "y": start_y, "width": 400, "height": 36,
-        "text": "Navigation Map", "fontSize": 28, "fontFamily": 1,
+        "text": "TOTAL SUMMARY", "fontSize": 28, "fontFamily": 1,
         "textAlign": "left", "verticalAlign": "top",
-        "strokeColor": "#0d9488", "roughness": 0,
-        "rawText": "Navigation Map",
+        "strokeColor": "#1e293b", "roughness": 0, "rawText": "TOTAL SUMMARY",
     })
-
-    # Legend
-    legend_y = start_y + 42
-    for li, (ltxt, lcol) in enumerate([
-        ("\u2192 Button Navigation", "#2563eb"),
-        ("\u2192 Drillthrough Target", "#c2410c"),
-        ("Hidden Page", "#9ca3af"),
-    ]):
+    edge_pages = {s for s, _ in edge_set} | {t for _, t in edge_set}
+    nav_groups = sum(1 for b in branches if b[0][0] in edge_pages)
+    standalone_count = sum(1 for b in branches for n, l in b if n not in edge_pages)
+    summary_lines = [
+        (18, f"Pages: {total_pages}"),
+        (18, f"Max depth: {max_level_display} level(s)"),
+        (16, f"Navigation groups: {nav_groups}"),
+        (16, f"Standalone pages: {standalone_count}"),
+    ]
+    sy = start_y + 40
+    for fs, txt in summary_lines:
         elements.append({
             "type": "text", "id": str(uuid.uuid4()),
-            "x": li * 220, "y": legend_y, "width": 210, "height": 20,
-            "text": ltxt, "fontSize": 12, "fontFamily": 1,
+            "x": 0, "y": sy, "width": 500, "height": fs + 6,
+            "text": txt, "fontSize": fs, "fontFamily": 1,
             "textAlign": "left", "verticalAlign": "top",
-            "strokeColor": lcol, "roughness": 0, "rawText": ltxt,
+            "strokeColor": "#374151", "roughness": 0, "rawText": txt,
+        })
+        sy += fs + 10
+
+    # --- Per-branch BEFORE columns ---
+    for branch_idx, branch in enumerate(branches):
+        if not branch:
+            continue
+
+        col_x = (branch_idx + 1) * COL_W  # +1 to skip summary column
+
+        # Section header
+        first_pg = page_map[branch[0][0]]
+        n_pages = len(branch)
+        max_branch_lvl = max(lvl for _, lvl in branch) + 1
+        header = f"{first_pg['display_name']} ({n_pages} pages, {max_branch_lvl} levels)"
+        elements.append({
+            "type": "text", "id": str(uuid.uuid4()),
+            "x": col_x, "y": start_y, "width": COL_W - 80, "height": 36,
+            "text": header, "fontSize": 28, "fontFamily": 1,
+            "textAlign": "left", "verticalAlign": "top",
+            "strokeColor": "#1e293b", "roughness": 0, "rawText": header,
         })
 
-    # Layout branches as columns, pages stacked vertically with level indentation
-    map_y = legend_y + 35
-    col_x = 0
-    box_pos = {}
-    level_map = {}
+        box_y = start_y + 52
+        box_positions = {}
 
-    for branch in branches:
-        y = map_y
         for page_name, level in branch:
             pg = page_map[page_name]
-            x = col_x + level * INDENT
+            bx = col_x + level * INDENT
 
             if pg["hidden"]:
-                color = HIDDEN_COLOR
+                color = HIDDEN_BOX
+                lvl_label = "TT" if "tt" in pg["display_name"].lower() or "tooltip" in pg["display_name"].lower() else "H"
             else:
-                color = LEVEL_COLORS[min(level, len(LEVEL_COLORS) - 1)]
+                color = LEVEL_COLORS_BOX[min(level, len(LEVEL_COLORS_BOX) - 1)]
+                lvl_label = f"L{min(level + 1, 5)}"
 
-            # Rectangle box
+            # Box
             elements.append({
                 "type": "rectangle", "id": str(uuid.uuid4()),
-                "x": x, "y": y, "width": BOX_W, "height": BOX_H,
+                "x": bx, "y": box_y, "width": BOX_W, "height": BOX_H,
                 "backgroundColor": color["bg"], "strokeColor": color["stroke"],
                 "fillStyle": "solid", "strokeWidth": 2, "roughness": 0,
                 "roundness": {"type": 3},
             })
 
-            # Page label
-            prefix = "[H] " if pg["hidden"] else ""
-            if pg["drillthrough"]:
-                prefix += "\u2192 "
-            label = f'{prefix}{pg["display_name"]}'
-            badge = f'{pg["visual_count"]}v / {pg["data_visual_count"]}d'
-
+            # Label
+            label = f"[{lvl_label}] {pg['display_name']}"
             elements.append({
                 "type": "text", "id": str(uuid.uuid4()),
-                "x": x + 10, "y": y + 10, "width": BOX_W - 100, "height": 20,
+                "x": bx + 10, "y": box_y + 8, "width": BOX_W - 20, "height": 20,
                 "text": label, "fontSize": 14, "fontFamily": 1,
                 "textAlign": "left", "verticalAlign": "top",
                 "strokeColor": color["stroke"], "roughness": 0, "rawText": label,
             })
+
+            box_positions[page_name] = (bx, box_y)
+            box_y += BOX_H + V_GAP
+
+        # Arrows within this branch
+        branch_levels = {n: l for n, l in branch}
+        for src, tgt in edge_set:
+            if src not in box_positions or tgt not in box_positions:
+                continue
+            sx, sy = box_positions[src]
+            tx, ty = box_positions[tgt]
+
+            # Arrow from left edge of source box to top of target box
+            ax = sx
+            ay = sy + BOX_H
+            dx = tx - ax
+            dy = ty - ay
+
+            if abs(dy) < 2:
+                continue
+
+            tgt_lvl = branch_levels.get(tgt, 0)
+            arrow_color = LEVEL_COLORS_BOX[min(tgt_lvl, len(LEVEL_COLORS_BOX) - 1)]["stroke"]
+
             elements.append({
-                "type": "text", "id": str(uuid.uuid4()),
-                "x": x + BOX_W - 85, "y": y + 12, "width": 75, "height": 16,
-                "text": badge, "fontSize": 11, "fontFamily": 1,
-                "textAlign": "right", "verticalAlign": "top",
-                "strokeColor": color["stroke"], "roughness": 0, "rawText": badge,
+                "type": "arrow", "id": str(uuid.uuid4()),
+                "x": ax, "y": ay,
+                "width": max(abs(dx), 1), "height": max(abs(dy), 1),
+                "strokeColor": arrow_color, "strokeWidth": 2,
+                "strokeStyle": "solid", "roughness": 0, "opacity": 100,
+                "roundness": {"type": 2},
+                "points": [[0, 0], [dx, dy]],
+                "startBinding": None, "endBinding": None,
+                "startArrowhead": None, "endArrowhead": "arrow",
             })
-
-            box_pos[page_name] = (x, y)
-            level_map[page_name] = level
-            y += BOX_H + V_GAP
-
-        col_x += COL_SPACING
-
-    # Arrows connecting pages based on nav_edges
-    for src, tgt in edge_set:
-        if src not in box_pos or tgt not in box_pos:
-            continue
-        sx, sy = box_pos[src]
-        tx, ty = box_pos[tgt]
-
-        # Arrow from bottom-center of source to top-center of target
-        ax = sx + BOX_W // 2
-        ay = sy + BOX_H
-        dx = (tx + BOX_W // 2) - ax
-        dy = ty - ay
-
-        if abs(dx) < 2 and abs(dy) < 2:
-            continue
-
-        # Color matches target level
-        tgt_lvl = level_map.get(tgt, 0)
-        arrow_color = LEVEL_COLORS[min(tgt_lvl, len(LEVEL_COLORS) - 1)]["stroke"]
-
-        elements.append({
-            "type": "arrow", "id": str(uuid.uuid4()),
-            "x": ax, "y": ay,
-            "width": max(abs(dx), 1), "height": max(abs(dy), 1),
-            "strokeColor": arrow_color, "strokeWidth": 2,
-            "strokeStyle": "solid", "roughness": 0, "opacity": 100,
-            "roundness": {"type": 2},
-            "points": [[0, 0], [dx, dy]],
-            "startBinding": None, "endBinding": None,
-            "startArrowhead": None, "endArrowhead": "arrow",
-        })
