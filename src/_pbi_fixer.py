@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.227"
+__version__ = "1.2.228"
 
 import ipywidgets as widgets
 import io
@@ -2220,6 +2220,8 @@ def pbi_fixer(
     fix_linecharts = _lazy_import("sempy_labs.report._Fix_Charts", "fix_linecharts")
     fix_charts = _lazy_import("sempy_labs.report._Fix_Charts", "fix_charts")
     fix_column_to_line = _lazy_import("sempy_labs.report._Fix_ColumnToLine", "fix_column_to_line")
+    fix_column_to_bar = _lazy_import("sempy_labs.report._Fix_Charts", "fix_column_to_bar")
+    fix_ibcs_variance = _lazy_import("sempy_labs.report._Fix_IBCSVariance", "fix_ibcs_variance")
     fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
     fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
     fix_upgrade_to_pbir = _lazy_import("sempy_labs.report._Fix_UpgradeToPbir", "fix_upgrade_to_pbir")
@@ -3129,6 +3131,8 @@ def pbi_fixer(
     cb_col = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_line = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_col2line = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    cb_col2bar = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
+    cb_ibcs_var = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_page_size = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_hide_filters = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
     cb_remove_cv = widgets.Checkbox(value=True, indent=False, layout=widgets.Layout(width="22px"))
@@ -3149,6 +3153,14 @@ def pbi_fixer(
     )
     col2line_row = widgets.HBox(
         [cb_col2line, _fixer_label("Fix Column→Line", "converts column charts to line charts when category axis is Date/DateTime")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
+    col2bar_row = widgets.HBox(
+        [cb_col2bar, _fixer_label("Fix Column→Bar (IBCS)", "converts non-time column charts to bar charts (IBCS: structural = horizontal)")],
+        layout=widgets.Layout(align_items="center", gap="6px"),
+    )
+    ibcs_var_row = widgets.HBox(
+        [cb_ibcs_var, _fixer_label("Fix IBCS Variance", "adds PY measures + error bars + IBCS colors to bar/column charts")],
         layout=widgets.Layout(align_items="center", gap="6px"),
     )
     line_row = widgets.HBox(
@@ -3194,6 +3206,10 @@ def pbi_fixer(
         _report_fixer_rows.append(col_row)
     if fix_column_to_line is not None:
         _report_fixer_rows.append(col2line_row)
+    if fix_column_to_bar is not None:
+        _report_fixer_rows.append(col2bar_row)
+    if fix_ibcs_variance is not None:
+        _report_fixer_rows.append(ibcs_var_row)
     if fix_linecharts is not None:
         _report_fixer_rows.append(line_row)
     if fix_page_size is not None:
@@ -3350,6 +3366,8 @@ def pbi_fixer(
             (cb_bar, "Fix Bar Charts", lambda r, p, w, s: fix_barcharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_barcharts else None,
             (cb_col, "Fix Column Charts", lambda r, p, w, s: fix_columncharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_columncharts else None,
             (cb_col2line, "Fix Column→Line", lambda r, p, w, s: fix_column_to_line(report=r, page_name=p, workspace=w, scan_only=s)) if fix_column_to_line else None,
+            (cb_col2bar, "Fix Column→Bar (IBCS)", lambda r, p, w, s: fix_column_to_bar(report=r, page_name=p, workspace=w, scan_only=s)) if fix_column_to_bar else None,
+            (cb_ibcs_var, "Fix IBCS Variance", lambda r, p, w, s: fix_ibcs_variance(report=r, page_name=p, workspace=w, scan_only=s)) if fix_ibcs_variance else None,
             (cb_line, "Fix Line Charts", lambda r, p, w, s: fix_linecharts(report=r, page_name=p, workspace=w, scan_only=s)) if fix_linecharts else None,
             (cb_page_size, "Fix Page Size", lambda r, p, w, s: fix_page_size(report=r, page_name=p, workspace=w, scan_only=s)) if fix_page_size else None,
             (cb_hide_filters, "Hide Visual Filters", lambda r, p, w, s: fix_hide_visual_filters(report=r, page_name=p, workspace=w, scan_only=s)) if fix_hide_visual_filters else None,
@@ -3616,10 +3634,14 @@ def pbi_fixer(
         _rpt_fixer_cbs["Fix Column Charts"] = lambda **kw: fix_columncharts(**kw)
     if fix_column_to_line is not None:
         _rpt_fixer_cbs["Fix Column\u2192Line"] = lambda **kw: fix_column_to_line(**kw)
+    if fix_column_to_bar is not None:
+        _rpt_fixer_cbs["Fix Column\u2192Bar (IBCS)"] = lambda **kw: fix_column_to_bar(**kw)
     if fix_linecharts is not None:
         _rpt_fixer_cbs["Fix Line Charts"] = lambda **kw: fix_linecharts(**kw)
     if fix_charts is not None:
         _rpt_fixer_cbs["Fix All Charts"] = lambda **kw: fix_charts(**kw)
+    if fix_ibcs_variance is not None:
+        _rpt_fixer_cbs["Fix IBCS Variance"] = lambda **kw: fix_ibcs_variance(**kw)
     if fix_page_size is not None:
         _rpt_fixer_cbs["Fix Page Size"] = lambda **kw: fix_page_size(**kw)
     if fix_hide_visual_filters is not None:

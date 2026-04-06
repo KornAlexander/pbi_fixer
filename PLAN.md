@@ -211,6 +211,8 @@ All report fixers have their own file in `report/`, accept `(report, page_name, 
 | Hide Visual Filters | `_Fix_HideVisualFilters.py` | `fix_hide_visual_filters()` | ✅ | ✅ | ✅ |
 | Fix Visual Alignment | `_Fix_VisualAlignment.py` | `fix_visual_alignment()` | ✅ | ❌ | ✅ |
 | Fix Column→Line | `_Fix_ColumnToLine.py` | `fix_column_to_line()` | ✅ | ✅ | ✅ |
+| Fix Column→Bar (IBCS) | `_Fix_Charts.py` | `fix_column_to_bar()` | ✅ | ✅ | ✅ |
+| Fix IBCS Variance | `_Fix_IBCSVariance.py` | `fix_ibcs_variance()` | ✅ | ✅ | ✅ |
 | Fix Line Charts | `_Fix_Charts.py` | `fix_linecharts()` | ✅ | ✅ | ✅ |
 | Fix All Charts (unified) | `_Fix_Charts.py` | `fix_charts()` | ✅ | ❌ | ✅ "Fix All Charts" |
 | Remove Unused Custom Visuals | `_Fix_RemoveUnusedCustomVisuals.py` | `fix_remove_unused_custom_visuals()` | ✅ | ✅ | ✅ |
@@ -366,6 +368,9 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 67 | Fix Column-to-Line Chart | v1.2.224 | 2026-04-06 | `_Fix_ColumnToLine.py` — converts column charts to line charts when category axis uses Date/DateTime columns. Resolves SM via `fabric.list_columns()` for type detection. |
 | 68 | Unified Chart Fixer | v1.2.225 | 2026-04-06 | `_Fix_Charts.py` with per-type configs for bar/column/line/combo. Line charts keep Y value axis. `_Fix_BarChart.py` and `_Fix_ColumnChart.py` become thin wrappers. New "Fix Line Charts" checkbox + "Fix All Charts" Report Explorer action. |
 | 69 | Auto-detect Measure Table | v1.2.226 | 2026-04-06 | `add_measures_from_columns` and `add_py_measures` auto-detect a measure table (`"measure" in t.Name.lower()`) when `target_table` not specified. Same logic in inline fallbacks. |
+| 70 | IBCS Variance Charts | v1.2.228 | 2026-04-06 | `_Fix_IBCSVariance.py` — IBCS variance chart fixer. Detects single-AC bar/column charts, auto-creates calendar + PY/Δ PY/Max Green PY/Max Red AC measures, adds PY to visual, applies error bars (red #FF0000/green #92D050), IBCS colors (AC #404040/PY #A0A0A0), overlap layout, label backgrounds, axis cleanup. Converts non-time columns→clusteredBarChart. Sorts bar charts descending by AC. Included in Fix All. |
+| 71 | Calendar Auto-Relationship | v1.2.228 | 2026-04-06 | `add_calculated_calendar` now auto-detects Date/DateTime columns and creates Many→One relationships to CalcCalendar[Date] when `relationships=None`. Interactive UI proposal still available via SM Explorer widget. |
+| 72 | Fix Column→Bar (IBCS) | v1.2.228 | 2026-04-06 | `fix_column_to_bar()` in `_Fix_Charts.py` — converts non-time column charts to bar charts. Standalone: preserves stacked/clustered. `force_clustered=True`: always clusteredBarChart. Checks DataType + column name pattern for time detection. |
 
 ---
 
@@ -375,8 +380,6 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 70 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 71 | Calendar Table — Auto-Relationship Proposal | When adding a calendar table, detect all Date/DateTime columns in the model and propose relationships to connect them. Show a list of editable text fields (one per detected date column) pre-filled with the proposed `Calendar[Date]` relationship. Users can adjust the calendar column name, clear a field to skip a relationship, or remove rows they don't want. On confirm, create the calendar table and all accepted relationships in one pass. |
 
 ### Prio 1 — High Priority
 
@@ -589,15 +592,38 @@ Dropdown of built-in Microsoft theme presets applied in one click:
 * Apply via `connect_report` → modify `StaticResources/SharedResources/BaseThemes/CY24SU11.json` (or equivalent theme file in PBIR definition).
 * Use `_report_theme.py`'s `set_report_theme()` for the actual write.
 
-### Feature 39 — Fix Variance Charts
+### Feature 70 — Fix Variance Charts
 
-IBCS-style variance chart fixer (`report/_Fix_VarianceChart.py`):
+IBCS-style variance chart fixer (`report/_Fix_IBCSVariance.py`):
 
 * Detect bar/column charts that show actual vs. budget/plan/target comparisons.
+* **AC measure identification**: Any Y-axis measure NOT ending with ` PY`, ` Δ PY`, ` Δ PY %`, ` Max Green PY`, ` Max Red AC` is an AC measure.
+* **Multiple AC measures → skip**: If a visual has more than one AC measure, skip it (too ambiguous to auto-fix).
+* **Calendar auto-creation**: If no calendar table exists (DataCategory="Time"), automatically create one via `add_calculated_calendar` before proceeding. Don't just warn.
+* **PY measure creation**: If `{AC} PY` doesn't exist, create it using the auto-detected/created calendar table. Then also **add the PY measure to the visual's Y projections** (as first projection, before AC).
+* **Error bar measures**: Check model for `{AC} Max Green PY` and `{AC} Max Red AC` with matching DAX expressions. Create if missing.
+* **Column↔Bar conversion**: Includes the #72 fix — if the chart is a column chart with a non-time category axis, convert to `clusteredBarChart` before applying IBCS formatting.
 * Apply IBCS-compliant formatting: positive variance = green fill, negative variance = red fill.
 * Remove unnecessary gridlines, axis labels, and legends that clutter variance displays.
-* Support waterfall (bridge) chart formatting: running total bars in grey, positive deltas green, negative red.
-* `scan_only` mode: detect potential variance charts by naming convention (columns containing "Variance", "Delta", "Δ", "vs", "Diff").
+* **Data labels**: Per-visual label properties only (not theme-level). AC labels: enabled with white (`#FFFFFF`) background at 50% transparency. PY labels: disabled (`showSeries: false`).
+* **Data point colors**: Use explicit hex values, NOT ThemeDataColor references. AC bar = `#404040` (dark grey), PY bar = `#A0A0A0` (light grey). Error bars: red = `#FF0000`, green = `#92D050`.
+* **Include in Fix All**: This fixer MUST run as part of "Fix All" — do NOT skip it.
+* `scan_only` mode: detect how many bar/column charts have exactly one AC measure and could be enhanced with IBCS variance formatting (PY + error bars). Report count and list each candidate with its AC measure name, whether PY/error bar measures already exist, and whether a calendar table is present.
+
+### Feature 72 — Fix Column↔Bar by Category Type
+
+IBCS rule: time series use vertical columns (left→right), structural comparisons use horizontal bars (top→bottom). Integrated into `_Fix_Charts.py`:
+
+* For each `columnChart` / `clusteredColumnChart`, read the Category axis fields (table + column name).
+* Use `resolve_dataset_from_report` + `fabric.list_columns()` to get the column's DataType (same pattern as `_Fix_ColumnToLine.py`).
+* **Time detection heuristics** (check both):
+  - DataType is `DateTime` or `DateTimeOffset`
+  - Column name matches pattern: contains "Date", "Month", "Year", "Quarter", "Period", "Week", "Day" (case-insensitive)
+* If time-based → keep as column chart (no change).
+* If NOT time-based → convert to bar chart. **Standalone mode**: preserve stacked/clustered (`columnChart`→`barChart`, `clusteredColumnChart`→`clusteredBarChart`). **Called from IBCS fixer**: always → `clusteredBarChart`.
+* `scan_only` mode: report which column charts would be converted and why (show detected category field + DataType).
+* **Bar chart sorting (IBCS)**: For bar charts only (not column charts — time axis order must be preserved), ensure the AC measure is sorted descending. Check `visual.visual.query.sortDefinition.sort` — if missing or not descending by the AC measure, set it. Uses the AC measure identified in step 2 of the variance fixer. This makes the longest bar appear at the top (IBCS convention for structural comparisons).
+* New checkbox in Fixer tab: "Fix Column↔Bar (IBCS)" or integrate as a sub-check in existing "Fix All Charts".
 
 ### Feature 42 — Batch Rename Objects
 
