@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.238"
+__version__ = "1.2.239"
 
 import ipywidgets as widgets
 import io
@@ -3111,7 +3111,7 @@ def pbi_fixer(
     _extra_tab_specs.extend([
         ("\U0001F310 Translations", None),
         ("\U0001F4BE Memory Analyzer", None),
-        ("\U0001F4CB BPA", None),
+        ("\U0001F4CB Model BPA", None),
         ("\U0001F4C4 Report BPA", None),
         ("\U0001F4D0 Delta Analyzer", None),
         ("\u270F\uFE0F Prototype", None),
@@ -4702,7 +4702,7 @@ def pbi_fixer(
             ("\U0001F4BE Memory Analyzer", lambda: _vertipaq_tab(
                 workspace_input=workspace_input, report_input=report_input
             )),
-            ("\U0001F4CB BPA", lambda: _bpa_tab(
+            ("\U0001F4CB Model BPA", lambda: _bpa_tab(
                 workspace_input=workspace_input, report_input=report_input, container_ref=_container_ref
             )),
             ("\U0001F4C4 Report BPA", lambda: _report_bpa_tab(
