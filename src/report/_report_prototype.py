@@ -225,11 +225,9 @@ def generate_report_prototype(
         try:
             if on_progress:
                 on_progress(0, total_pages, "starting exports...")
-            threads = [threading.Thread(target=_export_one, args=(idx, pg)) for idx, pg in target_pages]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=min(5, total_pages)) as pool:
+                pool.map(lambda args: _export_one(*args), target_pages)
         finally:
             sys.stdout = _real_stdout
             if _ipd and _ipd_orig:
