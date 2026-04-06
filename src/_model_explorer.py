@@ -1095,6 +1095,11 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
         prop_summarize_row.layout.display = "none"
+        # Restore default labels (may have been changed for model root node)
+        prop_format_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Format String</span>'
+        prop_folder_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Display Folder</span>'
+        prop_format_str.disabled = False
+        prop_display_folder.disabled = False
         # Hide extended props by default
         prop_is_key_row.layout.display = "none"
         prop_sort_by_row.layout.display = "none"
@@ -1180,7 +1185,11 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_format_str.value = props_data.get("compatibility_level", "")
             prop_display_folder.value = props_data.get("default_mode", "")
             prop_description.value = ""
-            # Repurpose labels: Format String → Compat Level, Display Folder → Default Mode
+            # Relabel: Format String → Compat Level, Display Folder → Default Mode
+            prop_format_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Compat Level</span>'
+            prop_folder_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Default Mode</span>'
+            prop_format_str.disabled = True
+            prop_display_folder.disabled = True
             prop_format_row.layout.display = ""
             prop_folder_row.layout.display = ""
         else:
