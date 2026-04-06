@@ -44,6 +44,7 @@ src/
   _model_explorer.py     # Model Explorer tab (renamed from _sm_explorer.py at v1.2.119)
   _report_explorer.py    # Report Explorer tab
   _perspective_editor.py # Perspective Editor tab
+  _fix_model_bpa.py      # Standalone fix_model_bpa() — scan Model BPA + auto-fix via fixer files
   report/                # Report fixers + standalone modules
     _Fix_PieChart.py
     _Fix_BarChart.py
@@ -56,6 +57,7 @@ src/
     _Fix_RemoveUnusedCustomVisuals.py
     _Fix_DisableShowItemsNoData.py
     _Fix_MigrateReportLevelMeasures.py
+    _fix_report_bpa.py     # Standalone fix_report_bpa() — scan Report BPA + auto-fix via fixer files
     _report_prototype.py   # Standalone prototype generator (SVG + Excalidraw)
     _report_theme.py       # Theme get/set/update module
   semantic_model/        # SM fixers — additive + BPA auto-fixers (each standalone)
@@ -152,7 +154,8 @@ Two conversion approaches exist in Semantic Link Labs:
 
 | Tab | Icon | Source | Description |
 | --- | --- | --- | --- |
-| Semantic Model | � | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
+| Fix All | ⚡ | `_pbi_fixer.py` (inline) | Top-level scan+fix across all 4 categories: Report Fixers, Model Fixers, Model BPA, Report BPA. Always visible (first tab). |
+| Semantic Model | 📄 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
 | Report | 📊 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
 | Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
 | Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
@@ -165,10 +168,11 @@ Two conversion approaches exist in Semantic Link Labs:
 | Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram with nearest-edge connections |
 | About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits (SLL, ipywidgets, powerbiclient, SynapseML, DAX Formatter) |
 
+* **Fix All tab** is always visible as the first tab, even with `all_tabs=False`. Scans all 4 categories and auto-fixes BPA findings that have standalone fixers.
 * **Fixer tab** is hidden by default (`show_fixer_tab=False`); all fixers are accessible via actions dropdowns in SM and Report tabs.
 * **Script Runner tab** exists but is disabled pending security review.
-* Tab order: SM → Report → Fixer (if enabled) → Perspectives → Translations → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
-* `all_tabs=True`: All tabs shown. Tabs after Fixer are loaded via deferred placeholders (instant display, background population). `all_tabs=False` (default): Only SM, Report, About.
+* Tab order: Fix All → SM → Report → Fixer (if enabled) → Perspectives → Translations → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
+* `all_tabs=True`: All tabs shown. Tabs after Fixer are loaded via deferred placeholders (instant display, background population). `all_tabs=False` (default): Only Fix All, SM, Report, About.
 
 ---
 
@@ -247,7 +251,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (44 features)
+### Completed (49 features)
 
 #### 🏗 Core & Foundation
 
@@ -330,6 +334,10 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 57 | Tree & Preview Height Match | v1.2.205 | 2026-04-06 | Increased tree 420→520px, preview min-height 450→520px, embedded report 400→480px to match properties panel |
 | 58 | God Mode Fix All | v1.2.210 | 2026-04-06 | ⚡ Fix All button scans all fixers → grouped tree (Report → Fixer → Item) → deselect items → Fix Selected |
 | 59 | BPA-Based Report Fixers | v1.2.211 | 2026-04-06 | 3 new fixers from Report BPA rules: Remove Unused Custom Visuals, Disable Show Items No Data, Migrate Report-Level Measures |
+| 60 | Fix All Top-Level Tab | v1.2.213 | 2026-04-06 | ⚡ Fix All promoted to always-visible first tab. Scans 4 categories (Report Fixers, Model Fixers, Model BPA, Report BPA). Grouped tree with category→item→fixer→finding. Fix Selected runs all selected fixers. God Mode removed from Report Explorer. |
+| 61 | Standalone BPA Fix Functions | v1.2.214 | 2026-04-06 | `fix_model_bpa(dataset, workspace, scan_only)` maps 20 BPA rules to standalone SM fixers. `fix_report_bpa(report, workspace, scan_only)` maps 4 Report BPA rules to standalone report fixers. Both exported in `__init__.py`. Fix All tab now auto-fixes BPA findings instead of treating them as informational. |
+| 62 | About Tab Attribution | v1.2.215 | 2026-04-06 | Dedicated "Built on Semantic Link Labs" section crediting Michael Kovalsky for TOM, Model BPA, Report BPA, ReportWrapper, Vertipaq Analyzer, Perspective Editor, DAX utilities, Direct Lake. |
+| 63 | Remove Dead Stop Button | v1.2.216 | 2026-04-06 | Removed non-functional Prototype tab stop button (`stop_proto_btn`) — flag was never checked. Kept 3 working stop buttons (Memory, BPA, Report Explorer). |
 
 ---
 
@@ -340,7 +348,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | # | Feature | Description |
 |---|---------|-------------|
 | 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 60 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
+| 64 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
 
 ### Prio 1 — High Priority
 
