@@ -2,9 +2,29 @@
 
 ## Vision
 
-Evolve the PBI Fixer from a single-purpose fixer tool into a comprehensive Power BI development environment running natively in Fabric Notebooks. The UI follows a three-panel layout (object tree on the left, preview top-right, properties bottom-right) with the ability to switch between **Semantic Model**, **Report**, **Fixer**, and **Perspectives** views — plus dedicated analysis tabs for Vertipaq/Memory, BPA, Report BPA, and Delta Analyzer.
+PBI Fixer is a comprehensive Power BI development environment that runs natively inside Microsoft Fabric Notebooks. It provides a single ipywidgets-based UI built on top of semantic-link-labs that covers the full development lifecycle — browsing, editing, fixing, analyzing, and deploying semantic models and reports — without leaving the notebook environment.
 
-The tool connects to an entire workspace of semantic models and reports (displayed as a unified tree), with optional comma-separated filtering. A PBIR format check runs automatically on load — non-PBIR reports are flagged and can be converted in-place before any fixers run.
+The tool connects to any Fabric workspace and loads all semantic models and reports into a unified object tree. A three-panel layout — object tree on the left, preview top-right, properties bottom-right — gives developers full visibility and control over their Power BI assets.
+
+### What PBI Fixer does
+
+- **Browse, edit & fix semantic models**: Explore tables, columns, measures, hierarchies, and relationships. Edit DAX expressions, properties, format strings, and display folders. Preview table data inline. Save changes back via XMLA. 19 BPA auto-fixers cover data types, MDX visibility, formatting, schema hygiene, naming conventions, and documentation — 15 of which have no standard auto-fix in the default BPA rules, making PBI Fixer significantly more capable than the built-in BPA fix script. Plus additive fixers for calendar tables, measure tables, last-refresh tables, calculation groups (units, time intelligence), and auto-created measures.
+- **Browse, edit & fix reports**: Navigate pages and visuals, preview embedded reports via powerbiclient, edit visual positions/sizes/titles, and manage page properties. All changes written through PBIR JSON definitions via `connect_report`. 7 report fixers (pie charts, bar charts, column charts, page size, visual filters, visual alignment, PBIR upgrade) — each with scan-only mode to preview violations before applying.
+- **Analyze model performance**: Memory Analyzer (VertipaqAnalyzer stats), Model BPA and Report BPA with categorized findings, Delta Analyzer for lakehouse table inspection.
+- **Manage perspectives**: Full Perspective Editor for creating and editing model perspectives.
+- **Translate models**: Load existing translations, auto-translate via Azure AI Translator (SynapseML), preview diffs, and apply via XMLA.
+- **Prototype reports**: Generate SVG and Excalidraw-format report prototypes with optional page screenshots.
+- **Visualize model structure**: Auto-layout SVG relationship diagrams with nearest-edge connection lines.
+- **Clone & deploy**: Clone reports and/or semantic models within or across workspaces via REST API round-trips.
+- **Download**: Export as .pbix or .pbip for local development.
+
+### PBIR format gate
+
+A PBIR format check runs automatically on load. Reports in PBIR format work normally; PBIRLegacy reports are flagged with a warning and can be converted in-place before any fixers run. Non-PBIR formats (RDL, etc.) are shown greyed out.
+
+### Standalone compatibility
+
+Every fixer works both inside the UI and as a standalone function call in any Fabric Notebook — e.g. `fix_piecharts(report="Sales Report", workspace="Dev", scan_only=True)`. No UI dependency required.
 
 ---
 
@@ -52,11 +72,11 @@ src/
     _Fix_PageSize.py
     _Fix_HideVisualFilters.py
     _Fix_UpgradeToPbir.py
-    _Fix_MigrateSlicerToSlicerbar.py
     _Fix_VisualAlignment.py
     _Fix_RemoveUnusedCustomVisuals.py
     _Fix_DisableShowItemsNoData.py
     _Fix_MigrateReportLevelMeasures.py
+    _Fix_MigrateSlicerToSlicerbar.py
     _fix_report_bpa.py     # Standalone fix_report_bpa() — scan Report BPA + auto-fix via fixer files
     _report_prototype.py   # Standalone prototype generator (SVG + Excalidraw)
     _report_theme.py       # Theme get/set/update module
@@ -127,8 +147,8 @@ After loading, the left panel shows a single tree with all loaded items:
 📊 Finance Model
   └─ ...
 📄 Sales Report (PBIR)
-  ├─ 📄 Overview [12 visuals]
-  └─ 📄 Details [8 visuals]
+  ├─ 📃 Overview [12 visuals]
+  └─ 📃 Details [8 visuals]
 📄 Old Report (PBIRLegacy) ⚠️
   └─ ...
 ```
@@ -150,20 +170,20 @@ Two conversion approaches exist in Semantic Link Labs:
 
 ---
 
-## Tab Layout (v1.2.152)
+## Tab Layout (v1.2.216)
 
 | Tab | Icon | Source | Description |
 | --- | --- | --- | --- |
 | Fix All | ⚡ | `_pbi_fixer.py` (inline) | Top-level scan+fix across all 4 categories: Report Fixers, Model Fixers, Model BPA, Report BPA. Always visible (first tab). |
-| Semantic Model | 📄 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
-| Report | 📊 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
+| Semantic Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
+| Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
 | Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
 | Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
 | Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats with model dropdown, subtab DataFrames |
 | BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with category tabs, severity badges, grouped checkbox fixers for 19 rule types |
 | Report BPA | 📄 | `_pbi_fixer.py` (`_report_bpa_tab`) | Report BPA via `run_report_bpa()`, auto-converts PBIRLegacy |
 | Delta Analyzer | 📐 | `_pbi_fixer.py` (`_delta_analyzer_tab`) | Delta table analysis: summary, parquet files, row groups, column chunks |
-| Prototype | 📐 | `report/_report_prototype.py` | Report prototype with SVG + Excalidraw export, optional page screenshots |
+| Prototype | ✏️ | `report/_report_prototype.py` | Report prototype with SVG + Excalidraw export, optional page screenshots |
 | Translations | 🌐 | `_pbi_fixer.py` (`_translations_tab`) | Load, auto-translate (Azure AI Translator via SynapseML), preview diff, apply via XMLA |
 | Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram with nearest-edge connections |
 | About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits (SLL, ipywidgets, powerbiclient, SynapseML, DAX Formatter) |
@@ -285,7 +305,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 22 | Fix Visual Alignment | v1.2.143 | 2026-04-05 | `_Fix_VisualAlignment.py`, tolerance %, Report Explorer action |
 | 23 | Design Theme Editor | v1.2.144 | 2026-04-05 | `_report_theme.py` — get/set/update theme colors, Apply IBCS Theme |
 | 24 | PBIR Status Check | v1.2.145–1.2.182 | 2026-04-05 | Workspace-wide PBIR/PBIRLegacy status, Convert All Legacy button. v1.2.182: renamed from Format Overview, compact table, rendered below main UI |
-| 26 | Report Prototyping | v1.2.123–1.2.153 | 2026-04-04 | 📐 Prototype tab, SVG + Excalidraw, page screenshots, progress bar |
+| 26 | Report Prototyping | v1.2.123–v1.2.153 | 2026-04-04 | ✏️ Prototype tab, SVG + Excalidraw, page screenshots, progress bar |
 | 30 | Editable Report Properties | v1.2.163–1.2.182 | 2026-04-05 | Pages: display name, width, height, hidden. Visuals: x, y, width, height, title. Save/discard. v1.2.182: fix key parsing (was showing 0), remove duplicate static props |
 
 #### ⚡ Fixers & BPA
@@ -322,7 +342,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 50 | Deferred Tab Loading | v1.2.183 | 2026-04-05 | `all_tabs=True`: placeholder VBoxes created synchronously (all tab buttons visible instantly), content populated via background thread with per-tab progress |
 | 51 | CI Green Builds | v1.2.177 | 2026-04-05 | `pytest -s tests/ \\|\\| [ $? -eq 5 ]` — allows empty test suite (exit code 5) while failing on real test failures |
 
-#### 🔧 Bug Fixes & Polish (v1.2.178–v1.2.211)
+#### 🔧 Bug Fixes & Polish (v1.2.204–v1.2.216)
 
 | # | Feature | Version | Date | Summary |
 |---|---------|---------|------|---------|
@@ -347,8 +367,8 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 39 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 64 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
+| 64 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+| 65 | Wire Slicer-to-Slicerbar into UI | `_Fix_MigrateSlicerToSlicerbar.py` exists but is not in Fixer tab or Report Explorer actions dropdown. |
 
 ### Prio 1 — High Priority
 
@@ -494,14 +514,12 @@ Exceptions: XMLA warning box uses `#ffc107` border.
 | `_perspective_editor.py` | ✅ Pushed |
 | `semantic_model/_Add_MeasuresFromColumns.py` | ✅ Pushed (also inline fallback in `_pbi_fixer.py`) |
 | `semantic_model/_Add_PYMeasures.py` | ✅ Pushed (also inline fallback in `_pbi_fixer.py`) |
-| `report/_Fix_MigrateSlicerToSlicerbar.py` | ✅ Pushed (file exists, **not yet wired into UI**) |
 
 ### NOT yet pushed / still need PRs to upstream `microsoft/semantic-link-labs`
 
 | File | Notes |
 | --- | --- |
 | `report/_Fix_UpgradeToPbir.py` | Needs `feature/fix-upgrade-to-pbir` branch + PR. |
-| `report/_Fix_MigrateSlicerToSlicerbar.py` | **Deprioritized** — file exists, not wired into UI. PR deferred. |
 | `semantic_model/_Fix_DefaultDataSourceVersion.py` | **Deprioritized** — requires Large SM storage format. PR deferred. |
 | `report/_upgrade_to_pbir.py` | **Already in upstream SLL** — no PR needed. |
 | `report/_generate_embed_token.py` | **Already in upstream SLL** — no PR needed. |
