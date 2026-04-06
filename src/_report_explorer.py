@@ -1265,8 +1265,9 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 captured = buf.getvalue().rstrip()
                 if captured:
                     all_output.append(captured)
-            except Exception:
+            except Exception as e:
                 errors += 1
+                all_output.append(f"\u274c Error: {e}")
         summary = f"\u2713 {action} on {len(unique)} target(s)."
         if errors:
             summary = f"\u26a0\ufe0f {action}: {len(unique) - errors} OK, {errors} error(s)."
