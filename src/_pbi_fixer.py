@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.235"
+__version__ = "1.2.236"
 
 import ipywidgets as widgets
 import io
@@ -1657,7 +1657,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
         status_html, set_status,
     )
 
-    generate_btn = widgets.Button(description="\U0001F4D0 Generate Prototype", button_style="primary", layout=widgets.Layout(width="200px"))
+    generate_btn = widgets.Button(description="\u270F\uFE0F Generate Prototype", button_style="primary", layout=widgets.Layout(width="200px"))
     screenshots_cb = widgets.Checkbox(value=False, description="Screenshots", indent=False, layout=widgets.Layout(width="auto"))
     hidden_cb = widgets.Checkbox(value=False, description="Include hidden pages", indent=False, layout=widgets.Layout(width="auto"))
     export_excalidraw_btn = widgets.Button(description="\u2B07 Save .excalidraw", layout=widgets.Layout(width="150px", display="none"))
@@ -1770,7 +1770,7 @@ def _prototype_tab(workspace_input=None, report_input=None):
             set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
         finally:
             generate_btn.disabled = False
-            generate_btn.description = "\U0001F4D0 Generate Prototype"
+            generate_btn.description = "\u270F\uFE0F Generate Prototype"
 
     def _on_export_excalidraw(_):
         if not _excalidraw_cache[0]:
@@ -3114,7 +3114,7 @@ def pbi_fixer(
         ("\U0001F4CB BPA", None),
         ("\U0001F4C4 Report BPA", None),
         ("\U0001F4D0 Delta Analyzer", None),
-        ("\U0001F4D0 Prototype", None),
+        ("\u270F\uFE0F Prototype", None),
         ("\U0001F5FA Model Diagram", None),
     ])
 
@@ -4711,7 +4711,7 @@ def pbi_fixer(
             ("\U0001F4D0 Delta Analyzer", lambda: _delta_analyzer_tab(
                 workspace_input=workspace_input, report_input=report_input, container_ref=_container_ref
             )),
-            ("\U0001F4D0 Prototype", lambda: _prototype_tab(
+            ("\u270F\uFE0F Prototype", lambda: _prototype_tab(
                 workspace_input=workspace_input, report_input=report_input
             )),
             ("\U0001F5FA Model Diagram", lambda: _diagram_tab(
