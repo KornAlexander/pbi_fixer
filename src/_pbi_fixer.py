@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.214"
+__version__ = "1.2.215"
 
 import ipywidgets as widgets
 import io
@@ -3857,8 +3857,10 @@ def pbi_fixer(
             f'<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:24px; max-width:600px;">'
             f'<div style="font-size:28px; font-weight:700; color:#FF9500; margin-bottom:4px;">Power BI Fixer</div>'
             f'<div style="font-size:14px; color:#666; margin-bottom:24px;">Version {__version__}</div>'
+            # --- Author: Alexander Korn ---
             f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
             f'<div style="font-size:20px; font-weight:600; color:#333;">Alexander Korn</div>'
+            f'<div style="font-size:13px; color:#888; margin-top:2px;">PBI Fixer UI, all Report & Semantic Model Fixers</div>'
             f'<div style="font-size:13px; margin-top:8px;">'
             f'<a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank" style="color:#0A66C2; text-decoration:none; margin-right:12px;">LinkedIn</a>'
             f'<a href="https://github.com/KornAlexander" target="_blank" style="color:#333; text-decoration:none; margin-right:12px;">GitHub</a>'
@@ -3866,28 +3868,42 @@ def pbi_fixer(
             f'</div>'
             f'<div style="font-size:13px; color:#888; margin-top:4px;">Transform data into actionable insights</div>'
             f'</div>'
+            # --- Credits: Michael Kovalsky ---
+            f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
+            f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F3C6 Built on Semantic Link Labs</div>'
+            f'<div style="font-size:13px; color:#555; line-height:1.8;">'
+            f'The core library powering this tool was created by <b>Michael Kovalsky</b> '
+            f'(<a href="https://github.com/m-kovalsky" target="_blank" style="color:#FF9500;">m-kovalsky</a>):<br>'
+            f'\u2022 <b>TOM / connect_semantic_model</b> \u2014 .NET interop for semantic models<br>'
+            f'\u2022 <b>Model BPA</b> \u2014 Best Practice Analyzer engine &amp; rules<br>'
+            f'\u2022 <b>Report BPA</b> \u2014 Report-level Best Practice Analyzer<br>'
+            f'\u2022 <b>ReportWrapper</b> \u2014 PBIR report definition read/write<br>'
+            f'\u2022 <b>Vertipaq Analyzer</b> \u2014 storage &amp; memory analysis<br>'
+            f'\u2022 <b>Perspective Editor</b> \u2014 original logic (UI adapted by A. Korn)<br>'
+            f'\u2022 <b>DAX utilities, Direct Lake, model dependencies</b> &amp; more'
+            f'</div>'
+            f'<div style="font-size:13px; color:#888; margin-top:8px;">'
+            f'Official repo: <a href="https://github.com/microsoft/semantic-link-labs" target="_blank" style="color:#FF9500;">microsoft/semantic-link-labs</a>'
+            f'</div>'
+            f'</div>'
+            # --- Source ---
             f'<div style="margin-bottom:20px; padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
             f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F4E6 Source</div>'
             f'<div style="font-size:13px;">'
             f'<a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" style="color:#FF9500;">github.com/KornAlexander/pbi_fixer</a><br>'
-            f'<a href="https://github.com/KornAlexander/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/KornAlexander/semantic-link-labs</a> (fork)<br>'
-            f'<a href="https://github.com/microsoft/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/microsoft/semantic-link-labs</a> (official)'
+            f'<a href="https://github.com/KornAlexander/semantic-link-labs" target="_blank" style="color:#FF9500;">github.com/KornAlexander/semantic-link-labs</a> (fork)'
             f'</div>'
             f'</div>'
+            # --- Built with ---
             f'<div style="padding:16px; background:#fafafa; border-radius:8px; border:1px solid #e0e0e0;">'
             f'<div style="font-size:16px; font-weight:600; margin-bottom:8px;">\U0001F6E0\ufe0f Built with</div>'
             f'<div style="font-size:13px; color:#555; line-height:1.8;">'
-            f'\u2022 <b>Semantic Link Labs</b> \u2014 TOM, connect_report, vertipaq_analyzer<br>'
             f'\u2022 <b>ipywidgets</b> \u2014 interactive UI in Fabric Notebooks<br>'
             f'\u2022 <b>powerbiclient</b> \u2014 live report preview embed<br>'
             f'\u2022 <b>SynapseML</b> \u2014 Azure AI Translator for auto-translations<br>'
             f'\u2022 <b>DAX Formatter</b> by SQLBI \u2014 '
             f'<a href="https://www.daxformatter.com/" target="_blank" style="color:#FF9500;">daxformatter.com</a> '
             f'(<a href="https://www.sqlbi.com/blog/marco/2014/02/24/how-to-pass-a-dax-query-to-dax-formatter/" target="_blank" style="color:#FF9500;">API docs</a>)'
-            f'</div>'
-            f'<div style="font-size:13px; color:#888; margin-top:12px; padding-top:8px; border-top:1px solid #e0e0e0;">'
-            f'The Perspective Editor is based on work by <b>Michael Kovalsky</b> '
-            f'(<a href="https://github.com/m-kovalsky/semantic-link-labs" target="_blank" style="color:#FF9500;">m-kovalsky/semantic-link-labs</a>).'
             f'</div>'
             f'</div>'
             f'</div>'
