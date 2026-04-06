@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.217"
+__version__ = "1.2.218"
 
 import ipywidgets as widgets
 import io
@@ -2757,6 +2757,7 @@ def pbi_fixer(
     # -----------------------------
     # ⚡ FIX ALL TAB (God Mode — report + model + BPA + Report BPA)
     # -----------------------------
+    from sempy_labs._ui_components import status_html, set_status
     _fa_scan_btn = widgets.Button(description="\U0001F50D Scan Everything", button_style="danger", layout=widgets.Layout(width="170px"))
     _fa_fix_btn = widgets.Button(description="\u2705 Fix Selected", button_style="success", layout=widgets.Layout(width="140px"))
     _fa_select_all_btn = widgets.Button(description="Select All", layout=widgets.Layout(width="100px"))
