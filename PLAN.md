@@ -371,6 +371,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 70 | IBCS Variance Charts | v1.2.228 | 2026-04-06 | `_Fix_IBCSVariance.py` — IBCS variance chart fixer. Detects single-AC bar/column charts, auto-creates calendar + PY/Δ PY/Max Green PY/Max Red AC measures, adds PY to visual, applies error bars (red #FF0000/green #92D050), IBCS colors (AC #404040/PY #A0A0A0), overlap layout, label backgrounds, axis cleanup. Converts non-time columns→clusteredBarChart. Sorts bar charts descending by AC. Included in Fix All. |
 | 71 | Calendar Auto-Relationship | v1.2.228 | 2026-04-06 | `add_calculated_calendar` now auto-detects Date/DateTime columns and creates Many→One relationships to CalcCalendar[Date] when `relationships=None`. Interactive UI proposal still available via SM Explorer widget. |
 | 72 | Fix Column→Bar (IBCS) | v1.2.228 | 2026-04-06 | `fix_column_to_bar()` in `_Fix_Charts.py` — converts non-time column charts to bar charts. Standalone: preserves stacked/clustered. `force_clustered=True`: always clusteredBarChart. Checks DataType + column name pattern for time detection. |
+| 73 | PBIR >100 Visuals Warning | v1.2.229 | 2026-04-06 | `_Fix_UpgradeToPbir.py` — counts visual.json parts from report definition in both scan and fix modes. If >100 visuals, prints warning that PBIR conversion may fail. Conversion still proceeds but alerts user to check manually. |
 
 ---
 
@@ -388,7 +389,9 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 34 | Batch Fixer Presets | "IBCS Standard" = pie fix + bar fix + page size fix. Preset dropdown. |
 | 37 | Standard Design Themes | Built-in Microsoft theme presets applied in one click. |
 | 42 | Batch Rename Objects | Multi-select objects → batch rename with pattern (prefix/suffix/find-replace). |
-| 44 | Add/Delete Objects (CRUD) | Create new measures, columns, tables, calc groups + delete objects. |
+| 44a | Delete Objects | Select in tree → 🗑 Delete button → confirmation → remove. SM: `tom.remove_object()`. Report: `rw.remove()`. Dependency check before delete. |
+| 44b | Create Simple Objects | Create Measure/Calculated Column dialogs. Duplicate Visual/Page. |
+| 44c | Create Complex Objects | Create Calc Group, Table (M partition), Calculated Table, Add Visual. |
 
 ### Prio 2 — Medium Priority
 
@@ -638,14 +641,42 @@ Multi-select objects in Model Explorer → batch rename with pattern:
 
 ### Feature 44 — Add/Delete Objects (CRUD)
 
-Full create/delete support for model objects:
+Split into phases by difficulty:
 
-* **Create Measure**: dialog with name, table (dropdown), DAX expression (textarea), format string, display folder. Uses `tom.add_measure()`.
-* **Create Calculated Column**: name, table, DAX expression, data type. Uses `tom.add_calculated_column()`.
-* **Create Calculation Group**: name + N calculation items with names + ordinal + DAX expressions. Uses `tom.add_calculation_group()` + `tom.add_calculation_item()`.
-* **Create Table**: M expression, name. Uses `tom.add_m_partition()` on a new table.
-* **Delete objects**: Ctrl+select in tree → "🗑 Delete" button. Confirmation dialog showing all objects to be removed. Uses `tom.remove_object()`.
-* **Safety**: deletion checks for dependencies (measures referencing the column, relationships involving the table). Warn if breaking dependencies exist.
+#### Phase 1 — Delete Objects (Easy)
+
+All delete operations use existing APIs (`tom.remove_object()` for SM, `rw.remove()` for report). UI: select in tree → "🗑 Delete" button → confirmation list → execute.
+
+| Operation | API | Complexity | Notes |
+|-----------|-----|------------|-------|
+| Delete Measure | `tom.remove_object(measure)` | Easy | Check for dependent measures referencing it via DAX |
+| Delete Calculated Column | `tom.remove_object(column)` | Easy | Check for measures/relationships referencing it |
+| Delete Calculated Table | `tom.remove_object(table)` | Easy | Check for relationships + measures in the table |
+| Delete Hierarchy | `tom.remove_object(hierarchy)` | Easy | No dependencies |
+| Delete Relationship | `tom.remove_object(relationship)` | Easy | No dependencies |
+| Delete Visual | `rw.remove("definition/pages/{page}/{visual}/visual.json")` | Easy | Just removes the file from PBIR definition |
+| Delete Page | `rw.remove("definition/pages/{page}/*")` + update `pages.json` | Easy | Remove all files in page folder + remove from pageOrder array |
+| Delete Calculation Group Item | `tom.remove_object(calc_item)` | Easy | No dependencies |
+
+**Safety checks**: Before deleting a SM object, scan all DAX expressions for references to it. Show warnings like "⚠ Measure [Revenue Δ PY] references [Revenue]". User must confirm to proceed.
+
+#### Phase 2 — Create Simple Objects (Medium)
+
+| Operation | API | Complexity | Notes |
+|-----------|-----|------------|-------|
+| Create Measure | `tom.add_measure()` | Medium | Dialog: name, table (dropdown), DAX textarea, format string, display folder |
+| Create Calculated Column | `tom.add_calculated_column()` | Medium | Dialog: name, table, DAX, data type dropdown |
+| Duplicate Visual | `rw.get()` → modify name/position → `rw.add()` | Medium | Copy visual.json, offset position by +20px |
+| Duplicate Page | Copy all page files → new folder → update `pages.json` | Medium | Deep copy all visuals + page.json |
+
+#### Phase 3 — Create Complex Objects (Hard)
+
+| Operation | API | Complexity | Notes |
+|-----------|-----|------------|-------|
+| Create Calculation Group | `tom.add_calculation_group()` + N calc items | Hard | Dynamic form: add/remove items with ordinal + DAX per item |
+| Create Table (M partition) | `tom.add_m_partition()` | Hard | M expression editor, column definitions needed after refresh |
+| Create Calculated Table | `tom.add_calculated_table()` | Hard | DAX expression + column definitions auto-detected after evaluation |
+| Add Visual to Page | Build visual.json from scratch | Hard | Need visual type picker, field bindings, positioning. Very complex UI. |
 
 ### Feature 35 — Background Editor
 

@@ -309,8 +309,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     def _run_fixer_with_pbir_gate(fixer_fn, report, page_name, workspace, scan_only=False, **extra_kw):
         """Run a fixer function. If it fails with PBIR error, attempt conversion then retry."""
         try:
-            fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
-            return True
+            result = fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
+            return result
         except Exception as e:
             err_msg = str(e)
             if "PBIR format" not in err_msg and "ReportWrapper" not in err_msg:
@@ -336,8 +336,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     pass
             if converted:
                 set_status(conn_status, f"Retrying fixer on '{report}'\u2026", GRAY_COLOR)
-                fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
-                return True
+                result = fixer_fn(report=report, page_name=page_name, workspace=workspace, scan_only=scan_only, **extra_kw)
+                return result
             set_status(conn_status, f"\u26a0\ufe0f '{report}' could not be converted to PBIR. Convert manually in Power BI Desktop.", "#ff3b30")
             return False
     fixer_dropdown = widgets.Dropdown(
@@ -376,6 +376,11 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     action_row = widgets.HBox(
         [scan_btn, fixer_dropdown, tolerance_input, run_action_btn],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
+    )
+    crud_output_box = widgets.VBox(
+        layout=widgets.Layout(display="none", gap="4px", max_height="400px",
+                              overflow_y="auto", border="1px solid #e0e0e0",
+                              border_radius="8px", padding="8px", margin="0 0 8px 0"),
     )
 
     tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="520px", font_family="monospace"))
@@ -1243,11 +1248,20 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         extra_kw = {}
         if action == "Fix Visual Alignment":
             extra_kw["tolerance_pct"] = tolerance_input.value
+        # Pass selection context for CRUD operations
+        sel_keys = [_key_map[opt] for opt in tree.value if opt in _key_map]
+        extra_kw["selected_keys"] = sel_keys
+        extra_kw["report_data"] = _report_data
+        crud_output_box.layout.display = "none"
         for rpt, page in unique:
             try:
                 buf = _io.StringIO()
                 with _redirect(buf):
-                    _run_fixer_with_pbir_gate(fixer_callbacks[action], report=rpt, page_name=page, workspace=ws, scan_only=False, **extra_kw)
+                    result = _run_fixer_with_pbir_gate(fixer_callbacks[action], report=rpt, page_name=page, workspace=ws, scan_only=False, **extra_kw)
+                # If callback returns a widget, show it in crud_output_box
+                if result is not None and hasattr(result, 'children'):
+                    crud_output_box.children = [result]
+                    crud_output_box.layout.display = ""
                 captured = buf.getvalue().rstrip()
                 if captured:
                     all_output.append(captured)
@@ -1428,7 +1442,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         layout=widgets.Layout(align_items="center", gap="8px", margin="4px 0 0 0"),
     )
 
-    widget = widgets.VBox([nav_row, action_row, tree_header, panels, format_row], layout=widgets.Layout(padding="12px", gap="4px"))
+    widget = widgets.VBox([nav_row, action_row, crud_output_box, tree_header, panels, format_row], layout=widgets.Layout(padding="12px", gap="4px"))
     # Expose format_container for external placement (below the main PBI Fixer UI)
     widget._format_container = format_container
     return widget, on_load

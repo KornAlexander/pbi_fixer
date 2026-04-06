@@ -1591,14 +1591,19 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 if len(items) > 1:
                     set_status(conn_status, f"Running {action} on '{item}' ({i+1}/{len(items)})\u2026", GRAY_COLOR)
                 buf = _io.StringIO()
-                kwargs = {"report": item, "workspace": ws, "scan_only": False}
+                kwargs = {"report": item, "workspace": ws, "scan_only": False,
+                          "selected_keys": list(_selected_keys), "model_data": _model_data}
                 if sel_measures and action in ("Add PY Measures (Y-1)",):
                     kwargs["measures"] = sel_measures
                 if sel_columns and action in ("Auto-Create Measures from Columns",):
                     kwargs["columns"] = sel_columns
                 try:
                     with _redirect(buf):
-                        fixer_callbacks[action](**kwargs)
+                        result = fixer_callbacks[action](**kwargs)
+                    # If callback returns a widget, show it in scan_results_box
+                    if result is not None and hasattr(result, 'children'):
+                        scan_results_box.children = [result]
+                        scan_results_box.layout.display = ""
                     succeeded += 1
                 except Exception as e:
                     failed += 1

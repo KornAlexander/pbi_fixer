@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.229"
+__version__ = "1.2.230"
 
 import ipywidgets as widgets
 import io
@@ -2816,12 +2816,17 @@ def pbi_fixer(
         import IPython.display as _ipd
         _orig_display = _ipd.display
 
-        _skip_rpt = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme"}
-        _skip_sm = {"── Add Objects ──", "── Formatting & Setup ──", "── BPA Fixers ──",
-                     "  Format All DAX", "  Setup Incremental Refresh", "  Direct Lake Pre-warm Cache"}
+        _skip_rpt = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme", "Delete Selected", "Duplicate Selected"}
+        _skip_sm = {"── Add Objects ──", "── Formatting & Setup ──", "── BPA Fixers ──", "── Create & Delete ──",
+                     "  Format All DAX", "  Setup Incremental Refresh", "  Direct Lake Pre-warm Cache",
+                     "  Add Calendar Table", "  Add Last Refresh Table", "  Add Measure Table",
+                     "  Add Units Calc Group", "  Add Time Intelligence",
+                     "  Auto-Create Measures from Columns", "  Add PY Measures (Y-1)"}
         scannable_rpt = {k: v for k, v in _rpt_fixer_cbs.items() if k not in _skip_rpt}
         scannable_sm = {k: v for k, v in _model_fixer_cbs.items()
-                        if k not in _skip_sm and not k.startswith("──") and _model_fixer_cbs[k] is not _noop}
+                        if k not in _skip_sm and not k.startswith("──")
+                        and _model_fixer_cbs[k] is not _noop
+                        and "Delete" not in k and "Create" not in k}
 
         for item in items:
             # 1) Report fixers (scan_only)
@@ -3674,6 +3679,321 @@ def pbi_fixer(
             )
         _rpt_fixer_cbs["Apply IBCS Theme"] = lambda **kw: _apply_ibcs_theme(**kw)
 
+    # -- Report CRUD: Delete & Duplicate --
+    def _rpt_delete_selected(**kw):
+        """Delete selected visuals or pages from the report."""
+        import ipywidgets as _w
+        rpt = kw.get("report", "")
+        ws = kw.get("workspace")
+        sel_keys = kw.get("selected_keys", [])
+        if not rpt:
+            print("[!] No report loaded.")
+            return None
+        if not sel_keys:
+            print("[!] Select one or more visuals or pages in the tree first.")
+            return None
+
+        # Parse selected keys into visual/page references
+        items_to_delete = []  # [(type, page_name, visual_name), ...]
+        for key in sel_keys:
+            if key.startswith("visual:"):
+                v_raw = key.split(":", 1)[1]
+                if "\x1f" in v_raw:
+                    _, rest = v_raw.split("\x1f", 1)
+                    page_name, visual_name = rest.rsplit(":", 1)
+                else:
+                    page_name, visual_name = v_raw.rsplit(":", 1)
+                items_to_delete.append(("visual", page_name, visual_name))
+            elif key.startswith("page:"):
+                p_raw = key.split(":", 1)[1]
+                if "\x1f" in p_raw:
+                    _, page_name = p_raw.split("\x1f", 1)
+                else:
+                    page_name = p_raw
+                items_to_delete.append(("page", page_name, None))
+
+        if not items_to_delete:
+            print("[!] No visuals or pages selected for deletion.")
+            return None
+
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:#ff3b30; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'Delete {len(items_to_delete)} item(s) from \'{rpt}\'</div>'
+        )
+        items_html = ""
+        for item_type, page_name, visual_name in items_to_delete:
+            if item_type == "page":
+                items_html += f'<div style="font-size:12px; font-family:monospace; padding:2px 0;">\u2022 Page: \'{page_name}\'</div>'
+            else:
+                items_html += f'<div style="font-size:12px; font-family:monospace; padding:2px 0;">\u2022 Visual: \'{visual_name}\' on page \'{page_name}\'</div>'
+        items_list = _w.HTML(value=items_html)
+        warning = _w.HTML(
+            value='<div style="font-size:11px; color:#856404; padding:4px 8px; '
+            'background:#fff3cd; border-radius:4px; margin:4px 0;">'
+            'This will permanently delete the selected items from the report definition.</div>'
+        )
+        delete_btn = _w.Button(description="Confirm Delete", button_style="danger", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        status_lbl = _w.HTML(value="")
+
+        def on_delete(_btn):
+            _btn.disabled = True
+            _btn.description = "Deleting\u2026"
+            try:
+                import json, base64
+                from sempy_labs.report._reportwrapper import connect_report
+                deleted = 0
+
+                with connect_report(report=rpt, workspace=ws, readonly=False, show_diffs=False) as rw:
+                    # Build page folder lookup from report definition
+                    page_folders = {}  # page_display_name -> folder_name
+                    for part in rw._report_definition.get("parts", []):
+                        fp = part.get("path", "")
+                        if fp.endswith("/page.json"):
+                            page_json = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                            display_name = page_json.get("displayName", "")
+                            folder = fp.split("/")[-2]
+                            page_folders[display_name] = folder
+
+                    for item_type, page_name, visual_name in items_to_delete:
+                        try:
+                            page_folder = page_folders.get(page_name, "")
+                            if not page_folder:
+                                print(f"[ERR] Page folder not found for '{page_name}'")
+                                continue
+
+                            if item_type == "page":
+                                # Remove all files under this page folder
+                                pattern = f"definition/pages/{page_folder}/"
+                                parts_before = len(rw._report_definition["parts"])
+                                rw._report_definition["parts"] = [
+                                    p for p in rw._report_definition["parts"]
+                                    if not p.get("path", "").startswith(pattern)
+                                ]
+                                # Update pages.json to remove from pageOrder
+                                for part in rw._report_definition["parts"]:
+                                    if part.get("path", "") == "definition/pages/pages.json":
+                                        pj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                                        if "pageOrder" in pj:
+                                            pj["pageOrder"] = [p for p in pj["pageOrder"] if p != page_folder]
+                                        part["payload"] = base64.b64encode(json.dumps(pj).encode("utf-8")).decode("utf-8")
+                                        break
+                                removed = parts_before - len(rw._report_definition["parts"])
+                                if removed > 0:
+                                    deleted += 1
+                                    print(f"[OK] Deleted page '{page_name}' ({removed} files)")
+                            else:
+                                # Delete visual - find visual folder by matching visual name
+                                visual_folder = None
+                                for part in rw._report_definition["parts"]:
+                                    fp = part.get("path", "")
+                                    if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
+                                        v_folder = fp.split("/")[-2]
+                                        if v_folder == visual_name:
+                                            visual_folder = v_folder
+                                            break
+                                        # Also check name field in visual.json
+                                        vj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                                        if vj.get("name", "") == visual_name:
+                                            visual_folder = v_folder
+                                            break
+                                if not visual_folder:
+                                    visual_folder = visual_name
+
+                                pattern = f"definition/pages/{page_folder}/visuals/{visual_folder}/"
+                                parts_before = len(rw._report_definition["parts"])
+                                rw._report_definition["parts"] = [
+                                    p for p in rw._report_definition["parts"]
+                                    if not p.get("path", "").startswith(pattern)
+                                ]
+                                removed = parts_before - len(rw._report_definition["parts"])
+                                if removed > 0:
+                                    deleted += 1
+                                    print(f"[OK] Deleted visual '{visual_name}' from page '{page_name}'")
+                                else:
+                                    print(f"[ERR] Visual '{visual_name}' not found in page '{page_name}'")
+                        except Exception as e:
+                            print(f"[ERR] Failed to delete: {e}")
+
+                    if deleted > 0:
+                        print(f"\n[OK] {deleted} item(s) deleted and saved.")
+
+                status_lbl.value = f'<pre style="font-size:11px; font-family:monospace; color:#333; white-space:pre-wrap; margin-top:8px;">{deleted} item(s) deleted.</pre>'
+                _btn.description = "\u2713 Deleted"
+                _btn.button_style = ""
+            except Exception as e:
+                status_lbl.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "Confirm Delete"
+
+        delete_btn.on_click(on_delete)
+        return _w.VBox([header, items_list, warning, delete_btn, status_lbl], layout=_w.Layout(padding="8px"))
+
+    _rpt_fixer_cbs["Delete Selected"] = _rpt_delete_selected
+
+    def _rpt_duplicate_selected(**kw):
+        """Duplicate selected visual or page in the report."""
+        import ipywidgets as _w
+        rpt = kw.get("report", "")
+        ws = kw.get("workspace")
+        sel_keys = kw.get("selected_keys", [])
+        if not rpt:
+            print("[!] No report loaded.")
+            return None
+        if not sel_keys:
+            print("[!] Select a visual or page in the tree first.")
+            return None
+
+        # Pick the first selected visual or page
+        target = None
+        for key in sel_keys:
+            if key.startswith("visual:"):
+                v_raw = key.split(":", 1)[1]
+                if "\x1f" in v_raw:
+                    _, rest = v_raw.split("\x1f", 1)
+                    page_name, visual_name = rest.rsplit(":", 1)
+                else:
+                    page_name, visual_name = v_raw.rsplit(":", 1)
+                target = ("visual", page_name, visual_name)
+                break
+            elif key.startswith("page:"):
+                p_raw = key.split(":", 1)[1]
+                if "\x1f" in p_raw:
+                    _, page_name = p_raw.split("\x1f", 1)
+                else:
+                    page_name = p_raw
+                target = ("page", page_name, None)
+                break
+
+        if not target:
+            print("[!] Select a visual or page to duplicate.")
+            return None
+
+        item_type, page_name, visual_name = target
+        label = f"page '{page_name}'" if item_type == "page" else f"visual '{visual_name}' on page '{page_name}'"
+
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:{icon_accent}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'Duplicate {label}</div>'
+        )
+        dup_btn = _w.Button(description="Duplicate", button_style="success", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        status_lbl = _w.HTML(value="")
+
+        def on_duplicate(_btn):
+            _btn.disabled = True
+            _btn.description = "Duplicating\u2026"
+            try:
+                import json, base64, uuid
+                from sempy_labs.report._reportwrapper import connect_report
+
+                with connect_report(report=rpt, workspace=ws, readonly=False, show_diffs=False) as rw:
+                    # Build page folder lookup
+                    page_folders = {}
+                    for part in rw._report_definition.get("parts", []):
+                        fp = part.get("path", "")
+                        if fp.endswith("/page.json"):
+                            pj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                            page_folders[pj.get("displayName", "")] = fp.split("/")[-2]
+
+                    page_folder = page_folders.get(page_name, "")
+                    if not page_folder:
+                        status_lbl.value = '<div style="color:#ff3b30; font-size:12px;">Page not found.</div>'
+                        _btn.disabled = False
+                        _btn.description = "Duplicate"
+                        return
+
+                    if item_type == "page":
+                        # Duplicate page: copy all parts under this page with a new folder name
+                        new_folder = str(uuid.uuid4()).replace("-", "")[:16]
+                        src_prefix = f"definition/pages/{page_folder}/"
+                        new_parts = []
+                        new_display_name = None
+                        for part in rw._report_definition["parts"]:
+                            fp = part.get("path", "")
+                            if fp.startswith(src_prefix):
+                                new_path = fp.replace(src_prefix, f"definition/pages/{new_folder}/")
+                                new_payload = part["payload"]
+                                # Update page.json display name
+                                if fp.endswith("/page.json"):
+                                    pj = json.loads(base64.b64decode(new_payload).decode("utf-8"))
+                                    new_display_name = pj.get("displayName", "Page") + " (Copy)"
+                                    pj["displayName"] = new_display_name
+                                    new_payload = base64.b64encode(json.dumps(pj).encode("utf-8")).decode("utf-8")
+                                new_parts.append({"path": new_path, "payload": new_payload, "payloadType": part.get("payloadType", "InlineBase64")})
+                        rw._report_definition["parts"].extend(new_parts)
+                        # Add to pages.json pageOrder
+                        for part in rw._report_definition["parts"]:
+                            if part.get("path", "") == "definition/pages/pages.json":
+                                pj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                                if "pageOrder" in pj:
+                                    # Insert after the original page
+                                    idx = pj["pageOrder"].index(page_folder) if page_folder in pj["pageOrder"] else len(pj["pageOrder"])
+                                    pj["pageOrder"].insert(idx + 1, new_folder)
+                                part["payload"] = base64.b64encode(json.dumps(pj).encode("utf-8")).decode("utf-8")
+                                break
+                        # connect_report auto-saves on exit
+                        status_lbl.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Page duplicated as \'{new_display_name}\'.</div>'
+
+                else:
+                    # Duplicate visual: copy visual.json with new folder name, offset position
+                    new_visual_folder = str(uuid.uuid4()).replace("-", "")[:16]
+                    src_visual_prefix = None
+                    # Find the visual's folder by matching visual name
+                    for part in rw._report_definition["parts"]:
+                        fp = part.get("path", "")
+                        if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
+                            v_folder = fp.split("/")[-2]
+                            if v_folder == visual_name:
+                                src_visual_prefix = f"definition/pages/{page_folder}/visuals/{v_folder}/"
+                                break
+                    if not src_visual_prefix:
+                        # Try matching by checking name in visual.json
+                        for part in rw._report_definition["parts"]:
+                            fp = part.get("path", "")
+                            if fp.startswith(f"definition/pages/{page_folder}/visuals/") and fp.endswith("/visual.json"):
+                                vj = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                                if vj.get("name", "") == visual_name:
+                                    v_folder = fp.split("/")[-2]
+                                    src_visual_prefix = f"definition/pages/{page_folder}/visuals/{v_folder}/"
+                                    break
+
+                    if not src_visual_prefix:
+                        status_lbl.value = '<div style="color:#ff3b30; font-size:12px;">Visual not found.</div>'
+                        _btn.disabled = False
+                        _btn.description = "Duplicate"
+                        return
+
+                    new_parts = []
+                    for part in rw._report_definition["parts"]:
+                        fp = part.get("path", "")
+                        if fp.startswith(src_visual_prefix):
+                            new_path = fp.replace(src_visual_prefix, f"definition/pages/{page_folder}/visuals/{new_visual_folder}/")
+                            new_payload = part["payload"]
+                            # Offset visual position for the copy
+                            if fp.endswith("/visual.json"):
+                                vj = json.loads(base64.b64decode(new_payload).decode("utf-8"))
+                                if "position" in vj:
+                                    vj["position"]["x"] = vj["position"].get("x", 0) + 30
+                                    vj["position"]["y"] = vj["position"].get("y", 0) + 30
+                                new_payload = base64.b64encode(json.dumps(vj).encode("utf-8")).decode("utf-8")
+                            new_parts.append({"path": new_path, "payload": new_payload, "payloadType": part.get("payloadType", "InlineBase64")})
+                    rw._report_definition["parts"].extend(new_parts)
+                    # connect_report auto-saves on exit
+                    status_lbl.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Visual duplicated (offset +30px).</div>'
+
+                _btn.description = "\u2713 Done"
+                _btn.button_style = ""
+            except Exception as e:
+                status_lbl.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "Duplicate"
+
+        dup_btn.on_click(on_duplicate)
+        return _w.VBox([header, dup_btn, status_lbl], layout=_w.Layout(padding="8px"))
+
+    _rpt_fixer_cbs["Duplicate Selected"] = _rpt_duplicate_selected
+
     # -- Build fixer callbacks for Model Explorer actions dropdown (grouped) --
     _model_fixer_cbs = {}
     _noop = lambda **kw: None  # no-op for separator labels
@@ -3710,7 +4030,7 @@ def pbi_fixer(
                         has_calendar = True
                         break
                 if has_calendar:
-                    print(f"{icons.info} Calendar table already exists. Skipping.")
+                    print("ℹ️ Calendar table already exists. Skipping.")
                     return None
 
                 # Find all Date/DateTime columns (skip calc table candidates)
@@ -3950,6 +4270,328 @@ def pbi_fixer(
         _model_fixer_cbs["  Fix Sort Month Column"] = _sm_action(_bpa_fix_sort_month)
     if _bpa_fix_data_cat is not None:
         _model_fixer_cbs["  Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
+
+    # ── CRUD: Create & Delete ──
+    _model_fixer_cbs["── Create & Delete ──"] = _noop
+
+    def _crud_delete_selected(**kw):
+        """Delete selected objects from the semantic model with dependency check."""
+        import ipywidgets as _w
+        ds = kw.get("report", "")
+        ws = kw.get("workspace")
+        if not ds:
+            print("[!] No model loaded.")
+            return None
+
+        # Get selected items from kwargs (passed by on_run_action)
+        sel_keys = kw.get("selected_keys", [])
+        if not sel_keys:
+            print("[!] Select one or more objects in the tree first.")
+            return None
+
+        # Parse selected keys into object references
+        objects_to_delete = []  # [(type, model, table, name), ...]
+        for key in sel_keys:
+            if ":" not in key:
+                continue
+            obj_type, rest = key.split(":", 1)
+            parts = rest.split("\x1f")
+            if obj_type == "measure" and len(parts) >= 3:
+                objects_to_delete.append(("measure", parts[0], parts[1], parts[2]))
+            elif obj_type == "column" and len(parts) >= 3:
+                objects_to_delete.append(("column", parts[0], parts[1], parts[2]))
+            elif obj_type == "table" and len(parts) >= 2:
+                objects_to_delete.append(("table", parts[0], parts[1], None))
+            elif obj_type == "hierarchy" and len(parts) >= 3:
+                objects_to_delete.append(("hierarchy", parts[0], parts[1], parts[2]))
+            elif obj_type == "calc_item" and len(parts) >= 3:
+                objects_to_delete.append(("calc_item", parts[0], parts[1], parts[2]))
+            elif obj_type == "relationship" and len(parts) >= 2:
+                objects_to_delete.append(("relationship", parts[0], parts[1], None))
+
+        if not objects_to_delete:
+            print("[!] No deletable objects selected. Select measures, columns, tables, hierarchies, or calc items.")
+            return None
+
+        # Build confirmation widget
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:#ff3b30; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'🗑 Delete {len(objects_to_delete)} object(s) from \'{ds}\'</div>'
+        )
+
+        items_html = ""
+        for obj_type, model, table, name in objects_to_delete:
+            if obj_type == "table":
+                items_html += f'<div style="font-size:12px; font-family:monospace; padding:2px 0;">• Table: \'{table}\'</div>'
+            elif obj_type == "relationship":
+                items_html += f'<div style="font-size:12px; font-family:monospace; padding:2px 0;">• Relationship: {table}</div>'
+            else:
+                items_html += f'<div style="font-size:12px; font-family:monospace; padding:2px 0;">• {obj_type.title()}: \'{table}\'[{name}]</div>'
+        items_list = _w.HTML(value=items_html)
+
+        warning = _w.HTML(
+            value='<div style="font-size:11px; color:#856404; padding:4px 8px; '
+            'background:#fff3cd; border-radius:4px; margin:4px 0;">'
+            '⚠️ <b>XMLA write</b> — This will permanently delete the selected objects. '
+            'Dependent measures may break. This cannot be undone.</div>'
+        )
+
+        delete_btn = _w.Button(description="🗑 Confirm Delete", button_style="danger", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        status_html = _w.HTML(value="")
+
+        def on_delete(_btn):
+            _btn.disabled = True
+            _btn.description = "Deleting…"
+            try:
+                import io as _io
+                from contextlib import redirect_stdout as _redirect
+                from sempy_labs.tom import connect_semantic_model
+                buf = _io.StringIO()
+                with _redirect(buf):
+                    with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+                        deleted = 0
+                        for obj_type, model, table, name in objects_to_delete:
+                            try:
+                                if obj_type == "table":
+                                    obj = tom.model.Tables[table]
+                                elif obj_type == "measure":
+                                    obj = tom.model.Tables[table].Measures[name]
+                                elif obj_type == "column":
+                                    obj = tom.model.Tables[table].Columns[name]
+                                elif obj_type == "hierarchy":
+                                    obj = tom.model.Tables[table].Hierarchies[name]
+                                elif obj_type == "calc_item":
+                                    # Calc items are in CalculationGroup.CalculationItems
+                                    obj = tom.model.Tables[table].CalculationGroup.CalculationItems[name]
+                                elif obj_type == "relationship":
+                                    obj = tom.model.Relationships[table]
+                                else:
+                                    continue
+                                tom.remove_object(obj)
+                                deleted += 1
+                                label = f"'{table}'" if obj_type == "table" else f"'{table}'[{name}]"
+                                print(f"[OK] Deleted {obj_type}: {label}")
+                            except Exception as e:
+                                label = f"'{table}'" if obj_type == "table" else f"'{table}'[{name}]"
+                                print(f"[ERR] Failed to delete {label}: {e}")
+                        if deleted > 0:
+                            tom.model.SaveChanges()
+                            print(f"\n[OK] {deleted} object(s) deleted and saved.")
+                output = buf.getvalue()
+                status_html.value = f'<pre style="font-size:11px; font-family:monospace; color:#333; white-space:pre-wrap; margin-top:8px;">{output}</pre>'
+                _btn.description = "✓ Deleted"
+                _btn.button_style = ""
+            except Exception as e:
+                status_html.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "🗑 Confirm Delete"
+
+        delete_btn.on_click(on_delete)
+        return _w.VBox([header, items_list, warning, delete_btn, status_html], layout=_w.Layout(padding="8px"))
+
+    _model_fixer_cbs["  🗑 Delete Selected"] = _crud_delete_selected
+
+    def _crud_create_measure(**kw):
+        """Interactive form to create a new measure."""
+        import ipywidgets as _w
+        ds = kw.get("report", "")
+        ws = kw.get("workspace")
+        if not ds:
+            print("[!] No model loaded.")
+            return None
+
+        # Get table list from model_data (passed by on_run_action)
+        tables = []
+        md = kw.get("model_data", {})
+        if md and "models" in md:
+            for mname, mdata in md["models"].items():
+                for tname in mdata.get("tables", {}):
+                    tables.append(tname)
+
+        if not tables:
+            print("[!] No tables found. Load a model first.")
+            return None
+
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:{icon_accent}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'📐 Create Measure in \'{ds}\'</div>'
+        )
+
+        tbl_dd = _w.Dropdown(options=sorted(tables), description="Table:", layout=_w.Layout(width="350px"))
+        name_input = _w.Text(value="", placeholder="Measure name", description="Name:", layout=_w.Layout(width="350px"))
+        dax_input = _w.Textarea(value="", placeholder="DAX expression, e.g. SUM('Table'[Column])", description="DAX:", layout=_w.Layout(width="500px", height="80px"))
+        fmt_input = _w.Text(value="", placeholder='e.g. #,0 or 0.0%', description="Format:", layout=_w.Layout(width="350px"))
+        folder_input = _w.Text(value="", placeholder="Display folder (optional)", description="Folder:", layout=_w.Layout(width="350px"))
+
+        create_btn = _w.Button(description="Create Measure", button_style="success", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        status_html = _w.HTML(value="")
+
+        def on_create(_btn):
+            mname = name_input.value.strip()
+            dax = dax_input.value.strip()
+            if not mname or not dax:
+                status_html.value = '<div style="color:#ff3b30; font-size:12px;">Name and DAX expression are required.</div>'
+                return
+            _btn.disabled = True
+            _btn.description = "Creating…"
+            try:
+                from sempy_labs.tom import connect_semantic_model
+                with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+                    tom.add_measure(
+                        table_name=tbl_dd.value,
+                        measure_name=mname,
+                        expression=dax,
+                        format_string=fmt_input.value.strip() or None,
+                        display_folder=folder_input.value.strip() or None,
+                    )
+                    tom.model.SaveChanges()
+                status_html.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Measure [{mname}] created in \'{tbl_dd.value}\'.</div>'
+                _btn.description = "✓ Created"
+                _btn.button_style = ""
+            except Exception as e:
+                status_html.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "Create Measure"
+
+        create_btn.on_click(on_create)
+        return _w.VBox([header, tbl_dd, name_input, dax_input, fmt_input, folder_input, create_btn, status_html], layout=_w.Layout(padding="8px"))
+
+    _model_fixer_cbs["  📐 Create Measure"] = _crud_create_measure
+
+    def _crud_create_calc_column(**kw):
+        """Interactive form to create a calculated column."""
+        import ipywidgets as _w
+        ds = kw.get("report", "")
+        ws = kw.get("workspace")
+        if not ds:
+            print("[!] No model loaded.")
+            return None
+
+        tables = []
+        md = kw.get("model_data", {})
+        if md and "models" in md:
+            for mname, mdata in md["models"].items():
+                for tname in mdata.get("tables", {}):
+                    tables.append(tname)
+        if not tables:
+            print("[!] No tables found.")
+            return None
+
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:{icon_accent}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'📊 Create Calculated Column in \'{ds}\'</div>'
+        )
+
+        tbl_dd = _w.Dropdown(options=sorted(tables), description="Table:", layout=_w.Layout(width="350px"))
+        name_input = _w.Text(value="", placeholder="Column name", description="Name:", layout=_w.Layout(width="350px"))
+        dax_input = _w.Textarea(value="", placeholder="DAX expression, e.g. [Column1] * [Column2]", description="DAX:", layout=_w.Layout(width="500px", height="80px"))
+        dtype_dd = _w.Dropdown(options=["String", "Int64", "Double", "DateTime", "Boolean", "Decimal"], value="String", description="Type:", layout=_w.Layout(width="350px"))
+        fmt_input = _w.Text(value="", placeholder='e.g. 0 or yyyy-MM-dd', description="Format:", layout=_w.Layout(width="350px"))
+        folder_input = _w.Text(value="", placeholder="Display folder (optional)", description="Folder:", layout=_w.Layout(width="350px"))
+
+        create_btn = _w.Button(description="Create Column", button_style="success", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        refresh_hint = _w.HTML(
+            value='<div style="font-size:11px; color:#666; margin-top:4px;">'
+            'ℹ️ After creation, the model needs a <b>refresh/recalc</b> for the column values to populate.</div>'
+        )
+        status_html = _w.HTML(value="")
+
+        def on_create(_btn):
+            cname = name_input.value.strip()
+            dax = dax_input.value.strip()
+            if not cname or not dax:
+                status_html.value = '<div style="color:#ff3b30; font-size:12px;">Name and DAX expression are required.</div>'
+                return
+            _btn.disabled = True
+            _btn.description = "Creating…"
+            try:
+                from sempy_labs.tom import connect_semantic_model
+                with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+                    tom.add_calculated_column(
+                        table_name=tbl_dd.value,
+                        column_name=cname,
+                        expression=dax,
+                        data_type=dtype_dd.value,
+                        format_string=fmt_input.value.strip() or None,
+                        display_folder=folder_input.value.strip() or None,
+                    )
+                    tom.model.SaveChanges()
+                status_html.value = f'<div style="color:#34c759; font-size:12px; margin-top:4px;">\u2713 Column [{cname}] created in \'{tbl_dd.value}\'. Refresh the model to populate values.</div>'
+                _btn.description = "✓ Created"
+                _btn.button_style = ""
+            except Exception as e:
+                status_html.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "Create Column"
+
+        create_btn.on_click(on_create)
+        return _w.VBox([header, tbl_dd, name_input, dax_input, dtype_dd, fmt_input, folder_input, create_btn, refresh_hint, status_html], layout=_w.Layout(padding="8px"))
+
+    _model_fixer_cbs["  📊 Create Calculated Column"] = _crud_create_calc_column
+
+    def _crud_create_calc_table(**kw):
+        """Interactive form to create a calculated table."""
+        import ipywidgets as _w
+        ds = kw.get("report", "")
+        ws = kw.get("workspace")
+        if not ds:
+            print("[!] No model loaded.")
+            return None
+
+        header = _w.HTML(
+            value=f'<div style="font-size:13px; font-weight:600; color:{icon_accent}; '
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+            f'📋 Create Calculated Table in \'{ds}\'</div>'
+        )
+
+        name_input = _w.Text(value="", placeholder="Table name", description="Name:", layout=_w.Layout(width="350px"))
+        dax_input = _w.Textarea(value="", placeholder='DAX expression, e.g. SELECTCOLUMNS(\'Table\', "Col", [Column])\nor CALENDAR(DATE(2020,1,1), DATE(2030,12,31))', description="DAX:", layout=_w.Layout(width="500px", height="100px"))
+        hidden_cb = _w.Checkbox(value=False, description="Hidden", indent=False, layout=_w.Layout(width="150px"))
+
+        create_btn = _w.Button(description="Create Table", button_style="success", layout=_w.Layout(width="180px", margin="8px 0 0 0"))
+        refresh_hint = _w.HTML(
+            value='<div style="font-size:11px; color:#666; margin-top:4px;">'
+            'ℹ️ After creation, a <b>refresh/recalc</b> is needed to populate the table and generate columns. '
+            'You can trigger this from the Fabric workspace or via semantic-link-labs.</div>'
+        )
+        status_html = _w.HTML(value="")
+
+        def on_create(_btn):
+            tname = name_input.value.strip()
+            dax = dax_input.value.strip()
+            if not tname or not dax:
+                status_html.value = '<div style="color:#ff3b30; font-size:12px;">Name and DAX expression are required.</div>'
+                return
+            _btn.disabled = True
+            _btn.description = "Creating…"
+            try:
+                from sempy_labs.tom import connect_semantic_model
+                with connect_semantic_model(dataset=ds, readonly=False, workspace=ws) as tom:
+                    tom.add_calculated_table(
+                        name=tname,
+                        expression=dax,
+                        hidden=hidden_cb.value,
+                    )
+                    tom.model.SaveChanges()
+                status_html.value = (
+                    f'<div style="color:#34c759; font-size:12px; margin-top:4px;">'
+                    f'\u2713 Calculated table \'{tname}\' created. '
+                    f'Refresh the model to populate columns and data.</div>'
+                )
+                _btn.description = "✓ Created"
+                _btn.button_style = ""
+            except Exception as e:
+                status_html.value = f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                _btn.disabled = False
+                _btn.description = "Create Table"
+
+        create_btn.on_click(on_create)
+        return _w.VBox([header, name_input, dax_input, hidden_cb, create_btn, refresh_hint, status_html], layout=_w.Layout(padding="8px"))
+
+    _model_fixer_cbs["  📋 Create Calculated Table"] = _crud_create_calc_table
 
     # -- Clone callbacks (for action dropdowns — reuse shared impl) --
     def _clone_report(**kw):
