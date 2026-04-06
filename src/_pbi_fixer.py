@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.225"
+__version__ = "1.2.226"
 
 import ipywidgets as widgets
 import io
@@ -2241,8 +2241,16 @@ def pbi_fixer(
             from sempy_labs.tom import connect_semantic_model
             created = 0
             with connect_semantic_model(dataset=dataset, readonly=scan_only, workspace=workspace) as tom:
+                # Auto-detect measure table if not specified
+                auto_dest = None
+                if not target_table:
+                    for t in tom.model.Tables:
+                        if "measure" in t.Name.lower():
+                            auto_dest = t.Name
+                            print(f"  Auto-detected measure table: '{t.Name}'")
+                            break
                 for table in tom.model.Tables:
-                    dest_name = target_table or table.Name
+                    dest_name = target_table or auto_dest or table.Name
                     for col in table.Columns:
                         summarize_by = str(col.SummarizeBy) if hasattr(col, "SummarizeBy") else "None"
                         if summarize_by in ("None", "Default"):
@@ -2289,6 +2297,12 @@ def pbi_fixer(
                 if not dt_col:
                     print(f"  No date column found in '{cal.Name}'."); return 0
                 dest_tbl = tom.model.Tables.Find(target_table) if target_table else None
+                if not dest_tbl and not target_table:
+                    for t in tom.model.Tables:
+                        if "measure" in t.Name.lower():
+                            dest_tbl = t
+                            print(f"  Auto-detected measure table: '{t.Name}'")
+                            break
                 src = [m for table in tom.model.Tables for m in table.Measures if measures is None or m.Name in measures]
                 if not src:
                     print("  No measures found."); return 0
