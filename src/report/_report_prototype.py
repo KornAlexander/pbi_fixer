@@ -133,9 +133,20 @@ def generate_report_prototype(
 
         drillthrough_pages = {p["name"] for p in pages_data if p.get("drillthrough")}
 
+        # Extract page navigation from button visuals only (actionButton, image)
+        # Excludes Back buttons. cf. blog post referenced above.
+        _BUTTON_TYPES = {"actionButton", "image"}
+
         for part in rw._report_definition.get("parts", []):
             path = part.get("path", "")
             if not path.endswith("/visual.json"):
+                continue
+            payload = part.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            # Only consider button-like visuals
+            visual_type = payload.get("visual", {}).get("visualType", "")
+            if visual_type not in _BUTTON_TYPES:
                 continue
             # Derive source page from path: .../pages/<page_id>/visuals/<vid>/visual.json
             segments = path.replace("\\", "/").split("/")
@@ -146,9 +157,6 @@ def generate_report_prototype(
                 continue
             source_page = page_name_lookup.get(folder_id, folder_id)
             if source_page not in page_names:
-                continue
-            payload = part.get("payload")
-            if not isinstance(payload, dict):
                 continue
             try:
                 vis_links = (
@@ -173,6 +181,9 @@ def generate_report_prototype(
                         .get("Value", "")
                         .strip("'")
                     )
+                    # Skip Back buttons
+                    if action_type == "Back":
+                        continue
                     target_page = (
                         props.get("navigationSection", {})
                         .get("expr", {})
@@ -402,20 +413,35 @@ def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x,
     page_map = {p["name"]: p for p in visible}
 
     # --- Build navigation graph ---
+    # Only use forward navigation edges (button→target), back buttons are already excluded.
+    # Remove "back to overview" edges: if a page links back to the first page,
+    # that's navigational convenience, not a hierarchy edge.
     children_map = {}
     has_parent = set()
     edge_set = set()
+
+    # The first visible page is the landing/overview page
+    first_page = visible[0]["name"] if visible else None
+
     for src, tgt in (nav_edges or []):
         if src in page_map and tgt in page_map:
+            # Skip edges pointing back to the first page (overview) from child pages
+            # Only keep "first_page -> X" edges, not "X -> first_page"
+            if tgt == first_page and src != first_page:
+                continue
             key = (src, tgt)
             if key not in edge_set:
                 edge_set.add(key)
                 children_map.setdefault(src, []).append(tgt)
                 has_parent.add(tgt)
 
-    # Find roots: pages with outgoing edges but no incoming
-    roots = [p["name"] for p in visible
-             if p["name"] not in has_parent and p["name"] in children_map]
+    # Root is the first page if it has outgoing edges, otherwise find roots by in-degree
+    roots = []
+    if first_page and first_page in children_map:
+        roots = [first_page]
+    else:
+        roots = [p["name"] for p in visible
+                 if p["name"] not in has_parent and p["name"] in children_map]
     if not roots and children_map:
         roots = [max(children_map, key=lambda k: len(children_map[k]))]
 
