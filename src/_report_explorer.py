@@ -1248,10 +1248,11 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         extra_kw = {}
         if action == "Fix Visual Alignment":
             extra_kw["tolerance_pct"] = tolerance_input.value
-        # Pass selection context for CRUD operations
-        sel_keys = [_key_map[opt] for opt in tree.value if opt in _key_map]
-        extra_kw["selected_keys"] = sel_keys
-        extra_kw["report_data"] = _report_data
+        # Pass selection context only for CRUD operations (Delete/Duplicate)
+        if action in ("Delete Selected", "Duplicate Selected"):
+            sel_keys = [_key_map[opt] for opt in tree.value if opt in _key_map]
+            extra_kw["selected_keys"] = sel_keys
+            extra_kw["report_data"] = _report_data
         crud_output_box.layout.display = "none"
         for rpt, page in unique:
             try:
