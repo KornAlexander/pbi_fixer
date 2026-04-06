@@ -658,7 +658,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             tree.observe(on_select, names="value")
 
     # -- expression panel --
-    preview = widgets.Textarea(value="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="160px", font_family="monospace"))
+    preview = widgets.Textarea(value="", placeholder="Select a measure to view its DAX expression.", disabled=True, layout=widgets.Layout(width="100%", height="160px", font_family="monospace"))
 
     # Table data preview (HTML, shown when a table node is selected)
     table_preview_html = widgets.HTML(value="", layout=widgets.Layout(width="100%", display="none"))
@@ -1281,7 +1281,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             elapsed = int(time.time() - start_time)
             err_str = f", {errors} error(s)" if errors else ""
             set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
-            preview.value = "Select a measure to view its DAX expression."
+            preview.value = ""
+            preview.disabled = True
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
         finally:
