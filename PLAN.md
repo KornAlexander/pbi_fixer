@@ -210,6 +210,9 @@ All report fixers have their own file in `report/`, accept `(report, page_name, 
 | Fix Page Size | `_Fix_PageSize.py` | `fix_page_size()` | ✅ | ✅ | ✅ |
 | Hide Visual Filters | `_Fix_HideVisualFilters.py` | `fix_hide_visual_filters()` | ✅ | ✅ | ✅ |
 | Fix Visual Alignment | `_Fix_VisualAlignment.py` | `fix_visual_alignment()` | ✅ | ❌ | ✅ |
+| Fix Column→Line | `_Fix_ColumnToLine.py` | `fix_column_to_line()` | ✅ | ✅ | ✅ |
+| Fix Line Charts | `_Fix_Charts.py` | `fix_linecharts()` | ✅ | ✅ | ✅ |
+| Fix All Charts (unified) | `_Fix_Charts.py` | `fix_charts()` | ✅ | ❌ | ✅ "Fix All Charts" |
 | Remove Unused Custom Visuals | `_Fix_RemoveUnusedCustomVisuals.py` | `fix_remove_unused_custom_visuals()` | ✅ | ✅ | ✅ |
 | Disable Show Items No Data | `_Fix_DisableShowItemsNoData.py` | `fix_disable_show_items_no_data()` | ✅ | ✅ | ✅ |
 | Migrate Report-Level Measures | `_Fix_MigrateReportLevelMeasures.py` | `fix_migrate_report_level_measures()` | ✅ | ✅ | ✅ |
@@ -229,6 +232,7 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 | Add Time Intelligence | `_Add_CalcGroup_TimeIntelligence.py` | `add_calc_group_time_intelligence()` | ✅ | ✅ | ✅ |
 | Auto-Create Measures from Columns | `_Add_MeasuresFromColumns.py` | `add_measures_from_columns()` | ✅ | ❌ | ✅ |
 | Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
+| Direct Lake Pre-warm Cache | `_Setup_CacheWarming.py` | `setup_cache_warming()` | ✅ | ❌ | ✅ |
 | Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
 
 ### BPA Auto-Fixers (19 total — standalone files + dropdown in `_bpa_tab`)
@@ -356,6 +360,12 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 61 | Standalone BPA Fix Functions | v1.2.214 | 2026-04-06 | `fix_model_bpa(dataset, workspace, scan_only)` maps 20 BPA rules to standalone SM fixers. `fix_report_bpa(report, workspace, scan_only)` maps 4 Report BPA rules to standalone report fixers. Both exported in `__init__.py`. Fix All tab now auto-fixes BPA findings instead of treating them as informational. |
 | 62 | About Tab Attribution | v1.2.215 | 2026-04-06 | Dedicated "Built on Semantic Link Labs" section crediting Michael Kovalsky for TOM, Model BPA, Report BPA, ReportWrapper, Vertipaq Analyzer, Perspective Editor, DAX utilities, Direct Lake. |
 | 63 | Remove Dead Stop Button | v1.2.216 | 2026-04-06 | Removed non-functional Prototype tab stop button (`stop_proto_btn`) — flag was never checked. Kept 3 working stop buttons (Memory, BPA, Report Explorer). |
+| 64 | Show All Tabs Button | v1.2.221 | 2026-04-06 | Dynamic "Show All Tabs" button next to tab bar. Inserts extra tabs (BPA, Report BPA, Delta Analyzer, etc.) without needing `all_tabs=True` parameter. Uses shared `_make_lazy_specs()`. |
+| 65 | Show All Tabs Alignment Fix | v1.2.222 | 2026-04-06 | Fixed button displacement from tab bar — removed duplicate margin, matched button height to ToggleButtons (34px). |
+| 66 | Direct Lake Pre-warm Cache | v1.2.223 | 2026-04-06 | SM Explorer action: detects DL model, scans resident columns, creates `_CacheWarmUp` perspective, generates warm-up notebook, schedules daily at 07:00 via Fabric Job Scheduler API. |
+| 67 | Fix Column-to-Line Chart | v1.2.224 | 2026-04-06 | `_Fix_ColumnToLine.py` — converts column charts to line charts when category axis uses Date/DateTime columns. Resolves SM via `fabric.list_columns()` for type detection. |
+| 68 | Unified Chart Fixer | v1.2.225 | 2026-04-06 | `_Fix_Charts.py` with per-type configs for bar/column/line/combo. Line charts keep Y value axis. `_Fix_BarChart.py` and `_Fix_ColumnChart.py` become thin wrappers. New "Fix Line Charts" checkbox + "Fix All Charts" Report Explorer action. |
+| 69 | Auto-detect Measure Table | v1.2.226 | 2026-04-06 | `add_measures_from_columns` and `add_py_measures` auto-detect a measure table (`"measure" in t.Name.lower()`) when `target_table` not specified. Same logic in inline fallbacks. |
 
 ---
 
@@ -365,10 +375,8 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 64 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
-| 65 | Fix Column-to-Line Chart | Change column chart to line chart when too many data points (e.g. daily dates instead of months). Detects date/datetime columns on the axis and switches visual type if cardinality exceeds threshold. |
-| 66 | Unified Chart Fixer | Merge `_Fix_BarChart.py`, `_Fix_ColumnChart.py`, and new line chart fixes into a single `_Fix_Charts.py` / `fix_charts()`. All three share the same helpers (`_get_visual_property`, `_set_visual_property`) and structure — only the visual type set and axis semantics differ. Covers `barChart`, `clusteredBarChart`, `columnChart`, `clusteredColumnChart`, `lineChart`, `lineClusteredColumnComboChart`. Applies: remove axis titles, remove value axis labels, add data labels, remove gridlines. **Exception for line charts:** keep the Y value axis visible (only remove the title and gridlines). Old `fix_barcharts()` and `fix_columncharts()` become thin wrappers around `fix_charts(chart_types=...)` for backward compatibility. |
-| 67 | Calendar Table — Auto-Relationship Proposal | When adding a calendar table, detect all Date/DateTime columns in the model and propose relationships to connect them. Show a list of editable text fields (one per detected date column) pre-filled with the proposed `Calendar[Date]` relationship. Users can adjust the calendar column name, clear a field to skip a relationship, or remove rows they don't want. On confirm, create the calendar table and all accepted relationships in one pass. |
+| 70 | Fix Variance Charts | IBCS-style variance chart fixer. Positive/negative colors, axis cleanup, waterfall. |
+| 71 | Calendar Table — Auto-Relationship Proposal | When adding a calendar table, detect all Date/DateTime columns in the model and propose relationships to connect them. Show a list of editable text fields (one per detected date column) pre-filled with the proposed `Calendar[Date]` relationship. Users can adjust the calendar column name, clear a field to skip a relationship, or remove rows they don't want. On confirm, create the calendar table and all accepted relationships in one pass. |
 
 ### Prio 1 — High Priority
 

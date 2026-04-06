@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.226"
+__version__ = "1.2.227"
 
 import ipywidgets as widgets
 import io
@@ -3659,7 +3659,143 @@ def pbi_fixer(
     # ── Additive Actions ──
     _model_fixer_cbs["── Add Objects ──"] = _noop
     if add_calculated_calendar is not None:
-        _model_fixer_cbs["  Add Calendar Table"] = lambda **kw: add_calculated_calendar(**kw)
+        def _calendar_with_proposals(**kw):
+            """Calendar table action with interactive relationship proposal."""
+            report = kw.get("report", "")
+            workspace = kw.get("workspace")
+            scan_only = kw.get("scan_only", False)
+
+            # In scan mode, just run the normal check
+            if scan_only:
+                add_calculated_calendar(report=report, workspace=workspace, scan_only=True)
+                return None
+
+            # Detect Date/DateTime columns for relationship proposals
+            from sempy_labs._helper_functions import resolve_dataset_from_report, resolve_workspace_name_and_id
+            from sempy_labs.tom import connect_semantic_model
+
+            (_, workspace_id) = resolve_workspace_name_and_id(workspace)
+            dataset_id, dataset_name, dataset_workspace_id, _ = resolve_dataset_from_report(
+                report=report, workspace=workspace_id
+            )
+
+            date_cols = []  # [(table, column), ...]
+            has_calendar = False
+            with connect_semantic_model(dataset=dataset_id, readonly=True, workspace=dataset_workspace_id) as tom:
+                # Check if calendar already exists
+                for t in tom.model.Tables:
+                    if t.DataCategory == "Time":
+                        has_calendar = True
+                        break
+                if has_calendar:
+                    print(f"{icons.info} Calendar table already exists. Skipping.")
+                    return None
+
+                # Find all Date/DateTime columns (skip calc table candidates)
+                existing_rels = set()
+                for r in tom.model.Relationships:
+                    existing_rels.add((str(r.FromColumn.Table.Name), str(r.FromColumn.Name)))
+                for t in tom.model.Tables:
+                    if t.Name == "CalcCalendar":
+                        continue
+                    for c in t.Columns:
+                        dt = str(c.DataType)
+                        if dt in ("DateTime", "DateTimeOffset"):
+                            if (t.Name, c.Name) not in existing_rels:
+                                date_cols.append((t.Name, c.Name))
+
+            if not date_cols:
+                # No date columns found — just create the calendar without relationships
+                add_calculated_calendar(report=report, workspace=workspace, scan_only=False)
+                return None
+
+            # Build proposal widget
+            import ipywidgets as _w
+
+            header = _w.HTML(
+                value=f'<div style="font-size:13px; font-weight:600; color:{icon_accent}; '
+                f'font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:4px;">'
+                f'📅 Calendar Relationship Proposal — {len(date_cols)} Date column(s) found in \'{dataset_name}\'</div>'
+            )
+            hint = _w.HTML(
+                value='<div style="font-size:11px; color:#666; font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin-bottom:8px;">'
+                'Edit the calendar column name, or clear the field to skip a relationship. '
+                'Click <b>Create Calendar & Connect</b> to create the table and all accepted relationships.</div>'
+            )
+
+            rows = []
+            text_fields = []
+            for tbl, col in date_cols:
+                label = _w.HTML(
+                    value=f'<span style="font-size:12px; font-family:monospace; color:#333; min-width:280px;">'
+                    f"'{tbl}'[{col}]</span>",
+                    layout=_w.Layout(min_width="280px"),
+                )
+                arrow = _w.HTML(
+                    value='<span style="font-size:12px; color:#999;">→ CalcCalendar[</span>',
+                )
+                field = _w.Text(
+                    value="Date",
+                    layout=_w.Layout(width="120px"),
+                    continuous_update=False,
+                )
+                bracket = _w.HTML(value='<span style="font-size:12px; color:#999;">]</span>')
+                text_fields.append((tbl, col, field))
+                row = _w.HBox(
+                    [label, arrow, field, bracket],
+                    layout=_w.Layout(align_items="center", gap="4px", padding="2px 0"),
+                )
+                rows.append(row)
+
+            create_btn = _w.Button(
+                description="📅 Create Calendar & Connect",
+                button_style="success",
+                layout=_w.Layout(width="240px", margin="8px 0 0 0"),
+            )
+            status_html = _w.HTML(value="")
+
+            def on_create(_btn):
+                _btn.disabled = True
+                _btn.description = "Creating…"
+                status_html.value = ""
+                # Collect non-empty relationships
+                rels = []
+                for tbl, col, field in text_fields:
+                    cal_col = field.value.strip()
+                    if cal_col:
+                        rels.append((tbl, col, cal_col))
+                try:
+                    import io as _io
+                    from contextlib import redirect_stdout as _redirect
+                    buf = _io.StringIO()
+                    with _redirect(buf):
+                        add_calculated_calendar(
+                            report=report, workspace=workspace, scan_only=False,
+                            relationships=rels if rels else None,
+                        )
+                    output = buf.getvalue()
+                    status_html.value = (
+                        f'<pre style="font-size:11px; font-family:monospace; color:#333; '
+                        f'white-space:pre-wrap; margin-top:8px;">{output}</pre>'
+                    )
+                    _btn.description = "✓ Done"
+                    _btn.button_style = ""
+                except Exception as e:
+                    status_html.value = (
+                        f'<div style="color:#ff3b30; font-size:12px; margin-top:4px;">Error: {e}</div>'
+                    )
+                    _btn.disabled = False
+                    _btn.description = "📅 Create Calendar & Connect"
+
+            create_btn.on_click(on_create)
+
+            proposal = _w.VBox(
+                [header, hint] + rows + [create_btn, status_html],
+                layout=_w.Layout(padding="8px"),
+            )
+            return proposal
+
+        _model_fixer_cbs["  Add Calendar Table"] = _calendar_with_proposals
     if add_last_refresh_table is not None:
         _model_fixer_cbs["  Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
     if add_measure_table is not None:
