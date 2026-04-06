@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.244"
+__version__ = "1.2.245"
 
 import ipywidgets as widgets
 import io
@@ -2846,7 +2846,8 @@ def pbi_fixer(
                      "  Add Calendar Table", "  Add Last Refresh Table", "  Add Measure Table",
                      "  Add Units Calc Group", "  Add Time Intelligence",
                      "  Auto-Create Measures from Columns", "  Add PY Measures (Y-1)"}
-        scannable_rpt = {k: v for k, v in _rpt_fixer_cbs.items() if k not in _skip_rpt}
+        scannable_rpt = {k: v for k, v in _rpt_fixer_cbs.items()
+                        if k not in _skip_rpt and not k.startswith("──")}
         scannable_sm = {k: v for k, v in _model_fixer_cbs.items()
                         if k not in _skip_sm and not k.startswith("──")
                         and _model_fixer_cbs[k] is not _noop
@@ -3651,10 +3652,17 @@ def pbi_fixer(
         layout=widgets.Layout(padding="4px 0"),
     )
 
-    # -- Build fixer callbacks for Report Explorer actions dropdown --
+    # -- Build fixer callbacks for Report Explorer actions dropdown (grouped) --
     _rpt_fixer_cbs = {}
+    _rpt_noop = lambda **kw: None
+
+    # ── Format ──
+    _rpt_fixer_cbs["── Format ──"] = _rpt_noop
     if fix_upgrade_to_pbir is not None:
         _rpt_fixer_cbs["Convert to PBIR"] = lambda **kw: fix_upgrade_to_pbir(**kw)
+
+    # ── Chart Fixers ──
+    _rpt_fixer_cbs["── Chart Fixers ──"] = _rpt_noop
     if fix_piecharts is not None:
         _rpt_fixer_cbs["Fix Pie Charts"] = lambda **kw: fix_piecharts(**kw)
     if fix_barcharts is not None:
@@ -3671,6 +3679,9 @@ def pbi_fixer(
         _rpt_fixer_cbs["Fix All Charts"] = lambda **kw: fix_charts(**kw)
     if fix_ibcs_variance is not None:
         _rpt_fixer_cbs["Fix IBCS Variance"] = lambda **kw: fix_ibcs_variance(**kw)
+
+    # ── Layout & Cleanup ──
+    _rpt_fixer_cbs["── Layout & Cleanup ──"] = _rpt_noop
     if fix_page_size is not None:
         _rpt_fixer_cbs["Fix Page Size"] = lambda **kw: fix_page_size(**kw)
     if fix_hide_visual_filters is not None:
@@ -3687,7 +3698,8 @@ def pbi_fixer(
     if fix_visual_alignment is not None:
         _rpt_fixer_cbs["Fix Visual Alignment"] = lambda **kw: fix_visual_alignment(**kw)
 
-    # Theme editor actions
+    # ── Theme ──
+    _rpt_fixer_cbs["── Theme ──"] = _rpt_noop
     _show_theme = _lazy_import("sempy_labs.report._report_theme", "show_theme_summary")
     _update_theme = _lazy_import("sempy_labs.report._report_theme", "update_theme_colors")
     if _show_theme is not None:
@@ -3703,7 +3715,8 @@ def pbi_fixer(
             )
         _rpt_fixer_cbs["Apply IBCS Theme"] = lambda **kw: _apply_ibcs_theme(**kw)
 
-    # -- Report CRUD: Delete & Duplicate --
+    # ── Create & Delete ──
+    _rpt_fixer_cbs["── Create & Delete ──"] = _rpt_noop
     def _rpt_delete_selected(**kw):
         """Delete selected visuals or pages from the report."""
         import ipywidgets as _w

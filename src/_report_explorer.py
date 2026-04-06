@@ -1189,7 +1189,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     def on_run_action(_):
         """Run the action selected in the dropdown."""
         action = fixer_dropdown.value
-        if action == "Select action..." or action not in fixer_callbacks:
+        if action == "Select action..." or action.startswith("──") or action not in fixer_callbacks:
             set_status(conn_status, "Select an action from the dropdown first.", "#ff9500")
             return
         ws = workspace_input.value.strip() if workspace_input else None
