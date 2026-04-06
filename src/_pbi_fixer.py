@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.233"
+__version__ = "1.2.235"
 
 import ipywidgets as widgets
 import io
@@ -1718,15 +1718,21 @@ def _prototype_tab(workspace_input=None, report_input=None):
         try:
             set_status(conn_status, "Generating prototype\u2026", GRAY_COLOR)
 
-            # Use standalone module
+            # Use standalone module — redirect stdout to prevent Fabric output overflow
             from sempy_labs.report._report_prototype import generate_report_prototype
-            result = generate_report_prototype(
-                report=rpt,
-                workspace=ws,
-                screenshots=screenshots_cb.value,
-                include_hidden=hidden_cb.value,
-                on_progress=_proto_progress,
-            )
+            import io as _io, sys as _sys, re as _re
+            _old_stdout = _sys.stdout
+            _sys.stdout = _io.StringIO()
+            try:
+                result = generate_report_prototype(
+                    report=rpt,
+                    workspace=ws,
+                    screenshots=screenshots_cb.value,
+                    include_hidden=hidden_cb.value,
+                    on_progress=_proto_progress,
+                )
+            finally:
+                _sys.stdout = _old_stdout
 
             svg = result["svg"]
             excalidraw = result["excalidraw"]
@@ -1737,12 +1743,28 @@ def _prototype_tab(workspace_input=None, report_input=None):
 
             _svg_cache[0] = svg
             _excalidraw_cache[0] = excalidraw
-            svg_display.value = svg
+
+            # Large SVGs (>2MB, e.g. 20+ pages with screenshots) exceed Fabric's
+            # cell output limit.  Strip base64 images for the inline display;
+            # full data is still available via the export buttons.
+            _MAX_DISPLAY_BYTES = 2 * 1024 * 1024
+            if len(svg.encode("utf-8", errors="ignore")) > _MAX_DISPLAY_BYTES:
+                display_svg = _re.sub(
+                    r'href="data:image/png;base64,[^"]*"',
+                    'href=""',
+                    svg,
+                )
+                svg_display.value = display_svg
+                size_msg = " (inline preview without images \u2014 use export buttons for full version)"
+            else:
+                svg_display.value = svg
+                size_msg = ""
+
             export_excalidraw_btn.layout.display = ""
             export_svg_btn.layout.display = ""
             err_msg = f" Export errors: {'; '.join(export_errors[:2])}" if export_errors else ""
             nav_msg = f", {n_nav} nav links" if n_nav else ""
-            set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots{nav_msg}.{err_msg}", "#34c759" if not export_errors else "#ff9500")
+            set_status(conn_status, f"\u2713 Prototype: {total} pages, {n_screenshots} screenshots{nav_msg}.{err_msg}{size_msg}", "#34c759" if not export_errors else "#ff9500")
 
         except Exception as e:
             set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
