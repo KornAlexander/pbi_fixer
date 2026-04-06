@@ -1232,6 +1232,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         merged_data = {"tables": {}, "models": {}, "relationships": [], "model_relationships": {}, "perspectives": [], "model_perspectives": {}}
         loaded = 0
         errors = 0
+        last_error = ""
 
         try:
             for i, ds in enumerate(items):
@@ -1254,7 +1255,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                     loaded += 1
                 except Exception as e:
                     errors += 1
-                    set_status(conn_status, f"Error: {e}", "#ff3b30")
+                    last_error = str(e)
 
             _model_data = merged_data
 
@@ -1279,8 +1280,11 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             n_m = sum(len(t["measures"]) for t in all_tables.values())
             n_c = sum(len(t["columns"]) for t in all_tables.values())
             elapsed = int(time.time() - start_time)
-            err_str = f", {errors} error(s)" if errors else ""
-            set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759")
+            if loaded == 0 and last_error:
+                set_status(conn_status, f"Error: {last_error}", "#ff3b30")
+            else:
+                err_str = f", {errors} error(s)" if errors else ""
+                set_status(conn_status, f"Loaded {loaded}/{len(items)} model(s): {n_t} tables, {n_c} columns, {n_m} measures ({elapsed}s{err_str})", "#34c759" if not errors else "#ff9500")
             preview.value = ""
             preview.disabled = True
         except Exception as e:
