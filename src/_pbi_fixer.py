@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.220"
+__version__ = "1.2.221"
 
 import ipywidgets as widgets
 import io
@@ -3055,16 +3055,24 @@ def pbi_fixer(
         _tab_options.append("\U0001F4CA Report")
     if _fixer_visible:
         _tab_options.append("\u26A1 Fixer")
+
+    # Extra tab specs (used by both all_tabs=True and the dynamic "Show All Tabs" button)
+    _extra_tab_specs = []
+    if perspective_editor_tab is not None:
+        _extra_tab_specs.append(("\U0001F441 Perspectives", None))
+    _extra_tab_specs.extend([
+        ("\U0001F310 Translations", None),
+        ("\U0001F4BE Memory Analyzer", None),
+        ("\U0001F4CB BPA", None),
+        ("\U0001F4C4 Report BPA", None),
+        ("\U0001F4D0 Delta Analyzer", None),
+        ("\U0001F4D0 Prototype", None),
+        ("\U0001F5FA Model Diagram", None),
+    ])
+
     if all_tabs:
-        if perspective_editor_tab is not None:
-            _tab_options.append("\U0001F441 Perspectives")
-        _tab_options.append("\U0001F310 Translations")
-        _tab_options.append("\U0001F4BE Memory Analyzer")
-        _tab_options.append("\U0001F4CB BPA")
-        _tab_options.append("\U0001F4C4 Report BPA")
-        _tab_options.append("\U0001F4D0 Delta Analyzer")
-        _tab_options.append("\U0001F4D0 Prototype")
-        _tab_options.append("\U0001F5FA Model Diagram")
+        for label, _ in _extra_tab_specs:
+            _tab_options.append(label)
     _tab_options.append("\u2139\ufe0f About")
     if not _tab_options:
         _tab_options = ["\u26A1 Fixer"]
@@ -3809,13 +3817,15 @@ def pbi_fixer(
     # -- Lazy tab loading: extra tabs are built on first click --
     _lazy_builders = {}  # tab label -> builder function (removed after first build)
     _container_ref = [None]  # mutable ref set after container creation; used by Show Native to close UI
-    if all_tabs:
-        _lazy_specs = []
+
+    def _make_lazy_specs():
+        """Build (label, builder) list for all extra tabs."""
+        specs = []
         if perspective_editor_tab is not None:
-            _lazy_specs.append(("\U0001F441 Perspectives", lambda: perspective_editor_tab(
+            specs.append(("\U0001F441 Perspectives", lambda: perspective_editor_tab(
                 workspace_input=workspace_input, report_input=report_input
             )))
-        _lazy_specs.extend([
+        specs.extend([
             ("\U0001F310 Translations", lambda: _translations_tab(
                 workspace_input=workspace_input, report_input=report_input
             )),
@@ -3838,7 +3848,10 @@ def pbi_fixer(
                 workspace_input=workspace_input, report_input=report_input
             )),
         ])
-        for label, builder in _lazy_specs:
+        return specs
+
+    if all_tabs:
+        for label, builder in _make_lazy_specs():
             placeholder = widgets.VBox(layout=widgets.Layout(display="none"))
             _lazy_builders[label] = builder
             tab_panels.append(placeholder)
@@ -3936,13 +3949,52 @@ def pbi_fixer(
     tab_selector.observe(_switch_tab, names="value")
     _switch_tab()  # set initial visibility
 
+    # "Show All Tabs" button — dynamically adds extra tabs without restart
+    _show_all_btn = widgets.Button(
+        description="\u2795 Show All Tabs",
+        layout=widgets.Layout(width="140px", display="" if not all_tabs else "none"),
+        button_style="",
+    )
+
+    def _on_show_all(_):
+        _show_all_btn.disabled = True
+        _show_all_btn.description = "Loading\u2026"
+        # Insert extra tabs before About (last tab)
+        about_idx = len(_tab_options) - 1  # About is always last
+        for label, builder in _make_lazy_specs():
+            if label in _tab_options:
+                continue  # skip if somehow already present
+            _tab_options.insert(about_idx, label)
+            placeholder = widgets.VBox(layout=widgets.Layout(display="none"))
+            _lazy_builders[label] = builder
+            tab_panels.insert(about_idx, placeholder)
+            about_idx += 1
+        # Rebuild ToggleButtons options
+        current = tab_selector.value
+        tab_selector.unobserve(_switch_tab, names="value")
+        tab_selector.options = list(_tab_options)
+        tab_selector.value = current
+        tab_selector.observe(_switch_tab, names="value")
+        # Rebuild container children
+        container.children = (
+            [header, shared_inputs_box, download_row, tab_bar] + tab_panels + [version_footer]
+        )
+        _show_all_btn.layout.display = "none"
+
+    _show_all_btn.on_click(_on_show_all)
+
+    tab_bar = widgets.HBox(
+        [tab_selector, _show_all_btn],
+        layout=widgets.Layout(align_items="center", gap="12px", margin="0 0 12px 0"),
+    )
+
     # Collect extra widgets to place below the main container
     _below_widgets = []
     if _rpt_format_container is not None:
         _below_widgets.append(_rpt_format_container)
 
     container = widgets.VBox(
-        [header, shared_inputs_box, download_row, tab_selector] + tab_panels + [version_footer],
+        [header, shared_inputs_box, download_row, tab_bar] + tab_panels + [version_footer],
         layout=widgets.Layout(
             width="100%",
             padding="20px",
