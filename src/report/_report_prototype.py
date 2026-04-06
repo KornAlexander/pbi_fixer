@@ -61,7 +61,46 @@ def generate_report_prototype(
     pages_data = []
     nav_edges = []  # (source_page_name, target_page_name)
     with connect_report(report=report, readonly=True, workspace=workspace) as rw:
-        pages_df = rw.list_pages()
+        try:
+            pages_df = rw.list_pages()
+        except Exception:
+            # Fallback for PBIRLegacy or other issues — parse pages directly from parts
+            import pandas as pd
+            pages_df = pd.DataFrame(columns=["Page Name", "Page Display Name", "Width", "Height",
+                                             "Hidden", "Drillthrough Target Page", "Visual Count", "Data Visual Count"])
+            _fallback_rows = []
+            for part in rw._report_definition.get("parts", []):
+                path = part.get("path", "")
+                if not path.endswith("/page.json"):
+                    continue
+                payload = part.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                pg_name = payload.get("name", "")
+                is_hidden = payload.get("visibility", "") == "HiddenInViewMode"
+                # Check drillthrough from filterConfig
+                is_dt = False
+                for f in payload.get("filterConfig", {}).get("filters", []):
+                    if f.get("howCreated") == "Drillthrough":
+                        is_dt = True
+                        break
+                # Count visuals for this page
+                page_prefix = path[:-9]  # strip "page.json"
+                v_count = sum(1 for p in rw._report_definition.get("parts", [])
+                              if p.get("path", "").startswith(page_prefix) and p.get("path", "").endswith("/visual.json"))
+                _fallback_rows.append({
+                    "Page Name": pg_name,
+                    "Page Display Name": payload.get("displayName", pg_name),
+                    "Width": payload.get("width", 1280),
+                    "Height": payload.get("height", 720),
+                    "Hidden": is_hidden,
+                    "Drillthrough Target Page": is_dt,
+                    "Visual Count": v_count,
+                    "Data Visual Count": 0,
+                })
+            if _fallback_rows:
+                pages_df = pd.DataFrame(_fallback_rows)
+
         for _, row in pages_df.iterrows():
             pages_data.append({
                 "name": str(row.get("Page Name", "")),
@@ -75,7 +114,25 @@ def generate_report_prototype(
             })
 
         # Extract page navigation from visualLink on all visuals
+        # (cf. https://actionablereporting.com/2026/03/09/power-bi-report-prototyping-with-ai/)
         page_names = {p["name"] for p in pages_data}
+        page_name_lookup = {}  # folder_id -> page_name (in case they differ)
+        for part in rw._report_definition.get("parts", []):
+            path = part.get("path", "")
+            if path.endswith("/page.json"):
+                payload = part.get("payload")
+                if isinstance(payload, dict):
+                    pg_folder = path.replace("\\", "/").split("/")
+                    try:
+                        pi = pg_folder.index("pages")
+                        folder_id = pg_folder[pi + 1]
+                        pg_name = payload.get("name", folder_id)
+                        page_name_lookup[folder_id] = pg_name
+                    except (ValueError, IndexError):
+                        pass
+
+        drillthrough_pages = {p["name"] for p in pages_data if p.get("drillthrough")}
+
         for part in rw._report_definition.get("parts", []):
             path = part.get("path", "")
             if not path.endswith("/visual.json"):
@@ -84,43 +141,51 @@ def generate_report_prototype(
             segments = path.replace("\\", "/").split("/")
             try:
                 pi = segments.index("pages")
-                source_page = segments[pi + 1]
+                folder_id = segments[pi + 1]
             except (ValueError, IndexError):
                 continue
+            source_page = page_name_lookup.get(folder_id, folder_id)
             if source_page not in page_names:
                 continue
-            payload = part.get("payload", {})
-            vis_links = (
-                payload.get("visual", {})
-                .get("visualContainerObjects", {})
-                .get("visualLink", [])
-            )
-            for link in vis_links:
-                props = link.get("properties", {})
-                show_val = (
-                    props.get("show", {})
-                    .get("expr", {})
-                    .get("Literal", {})
-                    .get("Value", "false")
+            payload = part.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            try:
+                vis_links = (
+                    payload.get("visual", {})
+                    .get("visualContainerObjects", {})
+                    .get("visualLink", [])
                 )
-                if show_val != "true":
-                    continue
-                action_type = (
-                    props.get("type", {})
-                    .get("expr", {})
-                    .get("Literal", {})
-                    .get("Value", "")
-                    .strip("'")
-                )
-                target_page = (
-                    props.get("navigationSection", {})
-                    .get("expr", {})
-                    .get("Literal", {})
-                    .get("Value", "")
-                    .strip("'")
-                )
-                if action_type == "PageNavigation" and target_page and target_page in page_names:
-                    nav_edges.append((source_page, target_page))
+                for link in vis_links:
+                    props = link.get("properties", {})
+                    show_val = (
+                        props.get("show", {})
+                        .get("expr", {})
+                        .get("Literal", {})
+                        .get("Value", "false")
+                    )
+                    if show_val != "true":
+                        continue
+                    action_type = (
+                        props.get("type", {})
+                        .get("expr", {})
+                        .get("Literal", {})
+                        .get("Value", "")
+                        .strip("'")
+                    )
+                    target_page = (
+                        props.get("navigationSection", {})
+                        .get("expr", {})
+                        .get("Literal", {})
+                        .get("Value", "")
+                        .strip("'")
+                    )
+                    # Resolve target page name if it's a folder ID
+                    target_page = page_name_lookup.get(target_page, target_page)
+                    if action_type == "PageNavigation" and target_page and target_page in page_names:
+                        nav_edges.append((source_page, target_page))
+            except Exception:
+                continue  # skip visuals with unexpected payload structure
 
     if not pages_data:
         return {"svg": "", "excalidraw": "", "pages": [], "screenshots": 0, "errors": ["No pages found"]}
@@ -245,7 +310,10 @@ def generate_report_prototype(
         nav_edges,
     )
 
-    print(f"\u2713 Prototype: {len(pages_data)} pages, {len(page_images)} screenshots.")
+    print(f"\u2713 Prototype: {len(pages_data)} pages, {len(page_images)} screenshots, {len(nav_edges)} nav links.")
+    dt_count = sum(1 for p in pages_data if p.get("drillthrough"))
+    if dt_count:
+        print(f"  \u2192 {dt_count} drillthrough target page(s)")
     if export_errors:
         for err in export_errors[:3]:
             print(f"  \u26a0 {err}")
@@ -434,21 +502,11 @@ def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x,
             y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
             svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowhead-nav)"/>')
 
-    # Drillthrough arrows — from non-hidden non-DT pages to DT target pages
-    dt_pages = {p["name"]: i for i, p in enumerate(visible) if p["drillthrough"]}
-    non_dt = [i for i, p in enumerate(visible) if not p["drillthrough"] and not p["hidden"]]
-    for src_idx in non_dt:
-        for dt_name, dt_idx in dt_pages.items():
-            src_col, src_row = src_idx % cols, src_idx // cols
-            dst_col, dst_row = dt_idx % cols, dt_idx // cols
-            x1 = pad_x + src_col * (thumb_w + pad_x) + thumb_w // 2
-            y1 = pad_y + src_row * (thumb_h + header_h + footer_h + pad_y) + header_h + thumb_h + footer_h
-            x2 = pad_x + dst_col * (thumb_w + pad_x) + thumb_w // 2
-            y2 = pad_y + dst_row * (thumb_h + header_h + footer_h + pad_y)
-            svg_parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrowhead-dt)"/>')
-
-    svg_parts.insert(1, '<defs><marker id="arrowhead-nav" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker><marker id="arrowhead-dt" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#c2410c"/></marker></defs>')
+    svg_parts.insert(1, '<defs><marker id="arrowhead-nav" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker></defs>')
     svg_parts.append('</svg>')
+
+    # Excalidraw: add navigation map (box diagram) below the screenshot grid
+    _add_nav_map(exc_elements, visible, nav_edges, svg_h + 80)
 
     excalidraw_json = {
         "type": "excalidraw",
@@ -459,3 +517,176 @@ def _build_diagram(pages, images, include_hidden, cols, thumb_w, thumb_h, pad_x,
     }
 
     return "\n".join(svg_parts), json.dumps(excalidraw_json, indent=2)
+
+
+def _add_nav_map(elements, visible_pages, nav_edges, start_y):
+    """Add a navigation map box diagram with colored boxes and arrows below the screenshot grid."""
+    if not visible_pages:
+        return
+
+    LEVEL_COLORS = [
+        {"bg": "#ccfbf1", "stroke": "#0d9488"},  # L0 Teal — Root/Landing
+        {"bg": "#dbeafe", "stroke": "#2563eb"},  # L1 Blue
+        {"bg": "#ede9fe", "stroke": "#7c3aed"},  # L2 Purple
+        {"bg": "#ffedd5", "stroke": "#c2410c"},  # L3 Orange
+        {"bg": "#fee2e2", "stroke": "#dc2626"},  # L4+ Red
+    ]
+    HIDDEN_COLOR = {"bg": "#f3f4f6", "stroke": "#9ca3af"}
+    BOX_W, BOX_H, INDENT, V_GAP = 300, 40, 50, 12
+    COL_SPACING = BOX_W + INDENT * 5 + 60
+
+    page_map = {p["name"]: p for p in visible_pages}
+
+    # Build adjacency from nav_edges
+    children_map = {}
+    has_parent = set()
+    edge_set = set()
+    for src, tgt in (nav_edges or []):
+        if src in page_map and tgt in page_map:
+            key = (src, tgt)
+            if key not in edge_set:
+                edge_set.add(key)
+                children_map.setdefault(src, []).append(tgt)
+                has_parent.add(tgt)
+
+    # Find roots (pages with outgoing but no incoming edges)
+    roots = [p["name"] for p in visible_pages
+             if p["name"] not in has_parent and p["name"] in children_map]
+    if not roots and children_map:
+        roots = [max(children_map, key=lambda k: len(children_map[k]))]
+
+    # BFS to build branches (one per root)
+    visited = set()
+    branches = []
+    for root in roots:
+        if root in visited:
+            continue
+        branch = []
+        queue = [(root, 0)]
+        visited.add(root)
+        i = 0
+        while i < len(queue):
+            node, level = queue[i]
+            i += 1
+            branch.append((node, level))
+            for child in children_map.get(node, []):
+                if child not in visited:
+                    visited.add(child)
+                    queue.append((child, level + 1))
+        branches.append(branch)
+
+    # Standalone pages (no nav_edges)
+    standalone = [p["name"] for p in visible_pages if p["name"] not in visited]
+    if standalone:
+        branches.append([(name, 0) for name in standalone])
+
+    # Title
+    elements.append({
+        "type": "text", "id": str(uuid.uuid4()),
+        "x": 0, "y": start_y, "width": 400, "height": 36,
+        "text": "Navigation Map", "fontSize": 28, "fontFamily": 1,
+        "textAlign": "left", "verticalAlign": "top",
+        "strokeColor": "#0d9488", "roughness": 0,
+        "rawText": "Navigation Map",
+    })
+
+    # Legend
+    legend_y = start_y + 42
+    for li, (ltxt, lcol) in enumerate([
+        ("\u2192 Button Navigation", "#2563eb"),
+        ("\u2192 Drillthrough Target", "#c2410c"),
+        ("Hidden Page", "#9ca3af"),
+    ]):
+        elements.append({
+            "type": "text", "id": str(uuid.uuid4()),
+            "x": li * 220, "y": legend_y, "width": 210, "height": 20,
+            "text": ltxt, "fontSize": 12, "fontFamily": 1,
+            "textAlign": "left", "verticalAlign": "top",
+            "strokeColor": lcol, "roughness": 0, "rawText": ltxt,
+        })
+
+    # Layout branches as columns, pages stacked vertically with level indentation
+    map_y = legend_y + 35
+    col_x = 0
+    box_pos = {}
+    level_map = {}
+
+    for branch in branches:
+        y = map_y
+        for page_name, level in branch:
+            pg = page_map[page_name]
+            x = col_x + level * INDENT
+
+            if pg["hidden"]:
+                color = HIDDEN_COLOR
+            else:
+                color = LEVEL_COLORS[min(level, len(LEVEL_COLORS) - 1)]
+
+            # Rectangle box
+            elements.append({
+                "type": "rectangle", "id": str(uuid.uuid4()),
+                "x": x, "y": y, "width": BOX_W, "height": BOX_H,
+                "backgroundColor": color["bg"], "strokeColor": color["stroke"],
+                "fillStyle": "solid", "strokeWidth": 2, "roughness": 0,
+                "roundness": {"type": 3},
+            })
+
+            # Page label
+            prefix = "[H] " if pg["hidden"] else ""
+            if pg["drillthrough"]:
+                prefix += "\u2192 "
+            label = f'{prefix}{pg["display_name"]}'
+            badge = f'{pg["visual_count"]}v / {pg["data_visual_count"]}d'
+
+            elements.append({
+                "type": "text", "id": str(uuid.uuid4()),
+                "x": x + 10, "y": y + 10, "width": BOX_W - 100, "height": 20,
+                "text": label, "fontSize": 14, "fontFamily": 1,
+                "textAlign": "left", "verticalAlign": "top",
+                "strokeColor": color["stroke"], "roughness": 0, "rawText": label,
+            })
+            elements.append({
+                "type": "text", "id": str(uuid.uuid4()),
+                "x": x + BOX_W - 85, "y": y + 12, "width": 75, "height": 16,
+                "text": badge, "fontSize": 11, "fontFamily": 1,
+                "textAlign": "right", "verticalAlign": "top",
+                "strokeColor": color["stroke"], "roughness": 0, "rawText": badge,
+            })
+
+            box_pos[page_name] = (x, y)
+            level_map[page_name] = level
+            y += BOX_H + V_GAP
+
+        col_x += COL_SPACING
+
+    # Arrows connecting pages based on nav_edges
+    for src, tgt in edge_set:
+        if src not in box_pos or tgt not in box_pos:
+            continue
+        sx, sy = box_pos[src]
+        tx, ty = box_pos[tgt]
+
+        # Arrow from bottom-center of source to top-center of target
+        ax = sx + BOX_W // 2
+        ay = sy + BOX_H
+        dx = (tx + BOX_W // 2) - ax
+        dy = ty - ay
+
+        if abs(dx) < 2 and abs(dy) < 2:
+            continue
+
+        # Color matches target level
+        tgt_lvl = level_map.get(tgt, 0)
+        arrow_color = LEVEL_COLORS[min(tgt_lvl, len(LEVEL_COLORS) - 1)]["stroke"]
+
+        elements.append({
+            "type": "arrow", "id": str(uuid.uuid4()),
+            "x": ax, "y": ay,
+            "width": max(abs(dx), 1), "height": max(abs(dy), 1),
+            "strokeColor": arrow_color, "strokeWidth": 2,
+            "strokeStyle": "solid", "roughness": 0, "opacity": 100,
+            "roundness": {"type": 2},
+            "points": [[0, 0], [dx, dy]],
+            "startBinding": None, "endBinding": None,
+            "startArrowhead": None, "endArrowhead": "arrow",
+        })
