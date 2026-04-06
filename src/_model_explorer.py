@@ -1078,7 +1078,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
 
     # Three-column layout: Tree (with search) | Properties | Preview (side by side)
-    tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", gap="2px"))
+    tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", gap="2px", overflow_x="hidden"))
     panels = widgets.HBox(
         [tree_col, props_box, preview_box],
         layout=widgets.Layout(width="100%", gap="8px"),
