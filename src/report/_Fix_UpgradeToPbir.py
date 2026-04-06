@@ -155,6 +155,30 @@ def fix_upgrade_to_pbir(
 
     # PBIRLegacy → eligible for upgrade
     if scan_only:
+        # Quick check visual count via getDefinition
+        try:
+            result = _base_api(
+                request=f"/v1/workspaces/{workspace_id}/reports/{rpt_id}/getDefinition",
+                method="post",
+                status_codes=None,
+                lro_return_json=True,
+                client="fabric_sp",
+            )
+            scan_parts = result.get("definition", {}).get("parts", [])
+            visual_count = sum(1 for p in scan_parts if p.get("path", "").endswith("/visual.json"))
+            if visual_count > 100:
+                print(
+                    f"{icons.yellow_dot} Report '{rpt_name}' is in PBIRLegacy format "
+                    f"— eligible for upgrade to PBIR."
+                )
+                print(
+                    f"{icons.warning} Report has {visual_count} visuals. "
+                    f"PBIR conversion may fail for reports with more than 100 visuals."
+                )
+                return True
+        except Exception:
+            pass  # If getDefinition fails in scan, just report eligibility
+
         print(
             f"{icons.yellow_dot} Report '{rpt_name}' is in PBIRLegacy format "
             f"— eligible for upgrade to PBIR."
@@ -198,6 +222,15 @@ def fix_upgrade_to_pbir(
         f"{icons.in_progress} Retrieved {len(parts)} definition "
         f"part(s): {', '.join(part_paths)}"
     )
+
+    # Check visual count — conversion may fail with >100 visuals
+    visual_count = sum(1 for p in part_paths if p and p.endswith("/visual.json"))
+    if visual_count > 100:
+        print(
+            f"{icons.warning} Report '{rpt_name}' has {visual_count} visuals. "
+            f"PBIR conversion may fail for reports with more than 100 visuals. "
+            f"Proceeding anyway — check the result manually."
+        )
 
     # Step 2: Push the definition back via updateDefinition
     # The server processes the definition and stores it in the
