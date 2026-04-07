@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.271"
+__version__ = "1.2.272"
 
 import ipywidgets as widgets
 import io
@@ -2920,7 +2920,7 @@ def pbi_fixer(
                         for line in output.splitlines():
                             line = line.strip()
                             if line:
-                                _fa_findings.append(("\U0001F4C4 Model Fixers", item, fixer_name.strip(), line))
+                                _fa_findings.append(("\U0001F4C4 Model Fixers", item, fixer_name, line))
                 except Exception:
                     pass
 
@@ -2995,7 +2995,8 @@ def pbi_fixer(
                 options.append(item_line)
                 _fa_key_map[item_line] = ("item", cat, item_name, None, None)
                 for fixer_name, findings_list in fixers.items():
-                    fixer_line = f"        {_EXP} {fixer_name}  [{len(findings_list)}]"
+                    fixer_label = fixer_name.strip()
+                    fixer_line = f"        {_EXP} {fixer_label}  [{len(findings_list)}]"
                     while fixer_line in _fa_key_map:
                         fixer_line += "\u200b"
                     options.append(fixer_line)
@@ -3077,14 +3078,17 @@ def pbi_fixer(
 
         for (cat, item_name, fixer_name) in to_run:
             try:
+                ran = False
                 buf = _io.StringIO()
                 with _redirect(buf):
                     if cat == "\U0001F4CA Report Fixers":
                         if fixer_name in _rpt_fixer_cbs:
                             _rpt_fixer_cbs[fixer_name](report=item_name, page_name=None, workspace=ws, scan_only=False)
+                            ran = True
                     elif cat == "\U0001F4C4 Model Fixers":
                         if fixer_name in _model_fixer_cbs:
                             _model_fixer_cbs[fixer_name](report=item_name, workspace=ws, scan_only=False)
+                            ran = True
                     elif cat == "\U0001F4CB Model BPA":
                         # Use standalone fixer via rule mapping
                         from sempy_labs._fix_model_bpa import _RULE_TO_FIXER as _mbpa_map
@@ -3096,6 +3100,7 @@ def pbi_fixer(
                             mod = importlib.import_module(mod_path)
                             fn = getattr(mod, fn_name)
                             fn(dataset=item_name, workspace=ws, scan_only=False)
+                            ran = True
                     elif cat == "\U0001F4C4 Report BPA":
                         from sempy_labs.report._fix_report_bpa import _RULE_TO_FIXER as _rbpa_map
                         rule_key = fixer_name.lower().strip()
@@ -3106,7 +3111,9 @@ def pbi_fixer(
                             mod = importlib.import_module(mod_path)
                             fn = getattr(mod, fn_name)
                             fn(report=item_name, workspace=ws, scan_only=False)
-                ok += 1
+                            ran = True
+                if ran:
+                    ok += 1
             except Exception:
                 err += 1
 
@@ -3119,8 +3126,10 @@ def pbi_fixer(
 
     def _on_fa_select_all(_):
         _fa_tree.value = list(_fa_tree.options)
+        set_status(_fa_status, f"\u2705 All {len(_fa_tree.options)} items selected.", "#34c759")
     def _on_fa_deselect_all(_):
         _fa_tree.value = []
+        set_status(_fa_status, "\u2B1C All items deselected.", gray_color)
 
     _fa_scan_btn.on_click(_on_fa_scan)
     _fa_fix_btn.on_click(_on_fa_fix)
