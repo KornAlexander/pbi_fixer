@@ -987,18 +987,31 @@
   }
 
   // ALL anchor links (nav, buttons, beta banner) → navigate parent to grid anchor
+  // External links → open in top window (target="_blank" is blocked in cross-origin iframes)
   document.addEventListener('click', function(e) {
-    var link = e.target.closest('a[href^="#"]');
+    var link = e.target.closest('a');
     if (!link) return;
-    var hash = link.getAttribute('href');
-    if (!hash || hash === '#') {
+    var href = link.getAttribute('href');
+    if (!href) return;
+
+    // External link → open in top window
+    if (href.startsWith('http')) {
       e.preventDefault();
-      try { window.top.location.href = parentBase; }
-      catch(err) { window.scrollTo(0, 0); }
+      try { window.top.location.href = href; }
+      catch(err) { window.open(href, '_blank'); }
       return;
     }
-    e.preventDefault();
-    scrollParentTo(hash);
+
+    // Anchor link → scroll parent
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      if (href === '#') {
+        try { window.top.location.href = parentBase; }
+        catch(err) { window.scrollTo(0, 0); }
+      } else {
+        scrollParentTo(href);
+      }
+    }
   });
 })();
 </script>
