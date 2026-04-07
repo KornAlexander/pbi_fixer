@@ -518,6 +518,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     rp_type, rp_type_row = _rprop("Type", disabled=True)
     rp_internal_name, rp_internal_name_row = _rprop("Internal Name", disabled=True)
     rp_page, rp_page_row = _rprop("Page", disabled=True)
+    rp_visual_count, rp_visual_count_row = _rprop("Visual Count", disabled=True)
+    rp_visual_types, rp_visual_types_row = _rprop("Visual Types", disabled=True)
     rp_width, rp_width_row = _rprop_int("Width")
     rp_height, rp_height_row = _rprop_int("Height")
     rp_x, rp_x_row = _rprop_int("X Position")
@@ -539,7 +541,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     save_row = widgets.HBox([undo_btn, redo_btn, save_btn, discard_btn, save_status], layout=widgets.Layout(align_items="center", gap="4px", margin="4px 0 0 0"))
 
     # Page-specific props container
-    page_props = widgets.VBox([rp_display_name_row, rp_type_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
+    page_props = widgets.VBox([rp_internal_name_row, rp_display_name_row, rp_type_row, rp_visual_count_row, rp_visual_types_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
     # Visual-specific props container
     visual_props = widgets.VBox([rp_type_row, rp_internal_name_row, rp_page_row, rp_title_row, rp_x_row, rp_y_row, rp_width_row, rp_height_row, rp_hidden], layout=widgets.Layout(gap="2px", display="none"))
 
@@ -677,8 +679,16 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 for rd in _report_data["reports"].values():
                     pages.update(rd.get("pages", {}))
             p = pages.get(p_name, {})
+            rp_internal_name.value = p_name
             rp_display_name.value = p.get("display_name", p_name)
             rp_type.value = "Page"
+            visuals = p.get("visuals", {})
+            rp_visual_count.value = str(len(visuals))
+            type_counts = {}
+            for v in visuals.values():
+                dt = v.get("display_type") or v.get("type", "unknown")
+                type_counts[dt] = type_counts.get(dt, 0) + 1
+            rp_visual_types.value = ", ".join(f"{c}\u00d7 {t}" for t, c in sorted(type_counts.items(), key=lambda x: -x[1])) if type_counts else ""
             rp_width.value = int(p.get("width", 1280))
             rp_height.value = int(p.get("height", 720))
             rp_hidden.value = bool(p.get("hidden", False))
@@ -1016,7 +1026,11 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 _refresh_tree()
                 _reselect_key_in_tree(key)
         # Update properties + preview navigation
-        props_html.value = _get_properties_html(_report_data, key)
+        node_type = key.split(":")[0]
+        if node_type in ("page", "visual"):
+            props_html.value = ""
+        else:
+            props_html.value = _get_properties_html(_report_data, key)
         _populate_report_props(key)
 
         # Show violation details with Fix buttons if scan results exist
