@@ -1881,7 +1881,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                     succeeded += 1
                 except Exception as e:
                     failed += 1
-                    last_error = str(e)[:60]
+                    last_error = str(e)[:200]
             if failed == 0:
                 msg = f"\u2713 {action} complete on {succeeded} model(s)."
             else:
