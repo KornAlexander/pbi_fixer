@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.268"
+__version__ = "1.2.270"
 
 import ipywidgets as widgets
 import io
@@ -2884,9 +2884,16 @@ def pbi_fixer(
                         and _model_fixer_cbs[k] is not _noop
                         and "Delete" not in k and "Create" not in k}
 
-        for item in items:
+        total_steps = len(items) * (len(scannable_rpt) + len(scannable_sm) + 2)  # +2 for Model BPA + Report BPA
+        step = 0
+
+        for item_idx, item in enumerate(items):
+            item_label = f"[{item_idx+1}/{len(items)}] {item}"
+
             # 1) Report fixers (scan_only)
             for fixer_name, fixer_fn in scannable_rpt.items():
+                step += 1
+                set_status(_fa_status, f"{item_label} \u2014 Report: {fixer_name} ({step}/{total_steps})", gray_color)
                 try:
                     buf = _io.StringIO()
                     with _redirect(buf):
@@ -2902,6 +2909,8 @@ def pbi_fixer(
 
             # 2) Model fixers (scan_only)
             for fixer_name, fixer_fn in scannable_sm.items():
+                step += 1
+                set_status(_fa_status, f"{item_label} \u2014 Model: {fixer_name.strip()} ({step}/{total_steps})", gray_color)
                 try:
                     buf = _io.StringIO()
                     with _redirect(buf):
@@ -2916,7 +2925,8 @@ def pbi_fixer(
                     pass
 
             # 3) Model BPA
-            try:
+            step += 1
+            set_status(_fa_status, f"{item_label} \u2014 Model BPA ({step}/{total_steps})", gray_color)
                 from sempy_labs._fix_model_bpa import _RULE_TO_FIXER as _mbpa_map
                 _ipd.display = lambda *a, **kw: None
                 try:
@@ -2937,6 +2947,8 @@ def pbi_fixer(
                 pass
 
             # 4) Report BPA
+            step += 1
+            set_status(_fa_status, f"{item_label} \u2014 Report BPA ({step}/{total_steps})", gray_color)
             try:
                 from sempy_labs.report._fix_report_bpa import _RULE_TO_FIXER as _rbpa_map
                 _ipd.display = lambda *a, **kw: None
