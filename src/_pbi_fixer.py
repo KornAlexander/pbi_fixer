@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.275"
+__version__ = "1.2.276"
 
 import ipywidgets as widgets
 import io
@@ -4262,22 +4262,24 @@ def pbi_fixer(
             ds = kw.get("report", "")
             ws = kw.get("workspace")
             scan = kw.get("scan_only", False)
-            # Get selected table from the current tree selection
-            # If no table selected, print instructions
             print(f"Setting up incremental refresh for all tables in '{ds}'\u2026")
             from sempy_labs.tom import connect_semantic_model
             import Microsoft.AnalysisServices.Tabular as TOM
             with connect_semantic_model(dataset=ds, readonly=True, workspace=ws) as tom:
                 for table in tom.model.Tables:
-                    # Skip calculated tables and tables with existing refresh policy
+                    # Skip calculated tables
                     try:
                         if table.CalculationGroup is not None:
                             continue
                     except Exception:
                         pass
-                    if table.EnableRefreshPolicy:
-                        print(f"  '{table.Name}': already has refresh policy, skipping.")
-                        continue
+                    # Skip tables with existing refresh policy
+                    try:
+                        if table.RefreshPolicy is not None:
+                            print(f"  '{table.Name}': already has refresh policy, skipping.")
+                            continue
+                    except Exception:
+                        pass
                     has_date = any(col.DataType == TOM.DataType.DateTime for col in table.Columns)
                     if not has_date:
                         continue
