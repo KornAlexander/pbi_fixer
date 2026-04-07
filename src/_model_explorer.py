@@ -894,16 +894,15 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(display="none", gap="4px"),
     )
     _p4ai_loaded_ds = [None]  # track which dataset was loaded
+    _p4ai_selected_model = [None]  # track currently selected model root in tree
 
     def _on_p4ai_load(_):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        ds_input = report_input.value.strip() if report_input else ""
-        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
-        if not items:
-            set_status(_p4ai_status, "No model specified.", "#ff3b30")
+        ds = _p4ai_selected_model[0]
+        if not ds:
+            set_status(_p4ai_status, "No model selected in tree.", "#ff3b30")
             return
-        ds = items[0]
         _p4ai_load_btn.disabled = True
         _p4ai_load_btn.description = "Loading…"
         set_status(_p4ai_status, "Reading Prep for AI…", GRAY_COLOR)
@@ -924,6 +923,9 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 info_parts.append(f"{va_count} verified answer(s)")
             if stale:
                 info_parts.append("⚠️ schema is stale")
+            err = result.get("error")
+            if err:
+                info_parts.append(f"⚠️ {err}")
             _p4ai_info.value = (
                 f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; margin-top:2px;">'
                 f'{" · ".join(info_parts) if info_parts else "No verified answers configured."}</div>'
@@ -950,7 +952,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             return
         _p4ai_save_btn.disabled = True
         _p4ai_save_btn.description = "Saving…"
-        set_status(_p4ai_status, "Saving Prep for AI…", GRAY_COLOR)
+        set_status(_p4ai_status, "Saving Prep for AI… this may take up to 60s", GRAY_COLOR)
         try:
             from sempy_labs.semantic_model._PrepForAI import write_prep_for_ai
             import io as _io
@@ -978,12 +980,10 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     def _on_p4ai_generate(_):
         ws = workspace_input.value.strip() if workspace_input else None
         ws = ws or None
-        ds_input = report_input.value.strip() if report_input else ""
-        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
-        if not items:
-            set_status(_p4ai_status, "No model specified.", "#ff3b30")
+        ds = _p4ai_selected_model[0]
+        if not ds:
+            set_status(_p4ai_status, "No model selected in tree.", "#ff3b30")
             return
-        ds = items[0]
         _p4ai_gen_btn.disabled = True
         _p4ai_gen_btn.description = "Generating…"
         set_status(_p4ai_status, "Analyzing model structure…", GRAY_COLOR)
@@ -1396,7 +1396,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             preview.layout.display = "none"
             table_preview_html.layout.display = "none"
             table_row_dropdown.layout.display = "none"
-            # Reset Prep for AI if switching to a different model
+            # Track the currently selected model and reset UI if switching
+            _p4ai_selected_model[0] = m_name
             if _p4ai_loaded_ds[0] != m_name:
                 _p4ai_textarea.value = ""
                 _p4ai_info.value = ""

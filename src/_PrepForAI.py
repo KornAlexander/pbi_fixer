@@ -181,7 +181,18 @@ def read_prep_for_ai(
     if not cluster_uri:
         raise RuntimeError("Could not discover the home cluster for this semantic model.")
     qna_enabled = ds_info.get("qna_enabled")
-    lsdl, is_stale = _get_linguistic_schema(cluster_uri, workspace_id, item_id, token)
+
+    try:
+        lsdl, is_stale = _get_linguistic_schema(cluster_uri, workspace_id, item_id, token)
+    except Exception as e:
+        # Linguistic schema may fail (e.g. 500) but Q&A info is still useful
+        return {
+            "custom_instructions": "",
+            "verified_answers": [],
+            "is_stale": False,
+            "qna_enabled": qna_enabled,
+            "error": f"Could not read linguistic schema: {e}",
+        }
 
     return {
         "custom_instructions": str(lsdl.get("CustomInstructions", "")).strip(),
