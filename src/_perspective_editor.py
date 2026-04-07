@@ -180,6 +180,7 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
     )
 
     _previous_persp = [None]
+    _loading = [False]  # Guard to prevent observer churn during bulk load
 
     # ---------------------------------------------------------
     # Build tree UI from loaded data
@@ -287,7 +288,7 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
                     )
 
                 def on_table(change):
-                    if updating[0]:
+                    if updating[0] or _loading[0]:
                         return
                     updating[0] = True
                     for cb, _, _ in c_list:
@@ -298,7 +299,7 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
                     updating[0] = False
 
                 def on_child(_change):
-                    if updating[0]:
+                    if updating[0] or _loading[0]:
                         return
                     updating[0] = True
                     vals = [cb.value for cb, _, _ in c_list]
@@ -339,17 +340,66 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
     # Load perspective state into checkboxes
     # ---------------------------------------------------------
     def _load_perspective(persp_name):
+        _loading[0] = True
         members = _data.get("perspective_members", {}).get(persp_name, {})
         for table_name in _data.get("tables", {}):
             tbl_members = members.get(table_name, {})
             c_list = _child_cbs_map.get(table_name, [])
             for cb, obj_type, obj_name in c_list:
                 cb.value = obj_name in tbl_members.get(obj_type, set())
+        _loading[0] = False
+        # Manually sync all UI state (observers were suppressed)
+        for table_name in _data.get("tables", {}):
+            c_list = _child_cbs_map.get(table_name, [])
+            vals = [cb.value for cb, _, _ in c_list]
+            # Table checkbox
+            if table_name in _table_cbs:
+                _table_cbs[table_name].value = bool(any(vals))
+            # Status icon
+            if table_name in _status_icons:
+                if all(vals) and vals:
+                    _status_icons[table_name].value = ICON_ALL
+                elif any(vals):
+                    _status_icons[table_name].value = ICON_SOME
+                else:
+                    _status_icons[table_name].value = ICON_NONE
+            # Table summary
+            if table_name in _table_summary_labels:
+                tbl_data = _data["tables"][table_name]
+                totals = {k: len(v) for k, v in tbl_data.items()}
+                counts = {"columns": 0, "measures": 0, "hierarchies": 0}
+                for cb, obj_type, _ in c_list:
+                    if cb.value:
+                        counts[obj_type] += 1
+                _table_summary_labels[table_name].value = (
+                    f'<span style="font-size:12px; color:{table_summary_color}; margin-left:8px;">'
+                    f'{counts["columns"]}/{totals["columns"]} columns, '
+                    f'{counts["measures"]}/{totals["measures"]} measures, '
+                    f'{counts["hierarchies"]}/{totals["hierarchies"]} hierarchies</span>'
+                )
+        _update_global_summary()
 
     def _clear_all():
+        _loading[0] = True
         for table_name in _child_cbs_map:
             for cb, _, _ in _child_cbs_map[table_name]:
                 cb.value = False
+        _loading[0] = False
+        for table_name in _data.get("tables", {}):
+            if table_name in _table_cbs:
+                _table_cbs[table_name].value = False
+            if table_name in _status_icons:
+                _status_icons[table_name].value = ICON_NONE
+            if table_name in _table_summary_labels:
+                tbl_data = _data["tables"][table_name]
+                totals = {k: len(v) for k, v in tbl_data.items()}
+                _table_summary_labels[table_name].value = (
+                    f'<span style="font-size:12px; color:{table_summary_color}; margin-left:8px;">'
+                    f'0/{totals["columns"]} columns, '
+                    f'0/{totals["measures"]} measures, '
+                    f'0/{totals["hierarchies"]} hierarchies</span>'
+                )
+        _update_global_summary()
 
     # ---------------------------------------------------------
     # Dropdown options
