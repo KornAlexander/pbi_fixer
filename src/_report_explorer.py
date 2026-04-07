@@ -974,6 +974,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                 report_id = first.get("report_id", "")
                 workspace_id = first.get("workspace_id", "")
             if report_id and workspace_id:
+                # Clear cached widget so preview reflects latest report state
+                if report_id in _widget_cache:
+                    del _widget_cache[report_id]
+                    _widget_ws.pop(report_id, None)
                 _show_widget(report_id, workspace_id)
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
