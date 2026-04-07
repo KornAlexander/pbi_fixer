@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.261"
+__version__ = "1.2.263"
 
 import ipywidgets as widgets
 import io
@@ -2275,6 +2275,7 @@ def pbi_fixer(
     fix_charts = _lazy_import("sempy_labs.report._Fix_Charts", "fix_charts")
     fix_column_to_line = _lazy_import("sempy_labs.report._Fix_ColumnToLine", "fix_column_to_line")
     fix_column_to_bar = _lazy_import("sempy_labs.report._Fix_Charts", "fix_column_to_bar")
+    fix_bar_to_column = _lazy_import("sempy_labs.report._Fix_Charts", "fix_bar_to_column")
     fix_ibcs_variance = _lazy_import("sempy_labs.report._Fix_IBCSVariance", "fix_ibcs_variance")
     fix_page_size = _lazy_import("sempy_labs.report._Fix_PageSize", "fix_page_size")
     fix_hide_visual_filters = _lazy_import("sempy_labs.report._Fix_HideVisualFilters", "fix_hide_visual_filters")
@@ -3695,16 +3696,8 @@ def pbi_fixer(
     _rpt_fixer_cbs["── Chart Fixers ──"] = _rpt_noop
     if fix_piecharts is not None:
         _rpt_fixer_cbs["Fix Pie Charts"] = lambda **kw: fix_piecharts(**kw)
-    if fix_barcharts is not None:
-        _rpt_fixer_cbs["Fix Bar Charts"] = lambda **kw: fix_barcharts(**kw)
-    if fix_columncharts is not None:
-        _rpt_fixer_cbs["Fix Column Charts"] = lambda **kw: fix_columncharts(**kw)
     if fix_column_to_line is not None:
         _rpt_fixer_cbs["Fix Column\u2192Line"] = lambda **kw: fix_column_to_line(**kw)
-    if fix_column_to_bar is not None:
-        _rpt_fixer_cbs["Fix Column\u2192Bar (IBCS)"] = lambda **kw: fix_column_to_bar(**kw)
-    if fix_linecharts is not None:
-        _rpt_fixer_cbs["Fix Line Charts"] = lambda **kw: fix_linecharts(**kw)
     if fix_charts is not None:
         _rpt_fixer_cbs["Fix All Charts"] = lambda **kw: fix_charts(**kw)
     if fix_ibcs_variance is not None:
