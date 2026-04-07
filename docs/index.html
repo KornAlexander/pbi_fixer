@@ -957,34 +957,21 @@
 </footer>
 
 <script>
-// When embedded in a cross-origin iframe (e.g. WordPress.com), anchor
-// navigation can't scroll the parent page. Instead, rewrite all anchor
-// links to point to the full standalone GitHub Pages URL so clicking
-// them opens the standalone site at the correct section.
+// Iframe-mode fix: when embedded in a cross-origin iframe with scrolling="no",
+// browsers natively scroll the PARENT page when an anchor target can't be
+// reached by internal scroll. We only need to disable smooth-scroll to prevent
+// the CSS animation from fighting with the parent scroll.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // Disable smooth scroll — prevents viewport desync
+  // Disable smooth scroll — the CSS animation causes viewport desync in iframes
   document.documentElement.style.scrollBehavior = 'auto';
 
   // Reduce hero top padding (sticky nav is less useful in iframe)
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
-
-  // Rewrite all internal anchor links to full standalone URLs with target=_top
-  // so they navigate the parent window to the GitHub Pages site
-  var base = 'https://kornalexander.github.io/pbi_fixer/';
-  var anchors = document.querySelectorAll('a[href^="#"]');
-  for (var i = 0; i < anchors.length; i++) {
-    var a = anchors[i];
-    var hash = a.getAttribute('href');
-    if (hash && hash !== '#') {
-      a.href = base + hash;
-      a.target = '_top';
-    }
-  }
 })();
 </script>
 
