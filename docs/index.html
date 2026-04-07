@@ -957,21 +957,47 @@
 </footer>
 
 <script>
-// Iframe-mode fix: when embedded in a cross-origin iframe with scrolling="no",
-// browsers natively scroll the PARENT page when an anchor target can't be
-// reached by internal scroll. We only need to disable smooth-scroll to prevent
-// the CSS animation from fighting with the parent scroll.
+// Iframe-mode: when embedded in a cross-origin iframe (WordPress), native anchor
+// scrolling can't reach the parent page. Instead, we navigate the parent to
+// actionablereporting.com/pbi-fixer/#section which scrolls to invisible anchor
+// markers placed in the WordPress page at matching offsets.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // Disable smooth scroll — the CSS animation causes viewport desync in iframes
+  // Disable smooth scroll — CSS animation causes viewport desync in iframes
   document.documentElement.style.scrollBehavior = 'auto';
 
   // Reduce hero top padding (sticky nav is less useful in iframe)
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
+
+  // Navigate the PARENT page to the correct anchor
+  var parentBase = 'https://actionablereporting.com/pbi-fixer/';
+
+  // Nav links → navigate parent to #section
+  var navLinks = document.querySelector('.nav-links');
+  if (navLinks) navLinks.addEventListener('click', function(e) {
+    var link = e.target.closest('a[href^="#"]');
+    if (!link) return;
+    var hash = link.getAttribute('href');
+    if (!hash || hash === '#') return;
+    e.preventDefault();
+    try { window.top.location.href = parentBase + hash; }
+    catch(err) {
+      var t = document.querySelector(hash);
+      if (t) t.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+  });
+
+  // Logo → scroll parent to top
+  var logo = document.querySelector('.nav-logo');
+  if (logo) logo.addEventListener('click', function(e) {
+    e.preventDefault();
+    try { window.top.location.href = parentBase; }
+    catch(err) { window.scrollTo(0, 0); }
+  });
 })();
 </script>
 
