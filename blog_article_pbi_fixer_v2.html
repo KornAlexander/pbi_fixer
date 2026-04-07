@@ -1,0 +1,504 @@
+<!-- 
+  Power BI Fixer v2 — Blog Article for actionablereporting.com
+  
+  BEFORE PUBLISHING:
+  1. Upload all images from C:\Users\alkorn\Pictures\PBI Fixer to WordPress Media Library
+  2. Replace IMAGE_URL_xxx placeholders with actual uploaded URLs
+  3. Replace VIDEO_URL_DEMO with the YouTube demo video URL when ready
+  4. Publish via WordPress API or admin UI
+-->
+
+<!-- wp:paragraph -->
+<p>Remember my <a href="https://actionablereporting.com/2025/01/11/power-bi-fixer-holy-grail-of-power-bi/">Power BI Fixer v1</a>? The PowerShell script that could batch-fix entire workspaces — replacing pie charts, applying themes, adjusting page sizes? That was version 1. A proof of concept. A glimpse into what's possible.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Version 2 is a completely different animal.</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The Power BI Fixer v2 is a full-featured, interactive development environment for Power BI reports and semantic models — running entirely inside a Microsoft Fabric Notebook. No installs. No downloads. No license costs. No desktop tools required. Just one line of Python:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>from sempy_labs import pbi_fixer
+pbi_fixer()</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p>That's it. A complete UI appears directly in your notebook cell output — with 12 tabs, 45+ automated fixers, a model explorer, a report explorer, a memory analyzer, best practice analyzers, a translation editor, a prototyping tool, and much more.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Why Does This Exist?</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Let me be honest. I built this because I was frustrated. Every single Power BI engagement I ran as a Solution Engineer followed the same pattern: open the customer's report, find the same 20 issues, explain the same best practices, manually fix the same problems. Over and over.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The existing tools in the ecosystem are excellent — but they require desktop installations, paid licenses, or both. They're designed for developers building reports from scratch. What I needed was something different: a tool that can <strong>assess and fix already-deployed reports</strong> at scale, directly in the cloud, with zero setup friction.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>So I built it. On top of the incredible <a href="https://github.com/microsoft/semantic-link-labs" target="_blank" rel="noreferrer noopener">Semantic Link Labs</a> library by Michael Kovalsky, using ipywidgets to render a full interactive UI inside a Fabric Notebook. The result is a tool that runs where your data already lives — in Microsoft Fabric.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">The Big Picture — What Can It Do?</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Power BI Fixer v2 is organized into 12 tabs. Each tab is a self-contained workspace for a specific task. Here's the overview:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Tab</th><th>What It Does</th></tr></thead><tbody><tr><td>⚡ Fix All</td><td>One-click scan &amp; fix across all categories — reports, models, and BPA rules</td></tr><tr><td>📄 Model Explorer</td><td>Browse, edit, and enhance your semantic model — tables, measures, DAX, relationships</td></tr><tr><td>📊 Report Explorer</td><td>Navigate report pages &amp; visuals, live preview, properties editing, scan for issues</td></tr><tr><td>👁 Perspectives</td><td>Create, edit, and delete model perspectives with tri-state checkboxes</td></tr><tr><td>🌐 Translations</td><td>Manage metadata translations with one-click auto-translate via Azure AI</td></tr><tr><td>💾 Memory Analyzer</td><td>Vertipaq statistics — table/column/partition sizes, encoding, cardinality</td></tr><tr><td>📋 Model BPA</td><td>19 best practice rules with one-click auto-fix — most have no equivalent elsewhere</td></tr><tr><td>📄 Report BPA</td><td>Report-level best practice analysis with automatic PBIR conversion</td></tr><tr><td>📐 Delta Analyzer</td><td>Inspect delta table structure — parquet files, row groups, column statistics</td></tr><tr><td>✏️ Prototype</td><td>Generate report prototypes with screenshots, export to Excalidraw &amp; SVG</td></tr><tr><td>🗺 Model Diagram</td><td>Auto-generated SVG relationship diagram with table boxes</td></tr><tr><td>ℹ️ About</td><td>Version info, credits, and links</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">📊 Report Explorer — See Everything at a Glance</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Report Explorer gives you a hierarchical view of your entire report structure: reports → pages → visuals. Click any visual and you get a live preview of the actual report page, plus all properties (position, size, type, title) — editable in place.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_REPORT_EXPLORER" alt="Power BI Fixer — Report Explorer tab showing tree view of pages and visuals with live preview panel" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>What makes it powerful:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="wp-block-list"><!-- wp:list-item -->
+<li><strong>Scan mode</strong> — Click 🔍 Scan to run all 15 report fixers in assessment mode. Violations appear as ⚠️ badges on each page and visual in the tree. No changes are made — just a full health check.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Fix actions</strong> — Select an action from the dropdown (Fix Pie Charts, Fix Page Size, Hide Visual Filters, Apply IBCS Theme, ...) and hit Run. The fix is applied, the report is saved back to Fabric, and the preview refreshes.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Visual → Model navigation</strong> — Click any visual to see which measures and columns it uses. Then jump straight to the Model Explorer to edit that measure's DAX.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>PBIR auto-detection</strong> — If a report is in the old PBIRLegacy format, the tool warns you and offers one-click conversion to the new PBIR format before applying fixes.</li>
+<!-- /wp:list-item --></ul>
+<!-- /wp:list -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">📄 Model Explorer — Your Semantic Model Workbench</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Model Explorer is where you work with the semantic model. It gives you a full object tree — tables, columns, measures, hierarchies, calculation groups, and relationships — with editable properties, DAX preview, and table data preview.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_MODEL_EXPLORER" alt="Power BI Fixer — Model Explorer tab showing table tree, properties panel, and data preview grid" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>The actions dropdown is where it gets interesting. Beyond the standard operations (create measures, create calculated columns, delete objects), there are automated actions that can save hours of manual work:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="wp-block-list"><!-- wp:list-item -->
+<li><strong>Auto-Create Measures from Columns</strong> — Scans all columns with <code>SummarizeBy</code> set and creates proper explicit measures for them. Because implicit measures are the silent killer of good data models.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Add PY Measures</strong> — Automatically generates Previous Year, ΔPY, and ΔPY% measures for all (or selected) measures. Time intelligence in one click.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Add Calendar Table</strong> — Creates a calculated calendar table with hierarchies, display folders, and it even proposes the correct relationship to your fact table automatically.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Add Time Intelligence &amp; Units Calculation Groups</strong> — Common calculation group patterns, pre-built and ready to go.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Format All DAX</strong> — Formats every DAX expression in the model via the daxformatter.com API. Clean code, zero effort.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Prep for AI</strong> — Automatically prepares your semantic model for Copilot and AI features — adding descriptions, synonyms, and linguistic metadata.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Undo / Redo</strong> — Made a mistake? Just hit Undo. Full change history tracking.</li>
+<!-- /wp:list-item --></ul>
+<!-- /wp:list -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">📋 Model BPA — 19 Rules, 15 With No Equivalent Elsewhere</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Model Best Practice Analyzer scans your semantic model against 19 rules across 6 categories: Data Types, MDX Settings, Documentation, Formatting, Schema, and Naming. Each finding can be auto-fixed with a single click.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_MODEL_BPA" alt="Power BI Fixer — Model BPA tab showing categorized rules with fix buttons and severity indicators" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>What's special: <strong>15 of the 19 auto-fixers have no standard equivalent in any other tool.</strong> Standard BPA implementations can detect these issues — but they can't fix them automatically. The Power BI Fixer can. Rules like "Fix Percentage Format", "Fix Flag Column Format", "Set SortByColumn on Month Columns", "Capitalize Object Names" — these are tedious manual corrections that the Fixer handles in bulk.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>You can fix everything at once ("Fix All"), fix an entire rule category ("Fix Rule"), or fix individual findings row by row ("Fix Row"). Your choice.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">🌐 Translations — One-Click Multi-Language</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Translations Editor lets you manage metadata translations for your semantic model. Add languages, see all objects in a grid, and — here's the killer feature — hit <strong>Auto-Translate</strong> to fill in all translations automatically using Azure AI Translator via SynapseML.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_TRANSLATIONS_EDITOR" alt="Power BI Fixer — Translations Editor showing object grid with language columns and auto-translate button" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>No API key setup needed. No cost. SynapseML runs directly in the Fabric Spark environment. Add German translations for 200 objects? 30 seconds.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">💾 Memory Analyzer — Know Your Model Size</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Memory Analyzer gives you detailed Vertipaq statistics for your semantic model — broken down by tables, columns, partitions, relationships, and hierarchies. You can see exactly which columns consume the most memory, check cardinality, encoding types, and even Direct Lake residency status.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_MEMORY_ANALYZER" alt="Power BI Fixer — Memory Analyzer tab showing column-level size breakdown with color-coded percentage bars" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>Color-coded percentage bars make it immediately obvious where the memory hogs are. The "% Table" and "% DB" columns tell you the relative weight of each column — essential for model optimization.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">👁 Perspectives — Visual Perspective Management</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Perspective Editor gives you a clean UI for managing model perspectives. Expand tables, check or uncheck individual columns, measures, and hierarchies. Tri-state indicators show you at a glance which tables are fully included, partially included, or excluded.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_PERSPECTIVE_EDITOR" alt="Power BI Fixer — Perspective Editor with expandable table tree and tri-state checkboxes" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>Create new perspectives, modify existing ones, or delete them — all saved back to the model via XMLA.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">🗺 Model Diagram — See Your Relationships</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Model Diagram tab generates an auto-layout SVG diagram of your data model — showing all tables as boxes with their columns and measures, connected by relationship lines. It's read-only, but incredibly useful for quick model comprehension.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_MODEL_VIEW" alt="Power BI Fixer — Model Diagram showing table boxes with relationship connections" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">✏️ Prototype — Screenshot Your Reports to Excalidraw</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Prototype tab captures every page of your report as a screenshot and assembles them into a visual prototype. You can export to <strong>Excalidraw</strong> (for whiteboarding and annotation) or <strong>SVG</strong> (for documentation). It even detects page navigation links and drillthrough relationships between pages.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_PROTOTYPING" alt="Power BI Fixer — Prototype tab showing report page screenshots with navigation detection" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>This is a game-changer for report reviews and prototyping workshops. Take a snapshot of the current state, annotate it in Excalidraw, discuss improvements with stakeholders — all from a single button click.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">📐 Delta Analyzer — Inspect Your Lakehouse Tables</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>For Direct Lake models, understanding your delta table structure matters. The Delta Analyzer tab lets you inspect parquet files, row groups, column chunks, and column statistics for any delta table in your lakehouse.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_DELTA_ANALYZER" alt="Power BI Fixer — Delta Analyzer tab with summary, parquet files, row groups, and columns subtabs" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">📄 Report BPA — Catch Report-Level Issues</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>While the Model BPA focuses on the semantic model, the Report BPA analyzes the report layer itself. It catches issues like unused custom visuals, "Show Items with No Data" enabled on visuals, and report-level measures that should live in the model.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_REPORT_BPA" alt="Power BI Fixer — Report BPA tab showing zero violations on a clean report" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>Reports need to be in PBIR format for analysis — but the tool auto-converts PBIRLegacy reports when needed.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">⚡ IBCS — International Business Communication Standards</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>I am passionate about <a href="https://www.ibcs.com/" target="_blank" rel="noreferrer noopener">IBCS</a> — the international standards for clear and consistent business reporting. The Power BI Fixer includes dedicated IBCS fixers:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="wp-block-list"><!-- wp:list-item -->
+<li><strong>Fix IBCS Variance</strong> — Transforms column charts into proper IBCS variance charts with relative/absolute variance bars, green/red coloring, and correct axis formatting.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Apply IBCS Theme</strong> — Applies a clean IBCS-compliant theme to your report.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Fix All Charts</strong> — Standardizes all chart types to IBCS-friendly formatting: no unnecessary gridlines, proper data labels, clean axes.</li>
+<!-- /wp:list-item --></ul>
+<!-- /wp:list -->
+
+<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image size-full"><img src="IMAGE_URL_IBCS_IMPLEMENTATION" alt="Power BI Fixer — IBCS Variance implementation showing before/after with proper variance bars" /></figure>
+<!-- /wp:image -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">The Complete Fix Arsenal</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Here's the full inventory of what the Power BI Fixer can do — 45+ automated fixes across three categories:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">Report Fixers (15)</h3>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Fixer</th><th>What It Does</th></tr></thead><tbody><tr><td>Fix Pie Charts</td><td>Replaces pie charts with clustered bar charts</td></tr><tr><td>Fix Bar Charts</td><td>Removes axis clutter, adds data labels, removes gridlines</td></tr><tr><td>Fix Column Charts</td><td>Same clean-up applied to column charts</td></tr><tr><td>Fix Line Charts</td><td>Standardized line chart formatting</td></tr><tr><td>Fix All Charts</td><td>Unified formatting pass across all chart types</td></tr><tr><td>Column → Line</td><td>Converts column charts to line charts where appropriate</td></tr><tr><td>Column → Bar (IBCS)</td><td>Converts column charts to horizontal bar charts (IBCS standard)</td></tr><tr><td>Fix IBCS Variance</td><td>Creates proper IBCS variance visualizations</td></tr><tr><td>Fix Page Size</td><td>Upgrades default 720×1280 pages to Full HD (1080×1920)</td></tr><tr><td>Hide Visual Filters</td><td>Hides visual-level filters from report consumers</td></tr><tr><td>Fix Visual Alignment</td><td>Snaps misaligned visuals to consistent positions</td></tr><tr><td>Remove Unused Custom Visuals</td><td>Cleans up unused custom visual registrations</td></tr><tr><td>Disable Show Items No Data</td><td>Turns off "Show Items with No Data" on visuals</td></tr><tr><td>Migrate Report-Level Measures</td><td>Moves report-level measures to the semantic model</td></tr><tr><td>Convert to PBIR</td><td>Upgrades PBIRLegacy reports to the new PBIR format</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">Semantic Model Fixers (11)</h3>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Fixer</th><th>What It Does</th></tr></thead><tbody><tr><td>Discourage Implicit Measures</td><td>Enables the model property that prevents implicit measure usage</td></tr><tr><td>Add Calendar Table</td><td>Creates a calculated calendar table with hierarchies and auto-relationship detection</td></tr><tr><td>Add Measure Table</td><td>Adds an empty calculated table to centralize measures</td></tr><tr><td>Add Last Refresh Table</td><td>Adds a table with a measure showing the last data refresh timestamp</td></tr><tr><td>Add Units Calc Group</td><td>Creates Thousand &amp; Million calculation items</td></tr><tr><td>Add Time Intelligence Calc Group</td><td>Generates AC/Y-1/Y-2/Y-3/YTD and variance calculation items</td></tr><tr><td>Auto-Create Measures from Columns</td><td>Creates explicit measures from columns with SummarizeBy set</td></tr><tr><td>Add PY Measures</td><td>Creates Previous Year + Delta + Delta% measures for all or selected measures</td></tr><tr><td>Setup Incremental Refresh</td><td>Configures incremental refresh with auto date column detection</td></tr><tr><td>Direct Lake Pre-warm Cache</td><td>Creates a _CacheWarmUp perspective and generates a warm-up notebook</td></tr><tr><td>Prep for AI</td><td>Prepares the model for Copilot with descriptions, synonyms, and linguistic metadata</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">Model BPA Auto-Fixers (19)</h3>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Rule</th><th>Category</th><th>Fix Action</th></tr></thead><tbody><tr><td>Fix Floating Point Types</td><td>🔢 Data Types</td><td>Double → Decimal</td></tr><tr><td>Fix IsAvailableInMDX (False)</td><td>📡 MDX</td><td>Set False on non-attribute columns</td></tr><tr><td>Fix IsAvailableInMDX (True)</td><td>📡 MDX</td><td>Set True on key/hierarchy columns</td></tr><tr><td>Fix Measure Descriptions</td><td>📝 Documentation</td><td>Sets measure description = DAX expression</td></tr><tr><td>Fix Date Column Format</td><td>📊 Formatting</td><td>Sets 'Date' columns to mm/dd/yyyy</td></tr><tr><td>Fix Month Column Format</td><td>📊 Formatting</td><td>Sets 'Month' columns to MMMM yyyy</td></tr><tr><td>Fix Measure Format</td><td>📊 Formatting</td><td>Sets unformatted measures to #,0</td></tr><tr><td>Fix Percentage Format</td><td>📊 Formatting</td><td>Sets percentage measures to #,0.0%</td></tr><tr><td>Fix Whole Number Format</td><td>📊 Formatting</td><td>Sets unformatted integer measures to #,0</td></tr><tr><td>Fix Flag Column Format</td><td>📊 Formatting</td><td>Sets Yes/No format on boolean columns</td></tr><tr><td>Fix Sort Month Column</td><td>📊 Formatting</td><td>Sets SortByColumn on month name columns</td></tr><tr><td>Fix Data Category</td><td>📊 Formatting</td><td>Sets DataCategory based on naming conventions</td></tr><tr><td>Fix DIVIDE Function</td><td>📊 Formatting</td><td>Replaces / operator with DIVIDE()</td></tr><tr><td>Fix Avoid Adding 0</td><td>📊 Formatting</td><td>Removes 0+ prefix from DAX expressions</td></tr><tr><td>Hide Foreign Keys</td><td>🔗 Schema</td><td>Hides columns used as foreign keys</td></tr><tr><td>Fix Do Not Summarize</td><td>🔗 Schema</td><td>Sets SummarizeBy = None on numeric columns</td></tr><tr><td>Mark Primary Keys</td><td>🔗 Schema</td><td>Sets IsKey = True on relationship key columns</td></tr><tr><td>Trim Object Names</td><td>🏷 Naming</td><td>Removes leading/trailing whitespace</td></tr><tr><td>Capitalize Object Names</td><td>🏷 Naming</td><td>Capitalizes the first letter of names</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">v1 vs v2 — A Quantum Leap</h2>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th></th><th>Power BI Fixer v1</th><th>Power BI Fixer v2</th></tr></thead><tbody><tr><td><strong>Platform</strong></td><td>PowerShell (local)</td><td>Python / Fabric Notebook (cloud)</td></tr><tr><td><strong>UI</strong></td><td>Windows dialog boxes</td><td>Full interactive notebook widget (12 tabs)</td></tr><tr><td><strong>Report Fixers</strong></td><td>4 (pie charts, theme, page size, slicer)</td><td>15 (charts, alignment, IBCS, PBIR conversion, ...)</td></tr><tr><td><strong>Model Fixers</strong></td><td>5 (calendar, measure table, units, TI, discourage implicit)</td><td>11 (+ PY measures, measures from columns, incremental refresh, cache warming, Prep for AI)</td></tr><tr><td><strong>BPA Auto-Fixers</strong></td><td>0</td><td>19 (15 with no equivalent in other tools)</td></tr><tr><td><strong>Total Fixers</strong></td><td>~9</td><td>45+</td></tr><tr><td><strong>Explorer</strong></td><td>None</td><td>Full Model + Report Explorer with editing</td></tr><tr><td><strong>Preview</strong></td><td>None</td><td>Live embedded report preview</td></tr><tr><td><strong>Memory Analysis</strong></td><td>None</td><td>Full Vertipaq analyzer with 6 subtabs</td></tr><tr><td><strong>Translations</strong></td><td>None</td><td>Multi-language editor with AI auto-translate</td></tr><tr><td><strong>Perspectives</strong></td><td>None</td><td>Full create/edit/delete editor</td></tr><tr><td><strong>Prototyping</strong></td><td>None</td><td>Screenshot capture + Excalidraw export</td></tr><tr><td><strong>Scan Mode</strong></td><td>No</td><td>Yes — assess without changing anything</td></tr><tr><td><strong>Multi-Report</strong></td><td>Entire workspace (all or nothing)</td><td>Load specific reports or all, comma-separated</td></tr><tr><td><strong>Cost</strong></td><td>Free</td><td>Free</td></tr><tr><td><strong>Setup</strong></td><td>PowerShell modules + local install</td><td>One line of pip install</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Getting Started — 3 Steps</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Step 1:</strong> Open a Microsoft Fabric Notebook. Run:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>%pip install git+https://github.com/KornAlexander/semantic-link-labs.git@feature/pbi-fixer-ui</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p><strong>Step 2:</strong> In the next cell, run:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>from sempy_labs import pbi_fixer
+pbi_fixer()</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p><strong>Step 3:</strong> Type your workspace and report name (or leave blank to load everything), then start exploring and fixing.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>That's it. No config files. No environment variables. No API keys. Just works.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Requirements</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul class="wp-block-list"><!-- wp:list-item -->
+<li><strong>Microsoft Fabric</strong> workspace (F or P capacity)</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>XMLA read/write endpoint</strong> enabled for semantic model operations</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>PBIR format</strong> for report-layer fixes (the tool can auto-convert PBIRLegacy reports)</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li><strong>Tenant settings</strong>: "Export reports as image files" (for Prototype screenshots), "Download reports" (for .pbix export)</li>
+<!-- /wp:list-item --></ul>
+<!-- /wp:list -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Open Source &amp; Credits</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Power BI Fixer v2 is free and open source. It's built on top of <a href="https://github.com/microsoft/semantic-link-labs" target="_blank" rel="noreferrer noopener">Semantic Link Labs</a> by <a href="https://www.linkedin.com/in/yourkmichael/" target="_blank" rel="noreferrer noopener">Michael Kovalsky</a> — an incredible library that provides the TOM connectivity, Model BPA engine, Report BPA, Vertipaq Analyzer, ReportWrapper, Perspective Editor, DAX utilities, and Direct Lake support that make all of this possible.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Additional credits go to <a href="https://www.sqlbi.com/" target="_blank" rel="noreferrer noopener">SQLBI</a> for the DAX Formatter API, <a href="https://www.linkedin.com/in/lukaszobst/" target="_blank" rel="noreferrer noopener">Lukasz Obst</a> for the Prep for AI discovery, and the entire Microsoft Fabric community for feedback and ideas.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Source code: <a href="https://github.com/KornAlexander/semantic-link-labs/tree/feature/pbi-fixer-ui" target="_blank" rel="noreferrer noopener">GitHub — semantic-link-labs (feature/pbi-fixer-ui branch)</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Mirror: <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" rel="noreferrer noopener">GitHub — pbi_fixer</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p><strong>The Power BI Fixer v1 was a script. The Power BI Fixer v2 is a platform.</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Try it. Break it. Fix it. Let me know what you think.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><em>Alexander Korn — <a href="https://actionablereporting.com" target="_blank" rel="noreferrer noopener">actionablereporting.com</a> — <a href="https://www.linkedin.com/in/intrepidalexander/" target="_blank" rel="noreferrer noopener">LinkedIn</a></em></p>
+<!-- /wp:paragraph -->
+
+<!--
+  ==========================================
+  IMAGE MAPPING — Replace these placeholders:
+  ==========================================
+  IMAGE_URL_REPORT_EXPLORER    → Report Explorer.png
+  IMAGE_URL_MODEL_EXPLORER     → Model Explorer.png
+  IMAGE_URL_MODEL_BPA          → Model BPA.png
+  IMAGE_URL_TRANSLATIONS_EDITOR → Translations Editor.png
+  IMAGE_URL_MEMORY_ANALYZER    → Memory Analyzer.png
+  IMAGE_URL_PERSPECTIVE_EDITOR → Perspective Editor.png
+  IMAGE_URL_MODEL_VIEW         → Model View.png
+  IMAGE_URL_PROTOTYPING        → Prototyping Excalidraw.png
+  IMAGE_URL_DELTA_ANALYZER     → 2026-04-07 11_35_39-SE Verantwortlichkeiten - OneNote.png (Delta Analyzer)
+  IMAGE_URL_REPORT_BPA         → Report BPA.png
+  IMAGE_URL_IBCS_IMPLEMENTATION → IBCS Implementation.png
+-->

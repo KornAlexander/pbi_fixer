@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power BI Fixer — Scan, Fix, and Explore Your Power BI Reports</title>
+  <meta name="description" content="The Power BI Fixer is a free, open-source, notebook-native tool with 45+ automated fixers for Power BI reports and semantic models. One line of Python in a Microsoft Fabric Notebook." />
+  <meta name="author" content="Alexander Korn" />
+  <meta property="og:title" content="Power BI Fixer — One Line to Fix Them All" />
+  <meta property="og:description" content="45+ automated fixers for Power BI reports and semantic models. Free. Open source. Runs in Microsoft Fabric Notebooks." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://kornalexander.github.io/pbi_fixer/" />
+  <!-- Replace with actual screenshot when deploying -->
+  <meta property="og:image" content="assets/img/report-explorer.png" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+</head>
+<body>
+
+<!-- ═══════════════ Navigation ═══════════════ -->
+<nav class="nav">
+  <div class="container">
+    <a href="#" class="nav-logo">⚡ Power BI Fixer</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#screenshots">Screenshots</a></li>
+      <li><a href="#fixers">All Fixers</a></li>
+      <li><a href="#comparison">v1 vs v2</a></li>
+      <li><a href="#videos">Videos</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
+    </ul>
+    <button class="nav-hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Toggle navigation">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════ Hero ═══════════════ -->
+<section class="hero" id="hero">
+  <div class="container">
+    <h1>One Line of Python.<br/><span class="accent">45+ Automated Fixes.</span></h1>
+    <p class="subtitle">
+      The Power BI Fixer is a free, open-source development environment for Power BI reports
+      and semantic models — running entirely inside a Microsoft Fabric Notebook.
+    </p>
+
+    <div class="hero-code">
+      <span class="kw">from</span> sempy_labs <span class="kw">import</span> pbi_fixer<br/>
+      pbi_fixer() &nbsp;<span class="cm"># That's it.</span>
+    </div>
+
+    <div class="btn-group">
+      <a href="#quickstart" class="btn btn-primary">Get Started →</a>
+      <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" class="btn btn-outline">View on GitHub</a>
+    </div>
+
+    <div class="hero-badges">
+      <span class="badge badge-orange">⚡ 45+ Fixers</span>
+      <span class="badge badge-green">✓ Free &amp; Open Source</span>
+      <span class="badge badge-blue">☁ Cloud-Native</span>
+      <span class="badge badge-orange">📊 12 Tabs</span>
+      <span class="badge badge-green">✓ No Install Required</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Stats ═══════════════ -->
+<section class="section">
+  <div class="container">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-number">45+</div>
+        <div class="stat-label">Automated Fixers</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">12</div>
+        <div class="stat-label">Interactive Tabs</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">19</div>
+        <div class="stat-label">BPA Auto-Fix Rules</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">0</div>
+        <div class="stat-label">License Cost</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">1</div>
+        <div class="stat-label">Line of Python</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Feature Tabs ═══════════════ -->
+<section class="section section-alt" id="features">
+  <div class="container">
+    <div class="section-header">
+      <h2>Everything You Need in 12 Tabs</h2>
+      <p>A complete Power BI development environment — from model exploration and report fixing to memory analysis and AI preparation.</p>
+    </div>
+
+    <div class="tabs-grid">
+      <div class="tab-card">
+        <div class="icon">⚡</div>
+        <h3>Fix All</h3>
+        <p>One-click scan &amp; fix across all categories — report fixers, model fixers, Model BPA, and Report BPA. Grouped results with selective execution.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">📄</div>
+        <h3>Model Explorer</h3>
+        <p>Browse tables, columns, measures, hierarchies, and relationships. Edit DAX, properties, and display folders. Create measures, calculated columns, and tables.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">📊</div>
+        <h3>Report Explorer</h3>
+        <p>Navigate report pages &amp; visuals with live preview. Scan for violations, fix chart formatting, convert to PBIR, and align visuals.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">👁</div>
+        <h3>Perspectives</h3>
+        <p>Create, edit, and delete model perspectives with tri-state checkboxes. Visual table-level summaries with one-click save.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">🌐</div>
+        <h3>Translations</h3>
+        <p>Manage metadata translations across all model objects. One-click auto-translate via Azure AI Translator — no API key needed.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">💾</div>
+        <h3>Memory Analyzer</h3>
+        <p>Vertipaq statistics broken down by tables, columns, partitions, relationships. Color-coded size bars, cardinality, encoding, Direct Lake support.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">📋</div>
+        <h3>Model BPA</h3>
+        <p>19 best practice rules across 6 categories with one-click auto-fix. 15 rules have no equivalent auto-fix in any other tool.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">📄</div>
+        <h3>Report BPA</h3>
+        <p>Report-level best practice analysis with automatic PBIRLegacy-to-PBIR conversion. Catches unused custom visuals, report-level measures, and more.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">📐</div>
+        <h3>Delta Analyzer</h3>
+        <p>Inspect delta table structure — parquet files, row groups, column chunks, and column statistics. Essential for Direct Lake optimization.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">✏️</div>
+        <h3>Prototype</h3>
+        <p>Generate report prototypes with page screenshots. Export to Excalidraw &amp; SVG. Auto-detects page navigation and drillthrough paths.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">🗺</div>
+        <h3>Model Diagram</h3>
+        <p>Auto-generated SVG relationship diagram with table boxes, columns, measures, and nearest-edge connection lines.</p>
+      </div>
+      <div class="tab-card">
+        <div class="icon">ℹ️</div>
+        <h3>About</h3>
+        <p>Version info, credits, and links to the source code and documentation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Screenshots ═══════════════ -->
+<section class="section" id="screenshots">
+  <div class="container">
+    <div class="section-header">
+      <h2>See It in Action</h2>
+      <p>A visual tour through the key tabs and features.</p>
+    </div>
+
+    <!-- Report Explorer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>📊 Report Explorer</h3>
+          <p>Navigate your entire report structure — pages, visuals, properties — with a live embedded preview. Scan for issues or fix them in one click.</p>
+          <ul>
+            <li>Tree view: Reports → Pages → Visuals</li>
+            <li>15 report fixers in the actions dropdown</li>
+            <li>Scan mode with violation badges</li>
+            <li>Visual → Model navigation</li>
+            <li>Editable properties with save/discard</li>
+            <li>PBIR auto-detection &amp; conversion</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/report-explorer.png" alt="Report Explorer tab showing tree view of pages and visuals with live preview panel" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Explorer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>📄 Model Explorer</h3>
+          <p>Your semantic model workbench. Browse, edit, and enhance — tables, measures, DAX, relationships, all in one place.</p>
+          <ul>
+            <li>Full object tree with display folders</li>
+            <li>DAX editing &amp; formatting</li>
+            <li>Auto-create measures from columns</li>
+            <li>Add PY measures, calendar tables, calc groups</li>
+            <li>Table data preview (Top 10/100/All)</li>
+            <li>Undo / Redo with change tracking</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/model-explorer.png" alt="Model Explorer tab showing table tree, properties panel, and data preview grid" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model BPA -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>📋 Model BPA</h3>
+          <p>19 best practice rules with one-click auto-fix. Most rules have no equivalent auto-fix anywhere else.</p>
+          <ul>
+            <li>6 categories: Data Types, MDX, Documentation, Formatting, Schema, Naming</li>
+            <li>Fix All / Fix Rule / Fix Row granularity</li>
+            <li>Severity indicators with finding counts</li>
+            <li>15 of 19 auto-fixers are unique</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/model-bpa.png" alt="Model BPA tab showing categorized rules with fix buttons and severity indicators" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Analyzer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>💾 Memory Analyzer</h3>
+          <p>Vertipaq statistics at your fingertips — column-level memory breakdown with color-coded bars.</p>
+          <ul>
+            <li>Model Summary, Tables, Partitions, Columns, Relationships, Hierarchies</li>
+            <li>Size formatting (B/KB/MB/GB)</li>
+            <li>Color-coded % bars (red &gt;30%, orange &gt;10%, green ≤10%)</li>
+            <li>Direct Lake residency &amp; temperature</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/memory-analyzer.png" alt="Memory Analyzer tab showing column-level size breakdown with color-coded percentage bars" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Translations -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>🌐 Translations Editor</h3>
+          <p>Multi-language metadata management with one-click AI auto-translate. No API keys, no cost.</p>
+          <ul>
+            <li>Grid view: All objects × all languages</li>
+            <li>20 common language codes built-in</li>
+            <li>Auto-Translate via Azure AI (SynapseML)</li>
+            <li>Preview diff before applying</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/translations-editor.png" alt="Translations Editor showing object grid with language columns and auto-translate button" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Perspectives -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>👁 Perspective Editor</h3>
+          <p>Visual perspective management with tri-state checkboxes. Create, modify, and delete perspectives with ease.</p>
+          <ul>
+            <li>Expandable table tree with columns, measures, hierarchies</li>
+            <li>Tri-state indicators: ● Full / ◐ Partial / ○ None</li>
+            <li>Select All / Deselect All</li>
+            <li>Create new &amp; delete existing perspectives</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/perspective-editor.png" alt="Perspective Editor with expandable table tree and tri-state checkboxes" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- IBCS -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>⚡ IBCS Implementation</h3>
+          <p>International Business Communication Standards built right in — proper variance charts, clean formatting, and IBCS themes.</p>
+          <ul>
+            <li>Fix IBCS Variance with green/red coloring</li>
+            <li>Apply IBCS Theme across reports</li>
+            <li>Column → Bar horizontal conversion</li>
+            <li>Standardized axis and data label formatting</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/ibcs-implementation.png" alt="IBCS Variance implementation showing proper variance bars with green/red coloring" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Diagram -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>🗺 Model Diagram</h3>
+          <p>Auto-generated SVG diagram of your data model — tables, columns, measures, and relationships at a glance.</p>
+          <ul>
+            <li>Auto-layout with nearest-edge connection lines</li>
+            <li>Box heights based on column/measure count</li>
+            <li>Multi-model dropdown support</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/model-view.png" alt="Model Diagram showing table boxes with relationship connections" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Prototype -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>✏️ Prototype &amp; Excalidraw Export</h3>
+          <p>Capture every report page as a screenshot. Export to Excalidraw for whiteboarding or SVG for documentation.</p>
+          <ul>
+            <li>Page screenshots with navigation detection</li>
+            <li>Drillthrough &amp; button navigation arrows</li>
+            <li>Save as .excalidraw or .svg</li>
+            <li>Include/exclude hidden pages</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/prototyping-excalidraw.png" alt="Prototype tab showing report page screenshots with navigation detection" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Delta Analyzer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>📐 Delta Analyzer</h3>
+          <p>Inspect your lakehouse delta tables — parquet files, row groups, column chunks. Essential for Direct Lake optimization.</p>
+          <ul>
+            <li>Summary, Parquet Files, Row Groups, Column Chunks, Columns</li>
+            <li>Column statistics &amp; cardinality</li>
+            <li>Optional lakehouse &amp; schema targeting</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/delta-analyzer.png" alt="Delta Analyzer tab with summary, parquet files, row groups, and columns subtabs" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Report BPA -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>📄 Report BPA</h3>
+          <p>Report-level best practice analysis — catches issues at the visual and page level that model-only BPA can't detect.</p>
+          <ul>
+            <li>Auto-converts PBIRLegacy before scanning</li>
+            <li>Detects unused custom visuals</li>
+            <li>Flags "Show Items with No Data"</li>
+            <li>Catches report-level measures</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/report-bpa.png" alt="Report BPA tab showing analysis results" loading="lazy" />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ All Fixers ═══════════════ -->
+<section class="section section-alt" id="fixers">
+  <div class="container">
+    <div class="section-header">
+      <h2>The Complete Fix Arsenal</h2>
+      <p>45+ automated fixes across three categories. Every fixer supports scan mode — assess without changing anything.</p>
+    </div>
+
+    <h3 style="margin-bottom:1rem;">Report Fixers <span class="category-badge cat-report">15 fixers</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Fix Pie Charts</td><td>Replaces pie charts with clustered bar charts</td></tr>
+        <tr><td>2</td><td>Fix Bar Charts</td><td>Removes axis clutter, adds data labels, removes gridlines</td></tr>
+        <tr><td>3</td><td>Fix Column Charts</td><td>Same clean-up applied to column charts</td></tr>
+        <tr><td>4</td><td>Fix Line Charts</td><td>Standardized line chart formatting</td></tr>
+        <tr><td>5</td><td>Fix All Charts</td><td>Unified formatting pass across all chart types</td></tr>
+        <tr><td>6</td><td>Column → Line</td><td>Converts column charts to line charts</td></tr>
+        <tr><td>7</td><td>Column → Bar (IBCS)</td><td>Converts column charts to horizontal bar charts</td></tr>
+        <tr><td>8</td><td>Fix IBCS Variance</td><td>Creates proper IBCS variance visualizations</td></tr>
+        <tr><td>9</td><td>Fix Page Size</td><td>Upgrades default pages to Full HD (1080×1920)</td></tr>
+        <tr><td>10</td><td>Hide Visual Filters</td><td>Hides visual-level filters from consumers</td></tr>
+        <tr><td>11</td><td>Fix Visual Alignment</td><td>Snaps misaligned visuals to consistent positions</td></tr>
+        <tr><td>12</td><td>Remove Unused Custom Visuals</td><td>Cleans up unused custom visual registrations</td></tr>
+        <tr><td>13</td><td>Disable Show Items No Data</td><td>Turns off "Show Items with No Data"</td></tr>
+        <tr><td>14</td><td>Migrate Report-Level Measures</td><td>Moves report-level measures to the semantic model</td></tr>
+        <tr><td>15</td><td>Convert to PBIR</td><td>Upgrades PBIRLegacy to PBIR format</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-bottom:1rem;">Semantic Model Fixers <span class="category-badge cat-model">11 fixers</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Discourage Implicit Measures</td><td>Prevents implicit measure usage in reports</td></tr>
+        <tr><td>2</td><td>Add Calendar Table</td><td>Calculated calendar with hierarchies + auto-relationship detection</td></tr>
+        <tr><td>3</td><td>Add Measure Table</td><td>Empty calculated table to centralize measures</td></tr>
+        <tr><td>4</td><td>Add Last Refresh Table</td><td>Table with last refresh timestamp measure</td></tr>
+        <tr><td>5</td><td>Add Units Calc Group</td><td>Thousand &amp; Million calculation items</td></tr>
+        <tr><td>6</td><td>Add TI Calc Group</td><td>AC/Y-1/Y-2/Y-3/YTD and variance items</td></tr>
+        <tr><td>7</td><td>Measures from Columns</td><td>Auto-create explicit measures from SummarizeBy</td></tr>
+        <tr><td>8</td><td>Add PY Measures</td><td>PY + ΔPY + ΔPY% for selected measures</td></tr>
+        <tr><td>9</td><td>Setup Incremental Refresh</td><td>Auto date column detection + policy config</td></tr>
+        <tr><td>10</td><td>Cache Pre-warm</td><td>Direct Lake cache warm-up perspective + notebook</td></tr>
+        <tr><td>11</td><td>Prep for AI</td><td>Descriptions, synonyms, linguistic metadata for Copilot</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-bottom:1rem;">Model BPA Auto-Fixers <span class="category-badge cat-bpa">19 rules</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Rule</th><th>Category</th><th>Fix Action</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Fix Floating Point Types</td><td>🔢 Data Types</td><td>Double → Decimal</td></tr>
+        <tr><td>2</td><td>Fix IsAvailableInMDX (False)</td><td>📡 MDX</td><td>Set False on non-attribute columns</td></tr>
+        <tr><td>3</td><td>Fix IsAvailableInMDX (True)</td><td>📡 MDX</td><td>Set True on key/hierarchy columns</td></tr>
+        <tr><td>4</td><td>Fix Measure Descriptions</td><td>📝 Docs</td><td>Description = DAX expression</td></tr>
+        <tr><td>5</td><td>Fix Date Column Format</td><td>📊 Format</td><td>mm/dd/yyyy format string</td></tr>
+        <tr><td>6</td><td>Fix Month Column Format</td><td>📊 Format</td><td>MMMM yyyy format string</td></tr>
+        <tr><td>7</td><td>Fix Measure Format</td><td>📊 Format</td><td>#,0 for unformatted measures</td></tr>
+        <tr><td>8</td><td>Fix Percentage Format</td><td>📊 Format</td><td>#,0.0% for percentage measures</td></tr>
+        <tr><td>9</td><td>Fix Whole Number Format</td><td>📊 Format</td><td>#,0 for integer measures</td></tr>
+        <tr><td>10</td><td>Fix Flag Column Format</td><td>📊 Format</td><td>Yes/No format on boolean columns</td></tr>
+        <tr><td>11</td><td>Fix Sort Month Column</td><td>📊 Format</td><td>SortByColumn on month name columns</td></tr>
+        <tr><td>12</td><td>Fix Data Category</td><td>📊 Format</td><td>DataCategory by naming convention</td></tr>
+        <tr><td>13</td><td>Fix DIVIDE Function</td><td>📊 Format</td><td>Replace / with DIVIDE()</td></tr>
+        <tr><td>14</td><td>Fix Avoid Adding 0</td><td>📊 Format</td><td>Remove 0+ prefix from DAX</td></tr>
+        <tr><td>15</td><td>Hide Foreign Keys</td><td>🔗 Schema</td><td>IsHidden = True</td></tr>
+        <tr><td>16</td><td>Fix Do Not Summarize</td><td>🔗 Schema</td><td>SummarizeBy = None</td></tr>
+        <tr><td>17</td><td>Mark Primary Keys</td><td>🔗 Schema</td><td>IsKey = True on key columns</td></tr>
+        <tr><td>18</td><td>Trim Object Names</td><td>🏷 Naming</td><td>Remove leading/trailing whitespace</td></tr>
+        <tr><td>19</td><td>Capitalize Object Names</td><td>🏷 Naming</td><td>Capitalize first letter</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ v1 vs v2 Comparison ═══════════════ -->
+<section class="section" id="comparison">
+  <div class="container">
+    <div class="section-header">
+      <h2>v1 → v2: A Quantum Leap</h2>
+      <p>From a PowerShell script with 9 fixers to a full cloud-native development environment with 45+.</p>
+    </div>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Power BI Fixer v1</th>
+          <th>Power BI Fixer v2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Platform</strong></td><td>PowerShell (local)</td><td>Python / Fabric Notebook (cloud)</td></tr>
+        <tr><td><strong>UI</strong></td><td>Windows dialog boxes</td><td>Full interactive widget (12 tabs)</td></tr>
+        <tr><td><strong>Report Fixers</strong></td><td>4</td><td class="check">15</td></tr>
+        <tr><td><strong>Model Fixers</strong></td><td>5</td><td class="check">11</td></tr>
+        <tr><td><strong>BPA Auto-Fixers</strong></td><td class="cross">0</td><td class="check">19 (15 unique)</td></tr>
+        <tr><td><strong>Total Fixers</strong></td><td>~9</td><td class="check">45+</td></tr>
+        <tr><td><strong>Model Explorer</strong></td><td class="cross">—</td><td class="check">Full tree + DAX editing</td></tr>
+        <tr><td><strong>Report Explorer</strong></td><td class="cross">—</td><td class="check">Live preview + properties</td></tr>
+        <tr><td><strong>Memory Analysis</strong></td><td class="cross">—</td><td class="check">Vertipaq (6 subtabs)</td></tr>
+        <tr><td><strong>Translations</strong></td><td class="cross">—</td><td class="check">AI auto-translate</td></tr>
+        <tr><td><strong>Perspectives</strong></td><td class="cross">—</td><td class="check">Full CRUD editor</td></tr>
+        <tr><td><strong>Prototyping</strong></td><td class="cross">—</td><td class="check">Screenshots + Excalidraw</td></tr>
+        <tr><td><strong>Scan Mode</strong></td><td class="cross">No</td><td class="check">Yes</td></tr>
+        <tr><td><strong>Multi-Report</strong></td><td>All or nothing</td><td class="check">Selective (comma-separated)</td></tr>
+        <tr><td><strong>Cost</strong></td><td>Free</td><td>Free</td></tr>
+        <tr><td><strong>Setup</strong></td><td>PS modules + local install</td><td class="check">One line of pip install</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ Videos ═══════════════ -->
+<section class="section section-alt" id="videos">
+  <div class="container">
+    <div class="section-header">
+      <h2>Watch It in Action</h2>
+      <p>Video walkthroughs and demos of the Power BI Fixer v2.</p>
+    </div>
+
+    <!-- Replace with actual YouTube embed when video is ready -->
+    <div class="video-placeholder" id="video-demo">
+      🎬 Demo video coming soon — subscribe for updates
+    </div>
+
+    <!--
+    <h3 style="text-align:center;margin-top:3rem;margin-bottom:1rem;">Feature Deep Dives</h3>
+    <div class="tabs-grid">
+      <div class="tab-card">
+        <h3>📊 Report Explorer Walkthrough</h3>
+        <p>See how to navigate, scan, and fix report issues.</p>
+        <div class="video-placeholder" style="height:200px;font-size:0.9rem;">🎬 Coming soon</div>
+      </div>
+      <div class="tab-card">
+        <h3>📋 Model BPA Auto-Fix</h3>
+        <p>Watch 155 findings get auto-fixed in seconds.</p>
+        <div class="video-placeholder" style="height:200px;font-size:0.9rem;">🎬 Coming soon</div>
+      </div>
+      <div class="tab-card">
+        <h3>🌐 Auto-Translate in 30 Seconds</h3>
+        <p>Add German translations for 200 objects instantly.</p>
+        <div class="video-placeholder" style="height:200px;font-size:0.9rem;">🎬 Coming soon</div>
+      </div>
+    </div>
+    -->
+  </div>
+</section>
+
+<!-- ═══════════════ Quick Start ═══════════════ -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <div class="section-header">
+      <h2>Get Started in 3 Steps</h2>
+      <p>No config files. No environment variables. No API keys. Just works.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Install</h3>
+        <p>In a Microsoft Fabric Notebook cell, run:</p>
+        <code>%pip install git+https://github.com/KornAlexander/semantic-link-labs.git@feature/pbi-fixer-ui</code>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Launch</h3>
+        <p>In the next cell, run:</p>
+        <code>from sempy_labs import pbi_fixer<br/>pbi_fixer()</code>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Fix</h3>
+        <p>Type your workspace and report name, select your fixers, and click Run. That's it.</p>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:3rem;">
+      <h3>Optional Parameters</h3>
+      <div class="hero-code" style="display:inline-block;text-align:left;margin-top:1rem;">
+        <span class="cm"># Specify workspace and report directly</span><br/>
+        pbi_fixer(<span class="str">workspace</span>=<span class="str">"Your Workspace"</span>, <span class="str">report</span>=<span class="str">"My Report"</span>)<br/><br/>
+        <span class="cm"># Load multiple reports (comma-separated)</span><br/>
+        pbi_fixer(<span class="str">report</span>=<span class="str">"Report A, Report B"</span>)<br/><br/>
+        <span class="cm"># Load ALL items in a workspace</span><br/>
+        pbi_fixer(<span class="str">workspace</span>=<span class="str">"Your Workspace"</span>)
+      </div>
+    </div>
+
+    <div style="margin-top:3rem;">
+      <div class="section-header">
+        <h3>Requirements</h3>
+      </div>
+      <div class="tabs-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">☁</div>
+          <h3>Microsoft Fabric</h3>
+          <p>F or P capacity workspace</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">🔌</div>
+          <h3>XMLA Endpoint</h3>
+          <p>Read/write for model operations</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">📄</div>
+          <h3>PBIR Format</h3>
+          <p>For report fixes (auto-convert available)</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">⚙️</div>
+          <h3>Tenant Settings</h3>
+          <p>"Export reports as image files" for screenshots</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Credits ═══════════════ -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-header">
+      <h2>Open Source &amp; Credits</h2>
+      <p>Built on the shoulders of an incredible community.</p>
+    </div>
+
+    <div class="tabs-grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
+      <div class="tab-card">
+        <h3><a href="https://github.com/microsoft/semantic-link-labs" target="_blank">Semantic Link Labs</a></h3>
+        <p>By <a href="https://www.linkedin.com/in/yourkmichael/" target="_blank">Michael Kovalsky</a> — TOM connectivity, Model BPA, Report BPA, Vertipaq Analyzer, ReportWrapper, Perspective Editor, DAX utilities, Direct Lake support.</p>
+      </div>
+      <div class="tab-card">
+        <h3><a href="https://www.sqlbi.com/" target="_blank">SQLBI</a></h3>
+        <p>DAX Formatter API — clean DAX formatting for all model expressions.</p>
+      </div>
+      <div class="tab-card">
+        <h3><a href="https://www.linkedin.com/in/lukaszobst/" target="_blank">Lukasz Obst</a></h3>
+        <p>Prep for AI — API discovery for automatic Copilot readiness preparation.</p>
+      </div>
+      <div class="tab-card">
+        <h3>Built With</h3>
+        <p>ipywidgets, powerbiclient, SynapseML (Azure AI Translator), Microsoft Fabric Notebooks.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Footer ═══════════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-links">
+      <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub</a>
+      <a href="https://github.com/KornAlexander/semantic-link-labs/tree/feature/pbi-fixer-ui" target="_blank">Source Code</a>
+      <a href="https://actionablereporting.com" target="_blank">Blog</a>
+      <a href="https://www.linkedin.com/in/intrepidalexander/" target="_blank">LinkedIn</a>
+    </div>
+    <p>Power BI Fixer — by Alexander Korn — <a href="https://actionablereporting.com">actionablereporting.com</a></p>
+    <p style="margin-top:0.5rem;font-size:0.8rem;">Free &amp; Open Source. Built with ❤️ on Microsoft Fabric.</p>
+  </div>
+</footer>
+
+</body>
+</html>
