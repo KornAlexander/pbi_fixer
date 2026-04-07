@@ -472,53 +472,21 @@ def _translations_tab(workspace_input=None, report_input=None):
         progress_label.value = f"0 / {total_names}"
         progress_label.layout.display = ""
 
-        def _translate_via_rest(names, target_lang):
-            """Translate names via Azure Translator REST API directly (no Spark). Returns list or None."""
-            try:
-                import requests as _req
-                from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TE
-                from notebookutils import mssparkutils as _mspu
-                progress_label.value = "REST: getting token (5s timeout)…"
-                with ThreadPoolExecutor(1) as _pool:
-                    _fut = _pool.submit(_mspu.credentials.getToken, "https://cognitiveservices.azure.com/")
-                    try:
-                        _token = _fut.result(timeout=5)
-                    except _TE:
-                        progress_label.value = "REST: token timed out — falling back to SynapseML…"
-                        return None
-                _headers = {
-                    "Authorization": f"Bearer {_token}",
-                    "Content-Type": "application/json; charset=UTF-8",
-                }
-                all_trans = []
-                for i in range(0, len(names), 100):  # API limit: 100 texts per request
-                    batch = [{"text": n} for n in names[i:i + 100]]
-                    progress_label.value = f"REST: translating {i}–{min(i+100, len(names))} / {len(names)}…"
-                    resp = _req.post(
-                        f"https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={target_lang}",
-                        headers=_headers, json=batch, timeout=15,
-                    )
-                    if resp.status_code != 200:
-                        progress_label.value = f"REST failed: HTTP {resp.status_code} — {resp.text[:200]}"
-                        return None
-                    for item in resp.json():
-                        ts = item.get("translations", [])
-                        all_trans.append(ts[0]["text"] if ts else None)
-                return all_trans
-            except Exception as _e:
-                progress_label.value = f"REST failed: {str(_e)[:200]}"
-                return None
-
         def _translate_bg():
             try:
+                from synapse.ml.services import Translate
+                from pyspark.sql.types import StructType, StructField, StringType
+                from pyspark.sql.functions import flatten, col
+                from sempy_labs._helper_functions import _create_spark_session
+
                 total = 0
                 lang_count = len(_languages)
                 translated_langs = 0
-                _rest_ok = True  # Try REST first, fall back to Spark if it fails
 
-                # Spark/SynapseML state (lazy init)
-                _spark = None
-                _spark_inited = False
+                progress_label.value = "Initializing SynapseML Translator…"
+                spark = _create_spark_session()
+                schema = StructType([StructField("text", StringType(), True)])
+                _first_call = True
 
                 for lang_idx, lang in enumerate(_languages):
                     target_lang = lang.split("-")[0].lower()
@@ -541,39 +509,8 @@ def _translations_tab(workspace_input=None, report_input=None):
                     auto_translate_btn.description = f"{lang} ({lang_idx+1}/{lang_count})"
                     lang_translated = 0
 
-                    # --- Fast path: REST API (no Spark, ~1-2 seconds) ---
-                    if _rest_ok:
-                        progress_label.value = f"{lang}: translating {len(to_translate)} names…"
-                        rest_results = _translate_via_rest(to_translate, target_lang)
-                        if rest_results is not None:
-                            for key, trans in zip(keys_to_update, rest_results):
-                                if trans:
-                                    _trans_data[key][lang] = trans
-                                    total += 1
-                                    lang_translated += 1
-                                    progress_bar.value = total
-                            translated_langs += 1
-                            progress_label.value = f"✓ {lang}: {lang_translated} translated ({translated_langs}/{lang_count})"
-                            _render_grid()
-                            continue
-                        else:
-                            _rest_ok = False  # REST failed, use Spark for all remaining
-
-                    # --- Slow path: Spark/SynapseML fallback ---
-                    if not _spark_inited:
-                        from synapse.ml.services import Translate
-                        from pyspark.sql.types import StructType, StructField, StringType
-                        from pyspark.sql.functions import flatten, col
-                        from sempy_labs._helper_functions import _create_spark_session
-
-                        progress_label.value = "REST unavailable — starting SynapseML (first call ~2-5 min)…"
-                        _spark = _create_spark_session()
-                        _schema = StructType([StructField("text", StringType(), True)])
-                        _spark_inited = True
-                        _first_spark_call = True
-
-                    if _first_spark_call:
-                        progress_label.value = f"{lang}: calling SynapseML Translator (first call ~2-5 min)…"
+                    if _first_call:
+                        progress_label.value = f"{lang}: first call may take ~2-5 min (SynapseML cold start)…"
 
                     translate = (
                         Translate()
@@ -589,10 +526,10 @@ def _translations_tab(workspace_input=None, report_input=None):
                         chunk_names = to_translate[chunk_start:chunk_end]
                         chunk_keys = keys_to_update[chunk_start:chunk_end]
 
-                        if not _first_spark_call:
+                        if not _first_call:
                             progress_label.value = f"{lang}: {chunk_start}/{len(to_translate)}…"
 
-                        df_names = _spark.createDataFrame([(n,) for n in chunk_names], _schema)
+                        df_names = spark.createDataFrame([(n,) for n in chunk_names], schema)
                         df_result = (
                             translate.transform(df_names)
                             .withColumn("translation", flatten(col("translation.translations")))
@@ -601,7 +538,7 @@ def _translations_tab(workspace_input=None, report_input=None):
                         )
 
                         results = df_result.collect()
-                        _first_spark_call = False
+                        _first_call = False
                         for row, key in zip(results, chunk_keys):
                             translated_list = row["translation"]
                             if translated_list and len(translated_list) > 0:
@@ -618,8 +555,7 @@ def _translations_tab(workspace_input=None, report_input=None):
 
                 _render_preview()
                 progress_label.value = f"✓ {total} translated"
-                method = "REST API" if _rest_ok else "SynapseML"
-                set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via {method}.", "#34c759")
+                set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via SynapseML.", "#34c759")
             except ImportError as ie:
                 progress_label.value = f"❌ {ie}"
                 set_status(conn_status, "SynapseML not available. Run in a Fabric Notebook.", "#ff3b30")
