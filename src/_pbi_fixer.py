@@ -253,26 +253,22 @@ def _translations_tab(workspace_input=None, report_input=None):
     load_btn = widgets.Button(description="Load Translations", button_style="primary", layout=widgets.Layout(width="150px"))
     lang_dropdown = widgets.Dropdown(options=_LANG_OPTIONS, value="de-DE", layout=widgets.Layout(width="100px"))
     add_lang_btn = widgets.Button(description="+ Add Language", layout=widgets.Layout(width="120px"))
-    auto_translate_btn = widgets.Button(description="🌐 Auto-Translate", button_style="info", layout=widgets.Layout(width="150px"))
+    # Auto-translate disabled — SynapseML cold start takes too long; manual edit instead
+    # auto_translate_btn = widgets.Button(description="🌐 Auto-Translate", button_style="info", layout=widgets.Layout(width="150px"))
     apply_btn = widgets.Button(description="✓ Apply Changes", button_style="success", layout=widgets.Layout(width="140px"), disabled=True)
     conn_status = status_html()
-    progress_bar = widgets.IntProgress(
-        value=0, min=0, max=1, bar_style="info",
-        layout=widgets.Layout(width="200px", display="none"),
-    )
-    progress_label = widgets.Label(value="", layout=widgets.Layout(display="none"))
 
     nav_row = widgets.HBox(
-        [load_btn, lang_dropdown, add_lang_btn, auto_translate_btn, apply_btn, conn_status, progress_bar, progress_label],
+        [load_btn, lang_dropdown, add_lang_btn, apply_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0", flex_wrap="wrap"),
     )
 
-    # Grid container — holds the translations table as HTML + editable widgets
-    grid_html = widgets.HTML(
+    # Grid container — holds the translations table as widget rows with editable Text inputs
+    grid_placeholder = widgets.HTML(
         value=f'<div style="padding:20px; color:{GRAY_COLOR}; font-size:14px; font-family:{FONT_FAMILY}; text-align:center; font-style:italic;">Click Load Translations to view/edit model translations.</div>',
     )
     grid_container = widgets.VBox(
-        [grid_html],
+        [grid_placeholder],
         layout=widgets.Layout(
             max_height="500px", overflow_y="auto", overflow_x="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
@@ -295,40 +291,61 @@ def _translations_tab(workspace_input=None, report_input=None):
     def _obj_key(obj_type, table_name, obj_name):
         return f"{obj_type}:{table_name}:{obj_name}"
 
+    _text_widgets = {}  # {(obj_key, lang): Text widget}
+
     def _render_grid():
-        """Render translations as an HTML table."""
+        """Render translations as widget rows with editable Text inputs for each language."""
+        _text_widgets.clear()
         if not _objects:
-            grid_html.value = f'<div style="color:{GRAY_COLOR};">No objects loaded.</div>'
+            grid_container.children = [widgets.HTML(f'<div style="color:{GRAY_COLOR};">No objects loaded.</div>')]
             return
         langs = _languages
-        html = '<table style="border-collapse:collapse; width:100%; font-size:11px; font-family:monospace;">'
-        html += '<tr style="background:#f5f5f5; position:sticky; top:0; z-index:1;">'
-        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Type</th>'
-        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Table</th>'
-        html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR};">Object Name</th>'
-        for lang in langs:
-            html += f'<th style="padding:4px 6px; text-align:left; border-bottom:2px solid {BORDER_COLOR}; color:{ICON_ACCENT};">{lang}</th>'
-        html += '</tr>'
+        col_w_type = "40px"
+        col_w_table = "160px"
+        col_w_name = "180px"
+        col_w_lang = "160px"
 
+        header_style = f"font-size:11px; font-weight:700; font-family:monospace; padding:4px 6px; border-bottom:2px solid {BORDER_COLOR};"
+        # Header row
+        header_items = [
+            widgets.HTML(f'<div style="{header_style} width:{col_w_type};">Type</div>'),
+            widgets.HTML(f'<div style="{header_style} width:{col_w_table};">Table</div>'),
+            widgets.HTML(f'<div style="{header_style} width:{col_w_name};">Object Name</div>'),
+        ]
+        for lang in langs:
+            header_items.append(widgets.HTML(f'<div style="{header_style} width:{col_w_lang}; color:{ICON_ACCENT};">{lang}</div>'))
+        header_row = widgets.HBox(header_items, layout=widgets.Layout(gap="0px"))
+
+        rows = [header_row]
+        cell_style = "font-size:11px; font-family:monospace; padding:3px 6px; border-bottom:1px solid #f0f0f0;"
         for obj_type, table_name, obj_name, _ in _objects:
             key = _obj_key(obj_type, table_name, obj_name)
             trans = _trans_data.get(key, {})
-            orig = _original.get(key, {})
-            html += '<tr>'
             type_icon = "📊" if obj_type == "Table" else "🔢" if obj_type == "Column" else "Σ" if obj_type == "Measure" else "📁"
-            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; color:#888;">{type_icon}</td>'
-            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0;">{table_name}</td>'
-            html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; font-weight:600;">{obj_name}</td>'
+            row_items = [
+                widgets.HTML(f'<div style="{cell_style} width:{col_w_type}; color:#888;">{type_icon}</div>'),
+                widgets.HTML(f'<div style="{cell_style} width:{col_w_table};">{table_name}</div>'),
+                widgets.HTML(f'<div style="{cell_style} width:{col_w_name}; font-weight:600;">{obj_name}</div>'),
+            ]
             for lang in langs:
                 val = trans.get(lang, "")
-                orig_val = orig.get(lang, "")
-                is_changed = val != orig_val
-                bg = "#fff3cd" if is_changed else ""
-                style = f'background:{bg};' if bg else ""
-                html += f'<td style="padding:3px 6px; border-bottom:1px solid #f0f0f0; {style}">{val or "<span style=&quot;color:#ccc;&quot;>—</span>"}</td>'
-            html += '</tr>'
-        html += '</table>'
-        grid_html.value = html
+                txt = widgets.Text(
+                    value=val,
+                    placeholder=obj_name,
+                    layout=widgets.Layout(width=col_w_lang, height="26px"),
+                )
+                txt._trans_key = key
+                txt._trans_lang = lang
+
+                def _on_edit(change, _key=key, _lang=lang):
+                    _trans_data[_key][_lang] = change["new"]
+                    _render_preview()
+
+                txt.observe(_on_edit, names="value")
+                _text_widgets[(key, lang)] = txt
+                row_items.append(txt)
+            rows.append(widgets.HBox(row_items, layout=widgets.Layout(gap="0px", align_items="center")))
+        grid_container.children = rows
 
     def _render_preview():
         """Show pending changes as a diff."""
@@ -447,132 +464,12 @@ def _translations_tab(workspace_input=None, report_input=None):
             _original.setdefault(key, {})[lang] = ""
         _render_grid()
         _render_preview()
-        set_status(conn_status, f"Added '{lang}'. Use Auto-Translate to fill.", "#34c759")
+        set_status(conn_status, f"Added '{lang}'. Edit cells directly to fill translations.", "#34c759")
 
-    def on_auto_translate(_):
-        if not _languages or not _objects:
-            set_status(conn_status, "Load translations first.", "#ff3b30")
-            return
-        auto_translate_btn.disabled = True
-        auto_translate_btn.description = "Translating…"
-
-        # Count total names to translate across all languages
-        total_names = 0
-        for lang in _languages:
-            target_lang = lang.split("-")[0].lower()
-            if target_lang == "en":
-                continue
-            for obj_type, table_name, obj_name, _ in _objects:
-                key = _obj_key(obj_type, table_name, obj_name)
-                if not _trans_data[key].get(lang):
-                    total_names += 1
-        progress_bar.value = 0
-        progress_bar.max = max(total_names, 1)
-        progress_bar.layout.display = ""
-        progress_label.value = f"0 / {total_names}"
-        progress_label.layout.display = ""
-
-        def _translate_bg():
-            try:
-                from synapse.ml.services import Translate
-                from pyspark.sql.types import StructType, StructField, StringType
-                from pyspark.sql.functions import flatten, col
-                from sempy_labs._helper_functions import _create_spark_session
-
-                total = 0
-                lang_count = len(_languages)
-                translated_langs = 0
-
-                progress_label.value = "Initializing SynapseML Translator…"
-                spark = _create_spark_session()
-                schema = StructType([StructField("text", StringType(), True)])
-                _first_call = True
-
-                for lang_idx, lang in enumerate(_languages):
-                    target_lang = lang.split("-")[0].lower()
-                    if target_lang == "en":
-                        translated_langs += 1
-                        continue
-
-                    to_translate = []
-                    keys_to_update = []
-                    for obj_type, table_name, obj_name, _ in _objects:
-                        key = _obj_key(obj_type, table_name, obj_name)
-                        if not _trans_data[key].get(lang):
-                            to_translate.append(obj_name)
-                            keys_to_update.append(key)
-
-                    if not to_translate:
-                        translated_langs += 1
-                        continue
-
-                    auto_translate_btn.description = f"{lang} ({lang_idx+1}/{lang_count})"
-                    lang_translated = 0
-
-                    if _first_call:
-                        progress_label.value = f"{lang}: first call may take ~2-5 min (SynapseML cold start)…"
-
-                    translate = (
-                        Translate()
-                        .setTextCol("text")
-                        .setToLanguage(target_lang)
-                        .setOutputCol("translation")
-                        .setConcurrency(5)
-                    )
-
-                    _CHUNK_SIZE = 1000
-                    for chunk_start in range(0, len(to_translate), _CHUNK_SIZE):
-                        chunk_end = min(chunk_start + _CHUNK_SIZE, len(to_translate))
-                        chunk_names = to_translate[chunk_start:chunk_end]
-                        chunk_keys = keys_to_update[chunk_start:chunk_end]
-
-                        if not _first_call:
-                            progress_label.value = f"{lang}: {chunk_start}/{len(to_translate)}…"
-
-                        df_names = spark.createDataFrame([(n,) for n in chunk_names], schema)
-                        df_result = (
-                            translate.transform(df_names)
-                            .withColumn("translation", flatten(col("translation.translations")))
-                            .withColumn("translation", col("translation.text"))
-                            .select("text", "translation")
-                        )
-
-                        results = df_result.collect()
-                        _first_call = False
-                        for row, key in zip(results, chunk_keys):
-                            translated_list = row["translation"]
-                            if translated_list and len(translated_list) > 0:
-                                _trans_data[key][lang] = str(translated_list[0])
-                                total += 1
-                                lang_translated += 1
-                                progress_bar.value = total
-
-                        progress_label.value = f"{lang}: {chunk_end}/{len(to_translate)} translated"
-
-                    translated_langs += 1
-                    progress_label.value = f"✓ {lang}: {lang_translated} translated ({translated_langs}/{lang_count})"
-                    _render_grid()
-
-                _render_preview()
-                progress_label.value = f"✓ {total} translated"
-                set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via SynapseML.", "#34c759")
-            except ImportError as ie:
-                progress_label.value = f"❌ {ie}"
-                set_status(conn_status, "SynapseML not available. Run in a Fabric Notebook.", "#ff3b30")
-            except Exception as e:
-                import traceback as _tb
-                err_detail = _tb.format_exc()
-                short_err = str(e)[:300]
-                progress_label.value = f"❌ {short_err}"
-                set_status(conn_status, f"Error: {short_err}", "#ff3b30")
-                # Also print full traceback to notebook output for debugging
-                print(f"Translation error:\n{err_detail}")
-            finally:
-                auto_translate_btn.disabled = False
-                auto_translate_btn.description = "🌐 Auto-Translate"
-
-        import threading
-        threading.Thread(target=_translate_bg, daemon=True).start()
+    # Auto-translate commented out — SynapseML cold start is too slow (~5-10 min).
+    # Manual editing via Text widgets instead.
+    # def on_auto_translate(_):
+    #     ...
 
     def on_apply(_):
         ds = _ds_name[0]
@@ -640,7 +537,7 @@ def _translations_tab(workspace_input=None, report_input=None):
 
     load_btn.on_click(on_load)
     add_lang_btn.on_click(on_add_lang)
-    auto_translate_btn.on_click(on_auto_translate)
+    # auto_translate_btn.on_click(on_auto_translate)
     apply_btn.on_click(on_apply)
 
     widget = widgets.VBox(
