@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.270"
+__version__ = "1.2.271"
 
 import ipywidgets as widgets
 import io
@@ -2927,6 +2927,7 @@ def pbi_fixer(
             # 3) Model BPA
             step += 1
             set_status(_fa_status, f"{item_label} \u2014 Model BPA ({step}/{total_steps})", gray_color)
+            try:
                 from sempy_labs._fix_model_bpa import _RULE_TO_FIXER as _mbpa_map
                 _ipd.display = lambda *a, **kw: None
                 try:
