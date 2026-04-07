@@ -528,6 +528,96 @@ a:hover { text-decoration: underline; }
 }
 .highlight-disclaimer p { margin: 0; }
 
+/* ── Standalone API Section ── */
+.api-notice {
+  padding: 1rem 1.5rem;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #1e40af;
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+.api-notice p { margin: 0; }
+.api-notice code {
+  background: rgba(37, 99, 235, 0.1);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-family: var(--code-font);
+  font-size: 0.85em;
+}
+.api-table code {
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  color: var(--accent-dark);
+  white-space: nowrap;
+}
+
+/* ── AI & CLI Section ── */
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+.ai-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.8rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.ai-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+.ai-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.8rem;
+}
+.ai-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.ai-card p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.ai-card code {
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  background: rgba(247, 148, 29, 0.1);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+.ai-vision {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, var(--accent-light), #ede9fe);
+  border-radius: 12px;
+}
+.ai-vision h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.8rem;
+}
+.ai-vision p {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  max-width: 750px;
+  margin: 0 auto;
+  line-height: 1.65;
+}
+.ai-vision code {
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  background: rgba(247, 148, 29, 0.15);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .hero h1 { font-size: 2rem; }
@@ -554,4 +644,5 @@ a:hover { text-decoration: underline; }
   .section-header h2 { font-size: 1.7rem; }
   .highlights-grid { grid-template-columns: 1fr; }
   .highlight-card--hero { grid-column: span 1; }
+  .ai-grid { grid-template-columns: 1fr; }
 }

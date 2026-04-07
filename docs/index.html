@@ -26,8 +26,9 @@
       <li><a href="#features">Features</a></li>
       <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#fixers">All Fixers</a></li>
+      <li><a href="#api">Standalone API</a></li>
+      <li><a href="#ai">AI &amp; CLI</a></li>
       <li><a href="#comparison">v1 vs v2</a></li>
-      <li><a href="#videos">Videos</a></li>
       <li><a href="#quickstart">Quick Start</a></li>
       <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
     </ul>
@@ -560,6 +561,188 @@
         <tr><td>19</td><td>Capitalize Object Names</td><td>🏷 Naming</td><td>Capitalize first letter</td></tr>
       </tbody>
     </table>
+  </div>
+</section>
+
+<!-- ═══════════════ Standalone API ═══════════════ -->
+<section class="section" id="api">
+  <div class="container">
+    <div class="section-header">
+      <h2>Use the Fixers Without the UI</h2>
+      <p>Every fixer is a standalone Python function. Call them directly in your own notebooks, scripts, or pipelines — no UI required.</p>
+    </div>
+
+    <div class="api-notice">
+      <p>⏳ <strong>Heads up:</strong> Direct <code>sempy_labs</code> imports for the fixer functions are not yet available in the public API. This is currently pending development and will be released soon. See <a href="#quickstart">Quick Start</a> below for how to install and test today via the PBI Fixer UI.</p>
+    </div>
+
+    <h3 style="margin-bottom:1.5rem;">Example: Replace All Pie Charts</h3>
+    <div class="hero-code" style="display:block;margin-bottom:2rem;">
+      <span class="cm"># Import the fixer function</span><br/>
+      <span class="kw">from</span> sempy_labs.report._Fix_PieChart <span class="kw">import</span> fix_piecharts<br/><br/>
+      <span class="cm"># Scan first — see what would change without touching anything</span><br/>
+      fix_piecharts(<span class="str">"My Report"</span>, workspace=<span class="str">"My Workspace"</span>, scan_only=<span class="kw">True</span>)<br/><br/>
+      <span class="cm"># Apply — replace all pie charts with horizontal bar charts</span><br/>
+      fix_piecharts(<span class="str">"My Report"</span>, workspace=<span class="str">"My Workspace"</span>)
+    </div>
+
+    <h3 style="margin-bottom:1.5rem;">Example: Fix IBCS Variance (End to End)</h3>
+    <div class="hero-code" style="display:block;margin-bottom:2rem;">
+      <span class="kw">from</span> sempy_labs.report._Fix_IBCSVariance <span class="kw">import</span> fix_ibcs_variance<br/><br/>
+      <span class="cm"># Creates calendar table + relationship + PY measures + error bars + IBCS formatting</span><br/>
+      fix_ibcs_variance(<span class="str">"Sales Report"</span>, workspace=<span class="str">"My Workspace"</span>)
+    </div>
+
+    <h3 style="margin-bottom:1.5rem;">Example: Run All Model BPA Fixes</h3>
+    <div class="hero-code" style="display:block;margin-bottom:2rem;">
+      <span class="kw">from</span> sempy_labs.semantic_model._Fix_HideForeignKeys <span class="kw">import</span> fix_hide_foreign_keys<br/>
+      <span class="kw">from</span> sempy_labs.semantic_model._Fix_FloatingPointDataType <span class="kw">import</span> fix_floating_point_datatype<br/>
+      <span class="kw">from</span> sempy_labs.semantic_model._Fix_DoNotSummarize <span class="kw">import</span> fix_do_not_summarize<br/><br/>
+      <span class="cm"># Chain multiple fixes on the same model</span><br/>
+      fix_hide_foreign_keys(<span class="str">"My Model"</span>, workspace=<span class="str">"My Workspace"</span>)<br/>
+      fix_floating_point_datatype(<span class="str">"My Model"</span>, workspace=<span class="str">"My Workspace"</span>)<br/>
+      fix_do_not_summarize(<span class="str">"My Model"</span>, workspace=<span class="str">"My Workspace"</span>)
+    </div>
+
+    <h3 style="margin-bottom:1.5rem;">Example: Batch Fix Multiple Reports</h3>
+    <div class="hero-code" style="display:block;margin-bottom:2rem;">
+      <span class="kw">from</span> sempy_labs.report._Fix_PieChart <span class="kw">import</span> fix_piecharts<br/>
+      <span class="kw">from</span> sempy_labs.report._Fix_Charts <span class="kw">import</span> fix_barcharts, fix_columncharts<br/>
+      <span class="kw">from</span> sempy_labs.report._Fix_PageSize <span class="kw">import</span> fix_page_size<br/><br/>
+      reports = [<span class="str">"Sales Dashboard"</span>, <span class="str">"Finance Report"</span>, <span class="str">"HR Overview"</span>]<br/><br/>
+      <span class="kw">for</span> report <span class="kw">in</span> reports:<br/>
+      &nbsp;&nbsp;&nbsp;&nbsp;fix_piecharts(report, workspace=<span class="str">"Production"</span>)<br/>
+      &nbsp;&nbsp;&nbsp;&nbsp;fix_barcharts(report, workspace=<span class="str">"Production"</span>)<br/>
+      &nbsp;&nbsp;&nbsp;&nbsp;fix_columncharts(report, workspace=<span class="str">"Production"</span>)<br/>
+      &nbsp;&nbsp;&nbsp;&nbsp;fix_page_size(report, workspace=<span class="str">"Production"</span>)
+    </div>
+
+    <h3 style="margin-bottom:1rem;">Complete Function Reference</h3>
+    <p style="color:#666;margin-bottom:1.5rem;">Every function accepts <code>scan_only=True</code> to preview changes without applying them.</p>
+
+    <h4 style="margin-bottom:0.8rem;">Report Fixers <span class="category-badge cat-report">17 functions</span></h4>
+    <table class="fixer-table api-table">
+      <thead><tr><th>Function</th><th>Module</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td><code>fix_piecharts()</code></td><td>report._Fix_PieChart</td><td>Replace pie charts with bar charts</td></tr>
+        <tr><td><code>fix_charts()</code></td><td>report._Fix_Charts</td><td>Unified formatting across all chart types</td></tr>
+        <tr><td><code>fix_barcharts()</code></td><td>report._Fix_Charts</td><td>Clean up bar chart formatting</td></tr>
+        <tr><td><code>fix_columncharts()</code></td><td>report._Fix_Charts</td><td>Clean up column chart formatting</td></tr>
+        <tr><td><code>fix_linecharts()</code></td><td>report._Fix_Charts</td><td>Clean up line chart formatting</td></tr>
+        <tr><td><code>fix_column_to_bar()</code></td><td>report._Fix_Charts</td><td>Column → horizontal bar (IBCS orientation)</td></tr>
+        <tr><td><code>fix_bar_to_column()</code></td><td>report._Fix_Charts</td><td>Bar → vertical column</td></tr>
+        <tr><td><code>fix_column_to_line()</code></td><td>report._Fix_ColumnToLine</td><td>Column → line chart</td></tr>
+        <tr><td><code>fix_ibcs_variance()</code></td><td>report._Fix_IBCSVariance</td><td>Full IBCS variance (calendar + PY + error bars)</td></tr>
+        <tr><td><code>fix_page_size()</code></td><td>report._Fix_PageSize</td><td>Default → Full HD (1920×1080)</td></tr>
+        <tr><td><code>fix_hide_visual_filters()</code></td><td>report._Fix_HideVisualFilters</td><td>Hide visual-level filter panes</td></tr>
+        <tr><td><code>fix_visual_alignment()</code></td><td>report._Fix_VisualAlignment</td><td>Snap misaligned visuals to grid</td></tr>
+        <tr><td><code>fix_disable_show_items_no_data()</code></td><td>report._Fix_DisableShowItemsNoData</td><td>Turn off "Show Items with No Data"</td></tr>
+        <tr><td><code>fix_remove_unused_custom_visuals()</code></td><td>report._Fix_RemoveUnusedCustomVisuals</td><td>Remove unreferenced custom visuals</td></tr>
+        <tr><td><code>fix_migrate_report_level_measures()</code></td><td>report._Fix_MigrateReportLevelMeasures</td><td>Move report measures to the model</td></tr>
+        <tr><td><code>fix_migrate_slicer_to_slicerbar()</code></td><td>report._Fix_MigrateSlicerToSlicerbar</td><td>Convert slicers to slicer bar</td></tr>
+        <tr><td><code>fix_upgrade_to_pbir()</code></td><td>report._Fix_UpgradeToPbir</td><td>PBIRLegacy → PBIR conversion</td></tr>
+      </tbody>
+    </table>
+
+    <h4 style="margin-bottom:0.8rem;">Semantic Model Fixers <span class="category-badge cat-model">11 functions</span></h4>
+    <table class="fixer-table api-table">
+      <thead><tr><th>Function</th><th>Module</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td><code>fix_discourage_implicit_measures()</code></td><td>semantic_model._Fix_DiscourageImplicitMeasures</td><td>Discourage implicit measures</td></tr>
+        <tr><td><code>add_calculated_calendar()</code></td><td>semantic_model._Add_CalculatedTable_Calendar</td><td>Calendar table + hierarchies</td></tr>
+        <tr><td><code>add_measure_table()</code></td><td>semantic_model._Add_CalculatedTable_MeasureTable</td><td>Empty measure table</td></tr>
+        <tr><td><code>add_last_refresh_table()</code></td><td>semantic_model._Add_Table_LastRefresh</td><td>Last refresh timestamp table</td></tr>
+        <tr><td><code>add_calc_group_units()</code></td><td>semantic_model._Add_CalcGroup_Units</td><td>K / M calculation items</td></tr>
+        <tr><td><code>add_calc_group_time_intelligence()</code></td><td>semantic_model._Add_CalcGroup_TimeIntelligence</td><td>AC / Y-1 / YTD / variance items</td></tr>
+        <tr><td><code>add_measures_from_columns()</code></td><td>semantic_model._Add_MeasuresFromColumns</td><td>Explicit measures from SummarizeBy</td></tr>
+        <tr><td><code>add_py_measures()</code></td><td>semantic_model._Add_PYMeasures</td><td>PY + ΔPY + ΔPY% for measures</td></tr>
+        <tr><td><code>setup_incremental_refresh()</code></td><td>semantic_model._Setup_IncrementalRefresh</td><td>Date detection + policy config</td></tr>
+        <tr><td><code>setup_cache_warming()</code></td><td>semantic_model._Setup_CacheWarming</td><td>Direct Lake warm-up perspective</td></tr>
+        <tr><td><code>prep_for_ai()</code></td><td>semantic_model._Prep_ForAI</td><td>Descriptions + synonyms for Copilot</td></tr>
+      </tbody>
+    </table>
+
+    <h4 style="margin-bottom:0.8rem;">Model BPA Auto-Fixers <span class="category-badge cat-bpa">19 functions</span></h4>
+    <table class="fixer-table api-table">
+      <thead><tr><th>Function</th><th>Module</th><th>Category</th></tr></thead>
+      <tbody>
+        <tr><td><code>fix_floating_point_datatype()</code></td><td>semantic_model._Fix_FloatingPointDataType</td><td>🔢 Data Types</td></tr>
+        <tr><td><code>fix_isavailable_in_mdx()</code></td><td>semantic_model._Fix_IsAvailableInMdx</td><td>📡 MDX</td></tr>
+        <tr><td><code>fix_isavailable_in_mdx_true()</code></td><td>semantic_model._Fix_IsAvailableInMdxTrue</td><td>📡 MDX</td></tr>
+        <tr><td><code>fix_measure_descriptions()</code></td><td>semantic_model._Fix_MeasureDescriptions</td><td>📝 Documentation</td></tr>
+        <tr><td><code>fix_date_column_format()</code></td><td>semantic_model._Fix_DateColumnFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_month_column_format()</code></td><td>semantic_model._Fix_MonthColumnFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_measure_format()</code></td><td>semantic_model._Fix_MeasureFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_percentage_format()</code></td><td>semantic_model._Fix_PercentageFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_whole_number_format()</code></td><td>semantic_model._Fix_WholeNumberFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_flag_column_format()</code></td><td>semantic_model._Fix_FlagColumnFormat</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_sort_month_column()</code></td><td>semantic_model._Fix_SortMonthColumn</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_data_category()</code></td><td>semantic_model._Fix_DataCategory</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_use_divide_function()</code></td><td>semantic_model._Fix_UseDivideFunction</td><td>📊 Formatting</td></tr>
+        <tr><td><code>fix_hide_foreign_keys()</code></td><td>semantic_model._Fix_HideForeignKeys</td><td>🔗 Schema</td></tr>
+        <tr><td><code>fix_do_not_summarize()</code></td><td>semantic_model._Fix_DoNotSummarize</td><td>🔗 Schema</td></tr>
+        <tr><td><code>fix_mark_primary_keys()</code></td><td>semantic_model._Fix_MarkPrimaryKeys</td><td>🔗 Schema</td></tr>
+        <tr><td><code>fix_capitalize_object_names()</code></td><td>semantic_model._Fix_CapitalizeObjectNames</td><td>🏷 Naming</td></tr>
+        <tr><td><code>fix_trim_object_names()</code></td><td>semantic_model._Fix_TrimObjectNames</td><td>🏷 Naming</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ AI & CLI Integration ═══════════════ -->
+<section class="section section-alt" id="ai">
+  <div class="container">
+    <div class="section-header">
+      <h2>Built for Humans. Ready for AI.</h2>
+      <p>Every fixer is a single function call with a predictable signature. That makes them ideal building blocks for AI agents, CLI tools, and automated pipelines.</p>
+    </div>
+
+    <div class="ai-grid">
+
+      <div class="ai-card">
+        <div class="ai-card-icon">🤖</div>
+        <h3>AI Agents Can Call Fixers Directly</h3>
+        <p>Imagine telling an AI agent: <em>"Fix all pie charts and apply IBCS variance to my Sales report."</em> Because each fixer is a clean Python function with self-documenting parameters, an LLM can generate the right call without custom tooling.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-top:1rem;">
+          <span class="cm"># An AI agent could generate this from a natural language prompt:</span><br/>
+          fix_piecharts(<span class="str">"Sales Dashboard"</span>, workspace=<span class="str">"Production"</span>)<br/>
+          fix_ibcs_variance(<span class="str">"Sales Dashboard"</span>, workspace=<span class="str">"Production"</span>)
+        </div>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-card-icon">⚡</div>
+        <h3>Fabric CLI &amp; MCP Integration</h3>
+        <p>Tools like the <a href="https://github.com/microsoft/MCAPS-IQ" target="_blank">Fabric CLI</a> or <strong>MCP servers</strong> could use these functions as skills. Chain a scan across 20 reports, identify issues, and auto-fix — all from a terminal or an AI-powered copilot session.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-top:1rem;">
+          <span class="cm"># Example: CI/CD pipeline quality gate</span><br/>
+          <span class="kw">for</span> report <span class="kw">in</span> get_workspace_reports(<span class="str">"Production"</span>):<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;issues = fix_piecharts(report, scan_only=<span class="kw">True</span>)<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;issues += fix_page_size(report, scan_only=<span class="kw">True</span>)<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> issues:<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print(<span class="str">f"⚠️ {report}: {len(issues)} issues found"</span>)
+        </div>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-card-icon">🔁</div>
+        <h3>scan_only — The Read-Only Safety Net</h3>
+        <p>Every function supports <code>scan_only=True</code>. This means AI agents can safely <strong>assess</strong> a report without changing anything — then present findings to a human for approval before applying fixes. Perfect for governed environments.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-card-icon">📦</div>
+        <h3>Composable &amp; Chainable</h3>
+        <p>Fixers are independent, stateless functions. Chain them, loop them, filter them. Build your own "Power BI quality scanner" in 20 lines of Python. Each function handles its own XMLA connection and PBIR parsing — no shared state, no side effects between calls.</p>
+      </div>
+
+    </div>
+
+    <div class="ai-vision">
+      <h3>The Vision</h3>
+      <p>Today, you click "Fix All" in the UI. Tomorrow, an AI agent runs <code>fix_piecharts()</code> + <code>fix_hide_foreign_keys()</code> + <code>fix_page_size()</code> as part of a deployment pipeline — and you review the diff before it goes live. The functions are the same. The caller changes.</p>
+    </div>
+
   </div>
 </section>
 
