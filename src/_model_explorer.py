@@ -1882,6 +1882,15 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 except Exception as e:
                     failed += 1
                     last_error = str(e)[:200]
+                finally:
+                    # Show captured output in scan_results_box
+                    output_text = buf.getvalue().strip()
+                    if output_text:
+                        from ipywidgets import HTML as _OHTML
+                        escaped = output_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        html_out = f'<pre style="font-size:12px;white-space:pre-wrap;margin:0;color:#e0e0e0;">{escaped}</pre>'
+                        scan_results_box.children = [_OHTML(html_out)]
+                        scan_results_box.layout.display = ""
             if failed == 0:
                 msg = f"\u2713 {action} complete on {succeeded} model(s)."
             else:
