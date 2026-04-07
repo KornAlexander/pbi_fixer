@@ -362,7 +362,7 @@ def _build_measures_with_folders(measures, table_key, base_indent, expanded, pen
                 marker = EXPANDED if is_exp else COLLAPSED
                 count = _count_under(ancestor)
                 label_name = parts[depth]
-                items.append((base_indent + depth, "folder", f"{marker} \U0001F4C1 {label_name}  [{count}]", folder_key))
+                items.append((base_indent + depth, "folder", f"{marker} {label_name}  [{count}]", folder_key))
 
         # Emit measures in this folder (only if deepest folder is expanded)
         deepest_key = f"folder:{table_key}:{folder_path.replace('/', chr(92))}"
@@ -432,7 +432,7 @@ def _build_columns_with_folders(columns, table_key, base_indent, expanded, pendi
                 marker = EXPANDED if is_exp else COLLAPSED
                 count = _count_under(ancestor)
                 label_name = parts[depth]
-                items.append((base_indent + depth, "folder", f"{marker} \U0001F4C1 {label_name}  [{count}]", folder_key))
+                items.append((base_indent + depth, "folder", f"{marker} {label_name}  [{count}]", folder_key))
 
         deepest_key = f"colfolder:{table_key}:{folder_path.replace('/', chr(92))}"
         all_expanded = True
