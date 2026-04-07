@@ -889,8 +889,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(width="100%", height="280px", font_family="monospace"),
     )
     _p4ai_info = widgets.HTML(value="")
+    _p4ai_qna_btn = widgets.Button(
+        description="⚡ Enable Q&A", button_style="danger",
+        layout=widgets.Layout(width="130px", min_width="130px", height="30px", min_height="30px", display="none"),
+    )
     _p4ai_container = widgets.VBox(
-        [_p4ai_label, _p4ai_btn_row, _p4ai_status, _p4ai_textarea, _p4ai_info],
+        [_p4ai_label, _p4ai_btn_row, _p4ai_status, _p4ai_textarea, _p4ai_info, _p4ai_qna_btn],
         layout=widgets.Layout(display="none", gap="4px"),
     )
     _p4ai_loaded_ds = [None]  # track which dataset was loaded
@@ -916,9 +920,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             qna = result.get("qna_enabled")
             info_parts = []
             if qna is False:
-                info_parts.append("⚠️ Q&A is disabled — enable it in Settings → Q&A")
+                info_parts.append("⚠️ Q&A is disabled")
+                _p4ai_qna_btn.layout.display = ""
             elif qna is True:
                 info_parts.append("✅ Q&A enabled")
+                _p4ai_qna_btn.layout.display = "none"
+            else:
+                _p4ai_qna_btn.layout.display = "none"
             if va_count:
                 info_parts.append(f"{va_count} verified answer(s)")
             if stale:
@@ -999,6 +1007,30 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _p4ai_gen_btn.description = "🪄 Generate"
 
     _p4ai_gen_btn.on_click(_on_p4ai_generate)
+
+    def _on_p4ai_enable_qna(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds = _p4ai_selected_model[0]
+        if not ds:
+            set_status(_p4ai_status, "No model selected in tree.", "#ff3b30")
+            return
+        _p4ai_qna_btn.disabled = True
+        _p4ai_qna_btn.description = "Enabling…"
+        set_status(_p4ai_status, "Enabling Q&A on model…", GRAY_COLOR)
+        try:
+            from sempy_labs.semantic_model._PrepForAI import enable_qna
+            enable_qna(dataset=ds, workspace=ws)
+            _p4ai_qna_btn.layout.display = "none"
+            set_status(_p4ai_status, "✅ Q&A enabled successfully", "#34c759")
+            # Update info line
+            _p4ai_info.value = _p4ai_info.value.replace("⚠️ Q&A is disabled", "✅ Q&A enabled")
+        except Exception as e:
+            set_status(_p4ai_status, f"Error enabling Q&A: {e}", "#ff3b30")
+        _p4ai_qna_btn.disabled = False
+        _p4ai_qna_btn.description = "⚡ Enable Q&A"
+
+    _p4ai_qna_btn.on_click(_on_p4ai_enable_qna)
 
     preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html, _p4ai_container], flex="1")
 
@@ -1401,6 +1433,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             if _p4ai_loaded_ds[0] != m_name:
                 _p4ai_textarea.value = ""
                 _p4ai_info.value = ""
+                _p4ai_qna_btn.layout.display = "none"
                 set_status(_p4ai_status, "", "transparent")
                 _p4ai_loaded_ds[0] = None
         else:

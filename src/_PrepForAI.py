@@ -66,6 +66,23 @@ def _get_dataset_info(workspace_id: str, item_id: str, token: str) -> dict:
     }
 
 
+def _enable_qna(workspace_id: str, item_id: str, token: str) -> None:
+    """Enable Q&A on a semantic model via the Power BI REST API."""
+    import requests
+
+    url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{item_id}"
+    response = requests.patch(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={"isQnAEnabled": True},
+        timeout=60,
+    )
+    response.raise_for_status()
+
+
 def _discover_cluster_uri(workspace_id: str, item_id: str, token: str) -> str:
     """Discover the semantic model home cluster from the Power BI dataset API."""
     info = _get_dataset_info(workspace_id, item_id, token)
@@ -143,6 +160,21 @@ def _submit_apply_change(
 
 
 # ── Public API ──────────────────────────────────────────────────────
+
+
+def enable_qna(
+    dataset: str | UUID,
+    workspace: Optional[str | UUID] = None,
+) -> None:
+    """Enable Q&A on a semantic model."""
+    workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
+    from sempy_labs._helper_functions import resolve_item_name_and_id
+
+    _, item_id = resolve_item_name_and_id(
+        item=dataset, type="SemanticModel", workspace=workspace_id
+    )
+    token = _get_pbi_token()
+    _enable_qna(workspace_id, str(item_id), token)
 
 
 def read_prep_for_ai(
