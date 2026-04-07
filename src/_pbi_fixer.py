@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.259"
+__version__ = "1.2.260"
 
 import ipywidgets as widgets
 import io
@@ -477,6 +477,7 @@ def _translations_tab(workspace_input=None, report_input=None):
             try:
                 import requests as _req
                 from notebookutils import mssparkutils as _mspu
+                progress_label.value = "REST: getting token…"
                 _token = _mspu.credentials.getToken("https://cognitiveservices.azure.com/")
                 _headers = {
                     "Authorization": f"Bearer {_token}",
@@ -485,17 +486,20 @@ def _translations_tab(workspace_input=None, report_input=None):
                 all_trans = []
                 for i in range(0, len(names), 100):  # API limit: 100 texts per request
                     batch = [{"text": n} for n in names[i:i + 100]]
+                    progress_label.value = f"REST: translating {i}–{min(i+100, len(names))} / {len(names)}…"
                     resp = _req.post(
                         f"https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={target_lang}",
-                        headers=_headers, json=batch, timeout=60,
+                        headers=_headers, json=batch, timeout=15,
                     )
                     if resp.status_code != 200:
+                        progress_label.value = f"REST failed: HTTP {resp.status_code} — {resp.text[:200]}"
                         return None
                     for item in resp.json():
                         ts = item.get("translations", [])
                         all_trans.append(ts[0]["text"] if ts else None)
                 return all_trans
-            except Exception:
+            except Exception as _e:
+                progress_label.value = f"REST failed: {str(_e)[:200]}"
                 return None
 
         def _translate_bg():
@@ -609,15 +613,20 @@ def _translations_tab(workspace_input=None, report_input=None):
                 progress_label.value = f"✓ {total} translated"
                 method = "REST API" if _rest_ok else "SynapseML"
                 set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via {method}.", "#34c759")
-            except ImportError:
+            except ImportError as ie:
+                progress_label.value = f"❌ {ie}"
                 set_status(conn_status, "SynapseML not available. Run in a Fabric Notebook.", "#ff3b30")
             except Exception as e:
-                set_status(conn_status, f"Error: {str(e)[:300]}", "#ff3b30")
+                import traceback as _tb
+                err_detail = _tb.format_exc()
+                short_err = str(e)[:300]
+                progress_label.value = f"❌ {short_err}"
+                set_status(conn_status, f"Error: {short_err}", "#ff3b30")
+                # Also print full traceback to notebook output for debugging
+                print(f"Translation error:\n{err_detail}")
             finally:
                 auto_translate_btn.disabled = False
                 auto_translate_btn.description = "🌐 Auto-Translate"
-                progress_bar.layout.display = "none"
-                progress_label.layout.display = "none"
 
         import threading
         threading.Thread(target=_translate_bg, daemon=True).start()
