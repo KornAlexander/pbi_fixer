@@ -48,7 +48,6 @@
     </p>
 
     <div class="hero-code">
-      <span class="cm"># In a Microsoft Fabric Notebook</span><br/>
       <span class="kw">from</span> sempy_labs <span class="kw">import</span> pbi_fixer<br/>
       pbi_fixer() &nbsp;<span class="cm"># That's it.</span>
     </div>
@@ -987,23 +986,19 @@
     catch(err) { target.scrollIntoView({ behavior: 'auto', block: 'start' }); }
   }
 
-  // Nav links → calculate actual offset, navigate parent to nearest grid anchor
-  var navLinks = document.querySelector('.nav-links');
-  if (navLinks) navLinks.addEventListener('click', function(e) {
+  // ALL anchor links (nav, buttons, beta banner) → navigate parent to grid anchor
+  document.addEventListener('click', function(e) {
     var link = e.target.closest('a[href^="#"]');
     if (!link) return;
     var hash = link.getAttribute('href');
-    if (!hash || hash === '#') return;
+    if (!hash || hash === '#') {
+      e.preventDefault();
+      try { window.top.location.href = parentBase; }
+      catch(err) { window.scrollTo(0, 0); }
+      return;
+    }
     e.preventDefault();
     scrollParentTo(hash);
-  });
-
-  // Logo → scroll parent to top
-  var logo = document.querySelector('.nav-logo');
-  if (logo) logo.addEventListener('click', function(e) {
-    e.preventDefault();
-    try { window.top.location.href = parentBase; }
-    catch(err) { window.scrollTo(0, 0); }
   });
 })();
 </script>
