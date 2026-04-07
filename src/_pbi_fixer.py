@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.274"
+__version__ = "1.2.275"
 
 import ipywidgets as widgets
 import io
@@ -2291,6 +2291,7 @@ def pbi_fixer(
     add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
     add_measures_from_columns = _lazy_import("sempy_labs.semantic_model._Add_MeasuresFromColumns", "add_measures_from_columns")
     add_py_measures = _lazy_import("sempy_labs.semantic_model._Add_PYMeasures", "add_py_measures")
+    scan_prep_for_ai = _lazy_import("sempy_labs.semantic_model._PrepForAI", "scan_prep_for_ai")
 
     # Inline fallbacks for MeasuresFromColumns and PYMeasures
     if add_measures_from_columns is None:
@@ -4351,6 +4352,13 @@ def pbi_fixer(
     if _bpa_fix_data_cat is not None:
         _model_fixer_cbs["  Fix Data Category"] = _sm_action(_bpa_fix_data_cat)
 
+    # ── AI ──
+    _model_fixer_cbs["── AI ──"] = _noop
+    if scan_prep_for_ai is not None:
+        _model_fixer_cbs["  Check Prep for AI"] = lambda **kw: scan_prep_for_ai(
+            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=True
+        )
+
     # ── CRUD: Create & Delete ──
     _model_fixer_cbs["── Create & Delete ──"] = _noop
 
@@ -4834,7 +4842,9 @@ def pbi_fixer(
             f'\u2022 <b>SynapseML</b> \u2014 Azure AI Translator for auto-translations<br>'
             f'\u2022 <b>DAX Formatter</b> by SQLBI \u2014 '
             f'<a href="https://www.daxformatter.com/" target="_blank" style="color:#FF9500;">daxformatter.com</a> '
-            f'(<a href="https://www.sqlbi.com/blog/marco/2014/02/24/how-to-pass-a-dax-query-to-dax-formatter/" target="_blank" style="color:#FF9500;">API docs</a>)'
+            f'(<a href="https://www.sqlbi.com/blog/marco/2014/02/24/how-to-pass-a-dax-query-to-dax-formatter/" target="_blank" style="color:#FF9500;">API docs</a>)<br>'
+            f'\u2022 <b>Prep for AI</b> API discovery by <b>Lukasz Obst</b> '
+            f'(<a href="https://github.com/lobst4r" target="_blank" style="color:#FF9500;">lobst4r</a>)'
             f'</div>'
             f'</div>'
             f'</div>'

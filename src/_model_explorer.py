@@ -870,7 +870,106 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     preview_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
     )
-    preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html], flex="1", min_height="450px")
+
+    # -- Prep for AI section (shown when model root is selected) --
+    _p4ai_label = widgets.HTML(
+        value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">🤖 Prep for AI</div>'
+    )
+    _p4ai_load_btn = widgets.Button(description="🔄 Load", layout=widgets.Layout(width="90px"))
+    _p4ai_save_btn = widgets.Button(description="💾 Save", button_style="success", layout=widgets.Layout(width="90px"))
+    _p4ai_append_cb = widgets.Checkbox(value=False, description="Append", indent=False, layout=widgets.Layout(width="90px"))
+    _p4ai_status = status_html()
+    _p4ai_btn_row = widgets.HBox(
+        [_p4ai_load_btn, _p4ai_save_btn, _p4ai_append_cb, _p4ai_status],
+        layout=widgets.Layout(gap="8px", align_items="center"),
+    )
+    _p4ai_textarea = widgets.Textarea(
+        value="", placeholder="Click 🔄 Load to fetch CustomInstructions from the semantic model.",
+        layout=widgets.Layout(width="100%", height="280px", font_family="monospace"),
+    )
+    _p4ai_info = widgets.HTML(value="")
+    _p4ai_container = widgets.VBox(
+        [_p4ai_label, _p4ai_btn_row, _p4ai_textarea, _p4ai_info],
+        layout=widgets.Layout(display="none"),
+    )
+    _p4ai_loaded_ds = [None]  # track which dataset was loaded
+
+    def _on_p4ai_load(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
+        if not items:
+            set_status(_p4ai_status, "No model specified.", "#ff3b30")
+            return
+        ds = items[0]
+        _p4ai_load_btn.disabled = True
+        _p4ai_load_btn.description = "Loading…"
+        set_status(_p4ai_status, "Reading Prep for AI…", GRAY_COLOR)
+        try:
+            from sempy_labs.semantic_model._PrepForAI import read_prep_for_ai
+            result = read_prep_for_ai(dataset=ds, workspace=ws)
+            _p4ai_textarea.value = result.get("custom_instructions", "")
+            va = result.get("verified_answers", [])
+            va_count = len(va) if isinstance(va, list) else 0
+            stale = result.get("is_stale", False)
+            info_parts = []
+            if va_count:
+                info_parts.append(f"{va_count} verified answer(s)")
+            if stale:
+                info_parts.append("⚠️ schema is stale")
+            _p4ai_info.value = (
+                f'<div style="font-size:11px; color:#888; font-family:{FONT_FAMILY}; margin-top:2px;">'
+                f'{" · ".join(info_parts) if info_parts else "No verified answers configured."}</div>'
+            )
+            _p4ai_loaded_ds[0] = ds
+            ci = result.get("custom_instructions", "")
+            char_count = len(ci) if ci else 0
+            set_status(_p4ai_status, f"Loaded ({char_count} chars)", "#34c759")
+        except Exception as e:
+            set_status(_p4ai_status, f"Error: {e}", "#ff3b30")
+        _p4ai_load_btn.disabled = False
+        _p4ai_load_btn.description = "🔄 Load"
+
+    def _on_p4ai_save(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds = _p4ai_loaded_ds[0]
+        if not ds:
+            set_status(_p4ai_status, "Load first before saving.", "#ff9500")
+            return
+        instructions = _p4ai_textarea.value.strip()
+        if not instructions and not _p4ai_append_cb.value:
+            set_status(_p4ai_status, "Instructions are empty. Write something first.", "#ff9500")
+            return
+        _p4ai_save_btn.disabled = True
+        _p4ai_save_btn.description = "Saving…"
+        set_status(_p4ai_status, "Saving Prep for AI…", GRAY_COLOR)
+        try:
+            from sempy_labs.semantic_model._PrepForAI import write_prep_for_ai
+            import io as _io
+            from contextlib import redirect_stdout as _redirect
+            buf = _io.StringIO()
+            with _redirect(buf):
+                write_prep_for_ai(
+                    dataset=ds, workspace=ws,
+                    instructions=instructions,
+                    append=_p4ai_append_cb.value,
+                )
+            output = buf.getvalue().strip()
+            if "successfully" in output.lower() or "green" in output.lower():
+                set_status(_p4ai_status, "✓ Saved", "#34c759")
+            else:
+                set_status(_p4ai_status, output[:80] if output else "✓ Saved", "#34c759")
+        except Exception as e:
+            set_status(_p4ai_status, f"Error: {e}", "#ff3b30")
+        _p4ai_save_btn.disabled = False
+        _p4ai_save_btn.description = "💾 Save"
+
+    _p4ai_load_btn.on_click(_on_p4ai_load)
+    _p4ai_save_btn.on_click(_on_p4ai_save)
+
+    preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html, _p4ai_container], flex="1", min_height="450px")
 
     # -- editable properties --
     props_label = widgets.HTML(
@@ -1156,6 +1255,11 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         prop_format_row.layout.display = ""
         prop_folder_row.layout.display = ""
         prop_summarize_row.layout.display = "none"
+        # Hide Prep for AI by default; show expression widgets
+        _p4ai_container.layout.display = "none"
+        preview_label.layout.display = ""
+        format_row.layout.display = ""
+        preview.layout.display = ""
         # Restore default labels (may have been changed for model root node)
         prop_format_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Format String</span>'
         prop_folder_row.children[0].value = f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">Display Folder</span>'
@@ -1254,6 +1358,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_display_folder.disabled = True
             prop_format_row.layout.display = ""
             prop_folder_row.layout.display = ""
+            # Show Prep for AI section; hide expression widgets
+            _p4ai_container.layout.display = ""
+            preview_label.layout.display = "none"
+            format_row.layout.display = "none"
+            preview.layout.display = "none"
+            table_preview_html.layout.display = "none"
+            table_row_dropdown.layout.display = "none"
         else:
             props_container.layout.display = "none"
             props_placeholder.layout.display = ""
