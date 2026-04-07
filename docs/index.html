@@ -958,20 +958,38 @@
 
 <script>
 // When embedded in a cross-origin iframe (e.g. WordPress.com), the iframe
-// has height:14000px + scrolling="no". The parent page scrolls. We only
-// need to disable smooth-scroll to prevent the stuck-viewport bug, and
-// reduce the hero top-padding since the sticky nav is less useful in iframe.
+// has height:22000px + scrolling="no". The parent page scrolls the iframe
+// into view. Anchor clicks inside the iframe must NOT cause internal
+// viewport scrolling — that desynchronizes the parent's scroll position.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // Disable smooth scroll — it causes viewport desync inside iframes
+  // Disable smooth scroll — prevents viewport desync
   document.documentElement.style.scrollBehavior = 'auto';
 
-  // Reduce hero top padding (sticky nav is less useful in iframe context)
+  // Reduce hero top padding (sticky nav is less useful in iframe)
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
+
+  // Prevent anchor clicks from scrolling inside the iframe.
+  // The parent page handles all scrolling — internal scroll breaks the view.
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a[href^="#"]');
+    if (!link) return;
+    e.preventDefault();
+    // Update the hash so the browser knows which section was targeted
+    var hash = link.getAttribute('href');
+    if (hash && hash !== '#') {
+      history.replaceState(null, '', hash);
+    }
+  });
+
+  // Prevent hash-based scroll on initial load
+  if (window.location.hash) {
+    window.scrollTo(0, 0);
+  }
 })();
 </script>
 
