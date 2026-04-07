@@ -2849,7 +2849,7 @@ def pbi_fixer(
     _fa_header = widgets.HTML(
         value=(
             f'<div style="font-size:12px; font-weight:600; color:{icon_accent}; font-family:{font_family}; '
-            f'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">\u26A1 Fix All \u2014 God Mode</div>'
+            f'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">\u26A1 Fix All</div>'
             f'<div style="font-size:11px; color:#888; font-family:{font_family}; font-style:italic; margin-bottom:4px;">'
             f'\u2139\ufe0f Scans all report fixers, model BPA fixers, Model BPA, and Report BPA across all items. '
             f'Deselect findings to exclude, then Fix Selected.</div>'
