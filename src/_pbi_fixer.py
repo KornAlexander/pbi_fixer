@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.303"
+__version__ = "1.2.304"
 
 import ipywidgets as widgets
 import io
@@ -245,7 +245,7 @@ def _translations_tab(workspace_input=None, report_input=None):
 
     # Common language codes
     _LANG_OPTIONS = [
-        "de-DE", "fr-FR", "es-ES", "it-IT", "pt-BR", "nl-NL", "pl-PL",
+        "en-US", "de-DE", "fr-FR", "es-ES", "it-IT", "pt-BR", "nl-NL", "pl-PL",
         "ja-JP", "zh-CN", "ko-KR", "ru-RU", "tr-TR", "ar-SA", "sv-SE",
         "da-DK", "nb-NO", "fi-FI", "cs-CZ", "hu-HU", "ro-RO",
     ]
