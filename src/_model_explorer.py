@@ -1601,11 +1601,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
         else:
             _table_preview_name[0] = None
-            preview.layout.display = ""
             table_preview_html.layout.display = "none"
             table_row_dropdown.layout.display = "none"
-            format_row.layout.display = ""
-            preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
+            if node_type != "model":
+                preview.layout.display = ""
+                format_row.layout.display = ""
+                preview_label.value = f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Expression</div>'
 
         # Enable copy ref button for measures and columns
         copy_ref_btn.disabled = key.split(":")[0] not in ("measure", "column")
