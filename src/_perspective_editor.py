@@ -399,6 +399,8 @@ def perspective_editor_tab(workspace_input=None, report_input=None):
             # Load first perspective if exists
             if _data["perspectives"]:
                 persp_dropdown.value = _data["perspectives"][0]
+                # Force-load in case the observer didn't fire (value unchanged)
+                _load_perspective(_data["perspectives"][0])
         except Exception as e:
             set_status(conn_status, f"Error: {e}", "#ff3b30")
         finally:
