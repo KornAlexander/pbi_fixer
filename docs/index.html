@@ -940,41 +940,46 @@
 </footer>
 
 <script>
-// Fix anchor scrolling when embedded in an iframe (e.g. WordPress)
-// Native anchor scroll moves the iframe's internal viewport which breaks
-// when scrolling="no" is set. Instead, scroll the parent window.
+// Fix anchor scrolling when embedded in a cross-origin iframe (WordPress).
+// The iframe has height:14000px + scrolling="no", so all content is laid out
+// in the parent's scroll context. CSS scroll-behavior:smooth on <html> causes
+// the iframe to internally scroll its own viewport, breaking parent scrolling.
+// Fix: prevent all internal scroll, neutralize anchor default behavior.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // Disable CSS smooth scroll inside iframe — we handle it manually
+  // Kill CSS smooth scroll — root cause of the stuck-scroll bug
   document.documentElement.style.scrollBehavior = 'auto';
 
+  // Prevent anchor clicks from scrolling inside the iframe.
+  // The content is already visible in the parent's scroll context.
   document.addEventListener('click', function(e) {
     var link = e.target.closest('a[href^="#"]');
     if (!link) return;
     var id = link.getAttribute('href').slice(1);
+    if (!id) return;
     var target = document.getElementById(id);
     if (!target) return;
     e.preventDefault();
-
-    // Get the iframe's position in the parent page
-    var iframeRect = window.frameElement ? window.frameElement.getBoundingClientRect() : null;
-    var targetY = target.getBoundingClientRect().top;
-
-    if (iframeRect && window.parent) {
-      // Scroll parent window: iframe top in parent + element offset inside iframe
-      var parentScrollY = window.parent.pageYOffset || window.parent.document.documentElement.scrollTop;
-      window.parent.scrollTo({
-        top: parentScrollY + iframeRect.top + targetY - 20,
-        behavior: 'smooth'
-      });
-    } else {
-      // Fallback: scroll within iframe
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Update hash without triggering scroll
+    history.replaceState(null, null, '#' + id);
+    // Navigate the parent page to the correct position.
+    // Since we can't access parent DOM (cross-origin), change parent location hash
+    // which forces the parent to scroll to the iframe, then the browser finds
+    // the named anchor. We use top.location if allowed, otherwise no-op.
+    try {
+      window.top.location.hash = '';
+    } catch(ex) {
+      // Cross-origin — can't control parent. Just prevent the internal scroll.
     }
   });
+
+  // Also prevent initial hash-based scroll on page load inside iframe
+  if (window.location.hash) {
+    window.scrollTo(0, 0);
+  }
 })();
 </script>
 
