@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.257"
+__version__ = "1.2.258"
 
 import ipywidgets as widgets
 import io
@@ -479,7 +479,7 @@ def _translations_tab(workspace_input=None, report_input=None):
                 from pyspark.sql.functions import flatten, col
                 from sempy_labs._helper_functions import _create_spark_session
 
-                progress_label.value = "Starting Spark…"
+                progress_label.value = "Starting Spark + Azure AI Translator — this may take up to 10 minutes on first run…"
                 spark = _create_spark_session()
                 schema = StructType([StructField("text", StringType(), True)])
                 total = 0
@@ -506,6 +506,9 @@ def _translations_tab(workspace_input=None, report_input=None):
                         continue
 
                     auto_translate_btn.description = f"{lang} ({lang_idx+1}/{lang_count})"
+
+                    if _first_call[0]:
+                        progress_label.value = f"{lang}: calling Azure AI Translator (cold start ~2-5 min)…"
 
                     # Create Translate object once per language
                     translate = (
