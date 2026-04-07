@@ -77,6 +77,7 @@ def _load_model_data_fast(dataset, workspace):
             "expression": str(row.get("Expression", "")) if row.get("Expression") else None,
             "type": str(row.get("Column Type", row.get("Type", ""))),
             "summarize_by": str(row.get("Summarize By", "")) if row.get("Summarize By") else "",
+            "display_folder": str(row.get("Display Folder", "") or ""),
         }
 
     for _, row in measures_df.iterrows():
@@ -148,6 +149,7 @@ def _load_model_data_fast(dataset, workspace):
                         t_info["columns"][c_name]["sort_by_column"] = sort_by
                         t_info["columns"][c_name]["encoding_hint"] = str(col.EncodingHint) if hasattr(col, "EncodingHint") else ""
                         t_info["columns"][c_name]["is_nullable"] = bool(col.IsNullable) if hasattr(col, "IsNullable") else True
+                        t_info["columns"][c_name]["display_folder"] = str(col.DisplayFolder) if hasattr(col, "DisplayFolder") and col.DisplayFolder else t_info["columns"][c_name].get("display_folder", "")
 
                 # Augment measure metadata from TOM
                 for m in table.Measures:
@@ -250,6 +252,7 @@ def _load_model_data_tom(dataset, workspace):
                     "sort_by_column": sort_by,
                     "encoding_hint": str(col.EncodingHint) if hasattr(col, "EncodingHint") else "",
                     "is_nullable": bool(col.IsNullable) if hasattr(col, "IsNullable") else True,
+                    "display_folder": str(col.DisplayFolder) if hasattr(col, "DisplayFolder") and col.DisplayFolder else "",
                 }
             for m in table.Measures:
                 t_info["measures"][m.Name] = {
@@ -379,6 +382,76 @@ def _build_measures_with_folders(measures, table_key, base_indent, expanded, pen
     return items
 
 
+def _build_columns_with_folders(columns, table_key, base_indent, expanded, pending_changes):
+    """Build tree items for columns grouped by display folder (nested).
+    Returns list of (indent, icon, label, key) tuples."""
+    items = []
+    folders = {}
+    no_folder = []
+    for cn in sorted(columns):
+        df = columns[cn].get("display_folder", "")
+        if df:
+            # Handle semicolon-separated multi-folder assignments — use the first folder
+            first_folder = df.split(";")[0].strip()
+            folders.setdefault(first_folder, []).append(cn)
+        else:
+            no_folder.append(cn)
+
+    # Columns without folder — directly under table
+    for cn in no_folder:
+        c = columns[cn]
+        hidden = " (hidden)" if c["is_hidden"] else ""
+        ck = f"column:{table_key}:{cn}"
+        pfx = "\u270f " if ck in pending_changes else ""
+        items.append((base_indent, "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
+
+    # Build nested folder structure
+    all_folder_paths = set()
+    for folder_path in folders:
+        parts = folder_path.replace("/", "\\").split("\\")
+        for i in range(len(parts)):
+            all_folder_paths.add("\\".join(parts[: i + 1]))
+
+    def _count_under(prefix):
+        total = 0
+        for fp, cs in folders.items():
+            fp_norm = fp.replace("/", "\\")
+            if fp_norm == prefix or fp_norm.startswith(prefix + "\\"):
+                total += len(cs)
+        return total
+
+    emitted_folders = set()
+    for folder_path in sorted(folders):
+        parts = folder_path.replace("/", "\\").split("\\")
+        for depth in range(len(parts)):
+            ancestor = "\\".join(parts[: depth + 1])
+            if ancestor not in emitted_folders:
+                emitted_folders.add(ancestor)
+                folder_key = f"colfolder:{table_key}:{ancestor}"
+                is_exp = folder_key in expanded
+                marker = EXPANDED if is_exp else COLLAPSED
+                count = _count_under(ancestor)
+                label_name = parts[depth]
+                items.append((base_indent + depth, "folder", f"{marker} \U0001F4C1 {label_name}  [{count}]", folder_key))
+
+        deepest_key = f"colfolder:{table_key}:{folder_path.replace('/', chr(92))}"
+        all_expanded = True
+        for depth in range(len(parts)):
+            ancestor = "\\".join(parts[: depth + 1])
+            if f"colfolder:{table_key}:{ancestor}" not in expanded:
+                all_expanded = False
+                break
+        if all_expanded:
+            for cn in sorted(folders[folder_path]):
+                c = columns[cn]
+                hidden = " (hidden)" if c["is_hidden"] else ""
+                ck = f"column:{table_key}:{cn}"
+                pfx = "\u270f " if ck in pending_changes else ""
+                items.append((base_indent + len(parts), "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
+
+    return items
+
+
 def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=None):
     """Build tree items, optionally annotating with scan findings."""
     scan_results = scan_results or {}
@@ -408,12 +481,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
                 if not is_expanded:
                     continue
                 items.extend(_build_measures_with_folders(t["measures"], full_key, 2, expanded_tables, pending_changes))
-                for cn in sorted(t["columns"]):
-                    c = t["columns"][cn]
-                    hidden = " (hidden)" if c["is_hidden"] else ""
-                    ck = f"column:{full_key}:{cn}"
-                    pfx = "\u270f " if ck in pending_changes else ""
-                    items.append((2, "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
+                items.extend(_build_columns_with_folders(t["columns"], full_key, 2, expanded_tables, pending_changes))
                 for hn in sorted(t["hierarchies"]):
                     lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
                     items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{full_key}:{hn}"))
@@ -465,12 +533,7 @@ def _build_tree(model_data, expanded_tables, scan_results=None, pending_changes=
             if not is_expanded:
                 continue
             items.extend(_build_measures_with_folders(t["measures"], t_name, 2, expanded_tables, pending_changes))
-            for cn in sorted(t["columns"]):
-                c = t["columns"][cn]
-                hidden = " (hidden)" if c["is_hidden"] else ""
-                ck = f"column:{t_name}:{cn}"
-                pfx = "\u270f " if ck in pending_changes else ""
-                items.append((2, "column", f"{pfx}{cn} [{c['data_type']}]{hidden}", ck))
+            items.extend(_build_columns_with_folders(t["columns"], t_name, 2, expanded_tables, pending_changes))
             for hn in sorted(t["hierarchies"]):
                 lvl_str = " \u2192 ".join(t["hierarchies"][hn]["levels"])
                 items.append((2, "hierarchy", f"{hn}  ({lvl_str})", f"hierarchy:{t_name}:{hn}"))
@@ -1127,9 +1190,10 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             prop_name.value, prop_table.value = parts[2], display_table
             prop_obj_type.value = c.get("type", "Column")
             prop_summarize_by.value = c.get("summarize_by", "")
-            prop_format_str.value, prop_display_folder.value, prop_description.value = "", "", ""
+            prop_format_str.value, prop_description.value = "", ""
+            prop_display_folder.value = c.get("display_folder", "")
             prop_format_row.layout.display = "none"
-            prop_folder_row.layout.display = "none"
+            prop_folder_row.layout.display = ""
             prop_summarize_row.layout.display = ""
             # Show extended column properties
             prop_is_key.value = str(c.get("is_key", False))
@@ -1343,6 +1407,14 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                 _refresh_tree()
                 _reselect_key_in_tree(key)
                 return
+            if key.startswith("colfolder:"):
+                if key in _expanded:
+                    _expanded.discard(key)
+                else:
+                    _expanded.add(key)
+                _refresh_tree()
+                _reselect_key_in_tree(key)
+                return
         # Update properties/expression for last selected item
         # Restore pending changes if this item was previously edited
         _suppressing_observe[0] = True
@@ -1418,15 +1490,22 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     def _expand_folders(tables, table_prefix=""):
         """Add all display folder keys (including nested subfolders) to _expanded."""
         for t_name, t in tables.items():
+            key_base = f"{table_prefix}\x1f{t_name}" if table_prefix else t_name
             for mn in t.get("measures", {}):
                 df = t["measures"][mn].get("display_folder", "")
                 if df:
-                    key_base = f"{table_prefix}{t_name}" if not table_prefix else f"{table_prefix}\x1f{t_name}"
-                    # Expand every level of the folder path
                     parts = df.replace("/", "\\").split("\\")
                     for i in range(len(parts)):
                         ancestor = "\\".join(parts[: i + 1])
                         _expanded.add(f"folder:{key_base}:{ancestor}")
+            for cn in t.get("columns", {}):
+                df = t["columns"][cn].get("display_folder", "")
+                if df:
+                    first_folder = df.split(";")[0].strip()
+                    parts = first_folder.replace("/", "\\").split("\\")
+                    for i in range(len(parts)):
+                        ancestor = "\\".join(parts[: i + 1])
+                        _expanded.add(f"colfolder:{key_base}:{ancestor}")
 
     def on_expand_all(_):
         if _model_data:
