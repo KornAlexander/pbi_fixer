@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.260"
+__version__ = "1.2.261"
 
 import ipywidgets as widgets
 import io
@@ -476,9 +476,16 @@ def _translations_tab(workspace_input=None, report_input=None):
             """Translate names via Azure Translator REST API directly (no Spark). Returns list or None."""
             try:
                 import requests as _req
+                from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TE
                 from notebookutils import mssparkutils as _mspu
-                progress_label.value = "REST: getting token…"
-                _token = _mspu.credentials.getToken("https://cognitiveservices.azure.com/")
+                progress_label.value = "REST: getting token (5s timeout)…"
+                with ThreadPoolExecutor(1) as _pool:
+                    _fut = _pool.submit(_mspu.credentials.getToken, "https://cognitiveservices.azure.com/")
+                    try:
+                        _token = _fut.result(timeout=5)
+                    except _TE:
+                        progress_label.value = "REST: token timed out — falling back to SynapseML…"
+                        return None
                 _headers = {
                     "Authorization": f"Bearer {_token}",
                     "Content-Type": "application/json; charset=UTF-8",
