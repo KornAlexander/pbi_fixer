@@ -1396,6 +1396,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             preview.layout.display = "none"
             table_preview_html.layout.display = "none"
             table_row_dropdown.layout.display = "none"
+            # Reset Prep for AI if switching to a different model
+            if _p4ai_loaded_ds[0] != m_name:
+                _p4ai_textarea.value = ""
+                _p4ai_info.value = ""
+                set_status(_p4ai_status, "", "transparent")
+                _p4ai_loaded_ds[0] = None
         else:
             props_container.layout.display = "none"
             props_placeholder.layout.display = ""
