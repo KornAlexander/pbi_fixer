@@ -272,8 +272,8 @@ def _build_year_slicer(cal_table: str, year_col: str) -> dict:
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
         "name": "placeholder",
         "position": {
-            "x": 0,
-            "y": 0,
+            "x": 1080,
+            "y": 5,
             "z": 20000,
             "height": 55,
             "width": 180,
