@@ -751,7 +751,7 @@
   <div class="container">
     <div class="section-header">
       <h2>How We Got Here</h2>
-      <p>The PBI Fixer didn't start as a Fabric notebook tool. It evolved through four generations of Power BI automation — each one building on the lessons of the last.</p>
+      <p>The PBI Fixer didn't start as a full development environment. It evolved through five generations of Power BI automation — each one building on the lessons of the last.</p>
     </div>
 
     <div class="history-timeline">
@@ -774,16 +774,24 @@
       <div class="history-item">
         <div class="history-year">2025</div>
         <div class="history-content">
-          <h3><a href="https://actionablereporting.com/2025/01/02/power-bi-fixer-holy-grail-of-power-bi/" target="_blank">PBI Fixer v1 (PowerShell)</a></h3>
+          <h3><a href="https://actionablereporting.com/2025/01/02/power-bi-fixer-holy-grail-of-power-bi/" target="_blank">PBI Fixer — PowerShell Edition</a></h3>
           <p>The jump to workspace-wide automation. A PowerShell script that downloaded all reports, replaced pie charts, applied themes, fixed page sizes, and re-uploaded — touching both the report layer and the semantic model. 9 fixers, Windows dialogs, local execution.</p>
         </div>
       </div>
 
       <div class="history-item">
-        <div class="history-year">2026</div>
+        <div class="history-year">Feb 2026</div>
         <div class="history-content">
-          <h3><a href="https://actionablereporting.com/2026/02/22/power-bi-fixer-one-line-to-fix-them-all/" target="_blank">PBI Fixer v2 (Fabric Notebook)</a></h3>
-          <p>Everything moved to the cloud. A full interactive UI running natively in Fabric Notebooks — 45+ fixers, 12 tabs, scan mode, multi-report editing, BPA auto-fix, and zero local installs. One line: <code>pbi_fixer()</code></p>
+          <h3><a href="https://actionablereporting.com/2026/02/22/power-bi-fixer-one-line-to-fix-them-all/" target="_blank">pbi_fixer() — Fabric Notebook</a></h3>
+          <p>The move to the cloud. An ipywidgets UI running natively in a Fabric Notebook — 11 fixers (5 report, 6 semantic model), scan/fix/scan+fix modes, XMLA write safety gate. No local tools, no downloads, just <code>pbi_fixer()</code> in a notebook cell.</p>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="history-year">Now</div>
+        <div class="history-content">
+          <h3>PBI Fixer v2 — Full Development Environment</h3>
+          <p>From a simple fixer to a complete Power BI development environment. 45+ fixers, 12 tabs, SM &amp; Report Explorer with DAX editing, Vertipaq analysis, BPA auto-fix, perspectives editor, multi-report editing, and standalone API. Still one line: <code>pbi_fixer()</code></p>
         </div>
       </div>
     </div>
