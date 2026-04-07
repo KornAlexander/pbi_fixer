@@ -684,6 +684,41 @@ a:hover { text-decoration: underline; }
   border-radius: 3px;
 }
 
+/* ── Beta Banner ── */
+.beta-banner {
+  background: linear-gradient(135deg, #fef3cd 0%, #ffeeba 100%);
+  border-bottom: 2px solid #f0c040;
+  padding: 0.8rem 0;
+  text-align: center;
+  font-size: 0.95rem;
+}
+.beta-banner p {
+  margin: 0;
+  color: #664d03;
+}
+.beta-banner a {
+  color: #664d03;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.beta-banner a:hover {
+  color: #332600;
+}
+
+/* ── Hero Credit ── */
+.hero-credit {
+  margin-top: 1.2rem;
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.7);
+}
+.hero-credit a {
+  color: rgba(255,255,255,0.9);
+  text-decoration: underline;
+}
+.hero-credit a:hover {
+  color: white;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .hero h1 { font-size: 2rem; }

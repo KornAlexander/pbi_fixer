@@ -23,9 +23,9 @@
     <a href="#" class="nav-logo">⚡ Power BI Fixer</a>
     <ul class="nav-links" id="navLinks">
       <li><a href="#features">Features</a></li>
+      <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#fixers">All Fixers</a></li>
       <li><a href="#why">Why PBI Fixer?</a></li>
-      <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#api">Standalone API</a></li>
       <li><a href="#ai">AI &amp; CLI</a></li>
       <li><a href="#history">History</a></li>
@@ -64,8 +64,17 @@
       <span class="badge badge-orange">📊 12 Tabs</span>
       <span class="badge badge-green">✓ No Install Required</span>
     </div>
+
+    <p class="hero-credit">Built on top of <a href="https://github.com/microsoft/semantic-link-labs" target="_blank">Semantic Link Labs</a> by <a href="https://www.linkedin.com/in/michaelkovalsky/" target="_blank">Michael Kovalsky</a></p>
   </div>
 </section>
+
+<!-- ═══════════════ Beta Banner ═══════════════ -->
+<div class="beta-banner">
+  <div class="container">
+    <p>🚧 <strong>Beta — In Active Development.</strong> The PBI Fixer is ready for testing, but expect rough edges. Found a bug? Have feedback? <a href="https://www.linkedin.com/in/intrepidalexander/" target="_blank">Ping me on LinkedIn</a> — I appreciate every report.</p>
+  </div>
+</div>
 
 <!-- ═══════════════ Stats ═══════════════ -->
 <section class="section">
@@ -165,181 +174,6 @@
         <p>Version info, credits, and links to the source code and documentation.</p>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ═══════════════ All Fixers ═══════════════ -->
-<section class="section section-alt" id="fixers">
-  <div class="container">
-    <div class="section-header">
-      <h2>The Complete Fix Arsenal</h2>
-      <p>45+ automated fixes across three categories. Every fixer supports scan mode — assess without changing anything.</p>
-    </div>
-
-    <h3 style="margin-bottom:1rem;">Report Fixers <span class="category-badge cat-report">15 fixers</span></h3>
-    <table class="fixer-table">
-      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
-      <tbody>
-        <tr><td>1</td><td>Fix Pie Charts</td><td>Replaces pie charts with clustered bar charts</td></tr>
-        <tr><td>2</td><td>Fix Bar Charts</td><td>Removes axis clutter, adds data labels, removes gridlines</td></tr>
-        <tr><td>3</td><td>Fix Column Charts</td><td>Same clean-up applied to column charts</td></tr>
-        <tr><td>4</td><td>Fix Line Charts</td><td>Standardized line chart formatting</td></tr>
-        <tr><td>5</td><td>Fix All Charts</td><td>Unified formatting pass across all chart types</td></tr>
-        <tr><td>6</td><td>Column → Line</td><td>Converts column charts to line charts</td></tr>
-        <tr><td>7</td><td>Column → Bar (IBCS)</td><td>Converts column charts to horizontal bar charts</td></tr>
-        <tr><td>8</td><td>Fix IBCS Variance</td><td>Creates proper IBCS variance visualizations</td></tr>
-        <tr><td>9</td><td>Fix Page Size</td><td>Upgrades default pages to Full HD (1080×1920)</td></tr>
-        <tr><td>10</td><td>Hide Visual Filters</td><td>Hides visual-level filters from consumers</td></tr>
-        <tr><td>11</td><td>Fix Visual Alignment</td><td>Snaps misaligned visuals to consistent positions</td></tr>
-        <tr><td>12</td><td>Remove Unused Custom Visuals</td><td>Cleans up unused custom visual registrations</td></tr>
-        <tr><td>13</td><td>Disable Show Items No Data</td><td>Turns off "Show Items with No Data"</td></tr>
-        <tr><td>14</td><td>Migrate Report-Level Measures</td><td>Moves report-level measures to the semantic model</td></tr>
-        <tr><td>15</td><td>Convert to PBIR</td><td>Upgrades PBIRLegacy to PBIR format</td></tr>
-      </tbody>
-    </table>
-
-    <h3 style="margin-bottom:1rem;">Semantic Model Fixers <span class="category-badge cat-model">11 fixers</span></h3>
-    <table class="fixer-table">
-      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
-      <tbody>
-        <tr><td>1</td><td>Discourage Implicit Measures</td><td>Prevents implicit measure usage in reports</td></tr>
-        <tr><td>2</td><td>Add Calendar Table</td><td>Calculated calendar with hierarchies + auto-relationship detection</td></tr>
-        <tr><td>3</td><td>Add Measure Table</td><td>Empty calculated table to centralize measures</td></tr>
-        <tr><td>4</td><td>Add Last Refresh Table</td><td>Table with last refresh timestamp measure</td></tr>
-        <tr><td>5</td><td>Add Units Calc Group</td><td>Thousand &amp; Million calculation items</td></tr>
-        <tr><td>6</td><td>Add TI Calc Group</td><td>AC/Y-1/Y-2/Y-3/YTD and variance items</td></tr>
-        <tr><td>7</td><td>Measures from Columns</td><td>Auto-create explicit measures from SummarizeBy</td></tr>
-        <tr><td>8</td><td>Add PY Measures</td><td>PY + ΔPY + ΔPY% for selected measures</td></tr>
-        <tr><td>9</td><td>Setup Incremental Refresh</td><td>Auto date column detection + policy config</td></tr>
-        <tr><td>10</td><td>Cache Pre-warm</td><td>Direct Lake cache warm-up perspective + notebook</td></tr>
-        <tr><td>11</td><td>Prep for AI</td><td>Descriptions, synonyms, linguistic metadata for Copilot</td></tr>
-      </tbody>
-    </table>
-
-    <h3 style="margin-bottom:1rem;">Model BPA Auto-Fixers <span class="category-badge cat-bpa">19 rules</span></h3>
-    <table class="fixer-table">
-      <thead><tr><th>#</th><th>Rule</th><th>Category</th><th>Fix Action</th></tr></thead>
-      <tbody>
-        <tr><td>1</td><td>Fix Floating Point Types</td><td>🔢 Data Types</td><td>Double → Decimal</td></tr>
-        <tr><td>2</td><td>Fix IsAvailableInMDX (False)</td><td>📡 MDX</td><td>Set False on non-attribute columns</td></tr>
-        <tr><td>3</td><td>Fix IsAvailableInMDX (True)</td><td>📡 MDX</td><td>Set True on key/hierarchy columns</td></tr>
-        <tr><td>4</td><td>Fix Measure Descriptions</td><td>📝 Docs</td><td>Description = DAX expression</td></tr>
-        <tr><td>5</td><td>Fix Date Column Format</td><td>📊 Format</td><td>mm/dd/yyyy format string</td></tr>
-        <tr><td>6</td><td>Fix Month Column Format</td><td>📊 Format</td><td>MMMM yyyy format string</td></tr>
-        <tr><td>7</td><td>Fix Measure Format</td><td>📊 Format</td><td>#,0 for unformatted measures</td></tr>
-        <tr><td>8</td><td>Fix Percentage Format</td><td>📊 Format</td><td>#,0.0% for percentage measures</td></tr>
-        <tr><td>9</td><td>Fix Whole Number Format</td><td>📊 Format</td><td>#,0 for integer measures</td></tr>
-        <tr><td>10</td><td>Fix Flag Column Format</td><td>📊 Format</td><td>Yes/No format on boolean columns</td></tr>
-        <tr><td>11</td><td>Fix Sort Month Column</td><td>📊 Format</td><td>SortByColumn on month name columns</td></tr>
-        <tr><td>12</td><td>Fix Data Category</td><td>📊 Format</td><td>DataCategory by naming convention</td></tr>
-        <tr><td>13</td><td>Fix DIVIDE Function</td><td>📊 Format</td><td>Replace / with DIVIDE()</td></tr>
-        <tr><td>14</td><td>Fix Avoid Adding 0</td><td>📊 Format</td><td>Remove 0+ prefix from DAX</td></tr>
-        <tr><td>15</td><td>Hide Foreign Keys</td><td>🔗 Schema</td><td>IsHidden = True</td></tr>
-        <tr><td>16</td><td>Fix Do Not Summarize</td><td>🔗 Schema</td><td>SummarizeBy = None</td></tr>
-        <tr><td>17</td><td>Mark Primary Keys</td><td>🔗 Schema</td><td>IsKey = True on key columns</td></tr>
-        <tr><td>18</td><td>Trim Object Names</td><td>🏷 Naming</td><td>Remove leading/trailing whitespace</td></tr>
-        <tr><td>19</td><td>Capitalize Object Names</td><td>🏷 Naming</td><td>Capitalize first letter</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ═══════════════ Why PBI Fixer ═══════════════ -->
-<section class="section" id="why">
-  <div class="container">
-    <div class="section-header">
-      <h2>Why PBI Fixer?</h2>
-      <p>Power BI Desktop is the gold standard — and it always will be. The Fixer doesn't try to replace it. It fills the gaps where Desktop can't go, and automates the tedious work you'd rather not do by hand.</p>
-    </div>
-
-    <div class="highlights-grid">
-
-      <div class="highlight-card highlight-card--hero">
-        <div class="highlight-icon">🔄</div>
-        <div class="highlight-content">
-          <h3>Multi‑Report, Multi‑Model Editing</h3>
-          <p>Load <em>multiple reports across different semantic models</em> in one session. Run fixers across all of them at once — something Desktop simply can't do. Scan ten reports, fix formatting inconsistencies, and move on.</p>
-          <span class="highlight-tag">Not possible in Desktop</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">🥧</div>
-        <div class="highlight-content">
-          <h3>Replace Pie Charts — Automatically</h3>
-          <p>One click. Every pie chart in your report becomes a horizontal bar chart. No manual re-wiring of fields, no page-by-page hunting.</p>
-          <span class="highlight-tag">Automation</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">📊</div>
-        <div class="highlight-content">
-          <h3>IBCS Inline Variance — End to End</h3>
-          <p>Select your visuals, and the Fixer does the rest: creates a calendar table, detects and builds the date relationship, generates PY measures, adds error bar measures, and applies IBCS variance formatting. A workflow that takes 30+ minutes by hand, done in seconds.</p>
-          <span class="highlight-tag">Automation</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">↔️</div>
-        <div class="highlight-content">
-          <h3>Column → Bar — Flip Chart Orientation</h3>
-          <p>Convert vertical column charts to horizontal bar charts. Sounds simple — but Desktop has no "change orientation" button. The Fixer rewrites the visual JSON to make it happen.</p>
-          <span class="highlight-tag">Automation</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">🔍</div>
-        <div class="highlight-content">
-          <h3>Cross‑Report Scanning</h3>
-          <p>Scan multiple reports at once for BPA violations, formatting issues, and anti-patterns. Get a unified view — not one report at a time, but your <em>entire workspace picture</em>.</p>
-          <span class="highlight-tag">Not possible in Desktop</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">🖼️</div>
-        <div class="highlight-content">
-          <h3>See the Whole Report — All Pages in One SVG</h3>
-          <p>Screenshots of every report page, navigation paths detected, exported to Excalidraw or SVG. The first time you truly <em>see</em> a report as a whole — not page by page, but the complete picture on one canvas.</p>
-          <span class="highlight-tag">Not possible in Desktop</span>
-        </div>
-      </div>
-
-      <div class="highlight-card">
-        <div class="highlight-icon">🤖</div>
-        <div class="highlight-content">
-          <h3>19 BPA Auto‑Fixers — 15 Didn't Exist Before</h3>
-          <p>Most BPA tools <em>tell you</em> what's wrong. This one <em>also fixes it</em>. Auto-format dates, hide foreign keys, fix DIVIDE(), capitalize names, set SortByColumn on month columns — 15 of these auto-fixers have no equivalent in any other tool.</p>
-          <span class="highlight-tag">Unique to PBI Fixer</span>
-        </div>
-      </div>
-
-      <div class="highlight-card highlight-card--hero">
-        <div class="highlight-icon">🧩</div>
-        <div class="highlight-content">
-          <h3>Features Desktop Can't Offer</h3>
-          <p>Some things are simply outside Desktop's scope — and that's where the Fixer adds unique value:</p>
-          <ul class="highlight-list">
-            <li><strong>Translation Editor</strong> — multi-language metadata with one-click AI auto-translate</li>
-            <li><strong>Perspective Editor</strong> — visual CRUD for model perspectives</li>
-            <li><strong>Prep for AI</strong> — auto-generate descriptions, synonyms, and linguistic metadata for Copilot readiness</li>
-            <li><strong>Direct Lake Pre‑Warming</strong> — generate cache warm-up perspectives + notebooks</li>
-            <li><strong>Incremental Refresh Setup</strong> — auto-detect date columns and configure policies</li>
-            <li><strong>Delta Analyzer</strong> — inspect delta tables down to parquet file and column chunk level</li>
-          </ul>
-          <span class="highlight-tag">Not possible in Desktop</span>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="highlight-disclaimer">
-      <p>⚠️ <strong>Fair warning:</strong> The PBI Fixer is still early-stage and very much beta. It won't replace your desktop workflow — it extends it. Expect rough edges, and definitely test on a non-production workspace first. Contributions and feedback are welcome.</p>
-    </div>
-
   </div>
 </section>
 
@@ -561,6 +395,181 @@
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ═══════════════ All Fixers ═══════════════ -->
+<section class="section" id="fixers">
+  <div class="container">
+    <div class="section-header">
+      <h2>The Complete Fix Arsenal</h2>
+      <p>45+ automated fixes across three categories. Every fixer supports scan mode — assess without changing anything.</p>
+    </div>
+
+    <h3 style="margin-bottom:1rem;">Report Fixers <span class="category-badge cat-report">15 fixers</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Fix Pie Charts</td><td>Replaces pie charts with clustered bar charts</td></tr>
+        <tr><td>2</td><td>Fix Bar Charts</td><td>Removes axis clutter, adds data labels, removes gridlines</td></tr>
+        <tr><td>3</td><td>Fix Column Charts</td><td>Same clean-up applied to column charts</td></tr>
+        <tr><td>4</td><td>Fix Line Charts</td><td>Standardized line chart formatting</td></tr>
+        <tr><td>5</td><td>Fix All Charts</td><td>Unified formatting pass across all chart types</td></tr>
+        <tr><td>6</td><td>Column → Line</td><td>Converts column charts to line charts</td></tr>
+        <tr><td>7</td><td>Column → Bar (IBCS)</td><td>Converts column charts to horizontal bar charts</td></tr>
+        <tr><td>8</td><td>Fix IBCS Variance</td><td>Creates proper IBCS variance visualizations</td></tr>
+        <tr><td>9</td><td>Fix Page Size</td><td>Upgrades default pages to Full HD (1080×1920)</td></tr>
+        <tr><td>10</td><td>Hide Visual Filters</td><td>Hides visual-level filters from consumers</td></tr>
+        <tr><td>11</td><td>Fix Visual Alignment</td><td>Snaps misaligned visuals to consistent positions</td></tr>
+        <tr><td>12</td><td>Remove Unused Custom Visuals</td><td>Cleans up unused custom visual registrations</td></tr>
+        <tr><td>13</td><td>Disable Show Items No Data</td><td>Turns off "Show Items with No Data"</td></tr>
+        <tr><td>14</td><td>Migrate Report-Level Measures</td><td>Moves report-level measures to the semantic model</td></tr>
+        <tr><td>15</td><td>Convert to PBIR</td><td>Upgrades PBIRLegacy to PBIR format</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-bottom:1rem;">Semantic Model Fixers <span class="category-badge cat-model">11 fixers</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Fixer</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Discourage Implicit Measures</td><td>Prevents implicit measure usage in reports</td></tr>
+        <tr><td>2</td><td>Add Calendar Table</td><td>Calculated calendar with hierarchies + auto-relationship detection</td></tr>
+        <tr><td>3</td><td>Add Measure Table</td><td>Empty calculated table to centralize measures</td></tr>
+        <tr><td>4</td><td>Add Last Refresh Table</td><td>Table with last refresh timestamp measure</td></tr>
+        <tr><td>5</td><td>Add Units Calc Group</td><td>Thousand &amp; Million calculation items</td></tr>
+        <tr><td>6</td><td>Add TI Calc Group</td><td>AC/Y-1/Y-2/Y-3/YTD and variance items</td></tr>
+        <tr><td>7</td><td>Measures from Columns</td><td>Auto-create explicit measures from SummarizeBy</td></tr>
+        <tr><td>8</td><td>Add PY Measures</td><td>PY + ΔPY + ΔPY% for selected measures</td></tr>
+        <tr><td>9</td><td>Setup Incremental Refresh</td><td>Auto date column detection + policy config</td></tr>
+        <tr><td>10</td><td>Cache Pre-warm</td><td>Direct Lake cache warm-up perspective + notebook</td></tr>
+        <tr><td>11</td><td>Prep for AI</td><td>Descriptions, synonyms, linguistic metadata for Copilot</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-bottom:1rem;">Model BPA Auto-Fixers <span class="category-badge cat-bpa">19 rules</span></h3>
+    <table class="fixer-table">
+      <thead><tr><th>#</th><th>Rule</th><th>Category</th><th>Fix Action</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Fix Floating Point Types</td><td>🔢 Data Types</td><td>Double → Decimal</td></tr>
+        <tr><td>2</td><td>Fix IsAvailableInMDX (False)</td><td>📡 MDX</td><td>Set False on non-attribute columns</td></tr>
+        <tr><td>3</td><td>Fix IsAvailableInMDX (True)</td><td>📡 MDX</td><td>Set True on key/hierarchy columns</td></tr>
+        <tr><td>4</td><td>Fix Measure Descriptions</td><td>📝 Docs</td><td>Description = DAX expression</td></tr>
+        <tr><td>5</td><td>Fix Date Column Format</td><td>📊 Format</td><td>mm/dd/yyyy format string</td></tr>
+        <tr><td>6</td><td>Fix Month Column Format</td><td>📊 Format</td><td>MMMM yyyy format string</td></tr>
+        <tr><td>7</td><td>Fix Measure Format</td><td>📊 Format</td><td>#,0 for unformatted measures</td></tr>
+        <tr><td>8</td><td>Fix Percentage Format</td><td>📊 Format</td><td>#,0.0% for percentage measures</td></tr>
+        <tr><td>9</td><td>Fix Whole Number Format</td><td>📊 Format</td><td>#,0 for integer measures</td></tr>
+        <tr><td>10</td><td>Fix Flag Column Format</td><td>📊 Format</td><td>Yes/No format on boolean columns</td></tr>
+        <tr><td>11</td><td>Fix Sort Month Column</td><td>📊 Format</td><td>SortByColumn on month name columns</td></tr>
+        <tr><td>12</td><td>Fix Data Category</td><td>📊 Format</td><td>DataCategory by naming convention</td></tr>
+        <tr><td>13</td><td>Fix DIVIDE Function</td><td>📊 Format</td><td>Replace / with DIVIDE()</td></tr>
+        <tr><td>14</td><td>Fix Avoid Adding 0</td><td>📊 Format</td><td>Remove 0+ prefix from DAX</td></tr>
+        <tr><td>15</td><td>Hide Foreign Keys</td><td>🔗 Schema</td><td>IsHidden = True</td></tr>
+        <tr><td>16</td><td>Fix Do Not Summarize</td><td>🔗 Schema</td><td>SummarizeBy = None</td></tr>
+        <tr><td>17</td><td>Mark Primary Keys</td><td>🔗 Schema</td><td>IsKey = True on key columns</td></tr>
+        <tr><td>18</td><td>Trim Object Names</td><td>🏷 Naming</td><td>Remove leading/trailing whitespace</td></tr>
+        <tr><td>19</td><td>Capitalize Object Names</td><td>🏷 Naming</td><td>Capitalize first letter</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ Why PBI Fixer ═══════════════ -->
+<section class="section section-alt" id="why">
+  <div class="container">
+    <div class="section-header">
+      <h2>Why PBI Fixer?</h2>
+      <p>Power BI Desktop is the gold standard — and it always will be. The Fixer doesn't try to replace it. It fills the gaps where Desktop can't go, and automates the tedious work you'd rather not do by hand.</p>
+    </div>
+
+    <div class="highlights-grid">
+
+      <div class="highlight-card highlight-card--hero">
+        <div class="highlight-icon">🔄</div>
+        <div class="highlight-content">
+          <h3>Multi‑Report, Multi‑Model Editing</h3>
+          <p>Load <em>multiple reports across different semantic models</em> in one session. Run fixers across all of them at once — something Desktop simply can't do. Scan ten reports, fix formatting inconsistencies, and move on.</p>
+          <span class="highlight-tag">Not possible in Desktop</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">🥧</div>
+        <div class="highlight-content">
+          <h3>Replace Pie Charts — Automatically</h3>
+          <p>One click. Every pie chart in your report becomes a horizontal bar chart. No manual re-wiring of fields, no page-by-page hunting.</p>
+          <span class="highlight-tag">Automation</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">📊</div>
+        <div class="highlight-content">
+          <h3>IBCS Inline Variance — End to End</h3>
+          <p>Select your visuals, and the Fixer does the rest: creates a calendar table, detects and builds the date relationship, generates PY measures, adds error bar measures, and applies IBCS variance formatting. A workflow that takes 30+ minutes by hand, done in seconds.</p>
+          <span class="highlight-tag">Automation</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">↔️</div>
+        <div class="highlight-content">
+          <h3>Column → Bar — Flip Chart Orientation</h3>
+          <p>Convert vertical column charts to horizontal bar charts. Sounds simple — but Desktop has no "change orientation" button. The Fixer rewrites the visual JSON to make it happen.</p>
+          <span class="highlight-tag">Automation</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">🔍</div>
+        <div class="highlight-content">
+          <h3>Cross‑Report Scanning</h3>
+          <p>Scan multiple reports at once for BPA violations, formatting issues, and anti-patterns. Get a unified view — not one report at a time, but your <em>entire workspace picture</em>.</p>
+          <span class="highlight-tag">Not possible in Desktop</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">🖼️</div>
+        <div class="highlight-content">
+          <h3>See the Whole Report — All Pages in One SVG</h3>
+          <p>Screenshots of every report page, navigation paths detected, exported to Excalidraw or SVG. The first time you truly <em>see</em> a report as a whole — not page by page, but the complete picture on one canvas.</p>
+          <span class="highlight-tag">Not possible in Desktop</span>
+        </div>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">🤖</div>
+        <div class="highlight-content">
+          <h3>19 BPA Auto‑Fixers — 15 Didn't Exist Before</h3>
+          <p>Most BPA tools <em>tell you</em> what's wrong. This one <em>also fixes it</em>. Auto-format dates, hide foreign keys, fix DIVIDE(), capitalize names, set SortByColumn on month columns — 15 of these auto-fixers have no equivalent in any other tool.</p>
+          <span class="highlight-tag">Unique to PBI Fixer</span>
+        </div>
+      </div>
+
+      <div class="highlight-card highlight-card--hero">
+        <div class="highlight-icon">🧩</div>
+        <div class="highlight-content">
+          <h3>Features Desktop Can't Offer</h3>
+          <p>Some things are simply outside Desktop's scope — and that's where the Fixer adds unique value:</p>
+          <ul class="highlight-list">
+            <li><strong>Translation Editor</strong> — multi-language metadata with one-click AI auto-translate</li>
+            <li><strong>Perspective Editor</strong> — visual CRUD for model perspectives</li>
+            <li><strong>Prep for AI</strong> — auto-generate descriptions, synonyms, and linguistic metadata for Copilot readiness</li>
+            <li><strong>Direct Lake Pre‑Warming</strong> — generate cache warm-up perspectives + notebooks</li>
+            <li><strong>Incremental Refresh Setup</strong> — auto-detect date columns and configure policies</li>
+            <li><strong>Delta Analyzer</strong> — inspect delta tables down to parquet file and column chunk level</li>
+          </ul>
+          <span class="highlight-tag">Not possible in Desktop</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="highlight-disclaimer">
+      <p>⚠️ <strong>Fair warning:</strong> The PBI Fixer is still early-stage and very much beta. It won't replace your desktop workflow — it extends it. Expect rough edges, and definitely test on a non-production workspace first. Contributions and feedback are welcome.</p>
+    </div>
+
   </div>
 </section>
 
@@ -948,44 +957,21 @@
 </footer>
 
 <script>
-// Fix scrolling when embedded in a cross-origin iframe (WordPress.com).
-// The iframe has height:14000px + scrolling="no". All content is visible
-// through the parent page's scroll. The problem: CSS scroll-behavior:smooth
-// and anchor clicks cause the iframe to internally scroll its viewport,
-// which desynchronizes from the parent scroll and makes the page stuck.
-//
-// Solution: Lock iframe viewport completely. Hide the nav bar (parent page
-// scrolls — the nav is redundant). Prevent all anchor-based scrolling.
+// When embedded in a cross-origin iframe (e.g. WordPress.com), the iframe
+// has height:14000px + scrolling="no". The parent page scrolls. We only
+// need to disable smooth-scroll to prevent the stuck-viewport bug, and
+// reduce the hero top-padding since the sticky nav is less useful in iframe.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // 1. Kill all internal scrolling capability
+  // Disable smooth scroll — it causes viewport desync inside iframes
   document.documentElement.style.scrollBehavior = 'auto';
-  document.documentElement.style.overflow = 'hidden';
-  document.body.style.overflow = 'hidden';
 
-  // 2. Hide the sticky nav — it's useless inside the iframe since we can't
-  //    scroll the parent cross-origin. Users scroll the WordPress page instead.
-  var nav = document.querySelector('.nav');
-  if (nav) nav.style.display = 'none';
-
-  // 3. Remove the hero top padding that compensated for the sticky nav
+  // Reduce hero top padding (sticky nav is less useful in iframe context)
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
-
-  // 4. Intercept anchor clicks — prevent default to avoid any scroll attempts
-  document.addEventListener('click', function(e) {
-    var link = e.target.closest('a[href^="#"]');
-    if (!link) return;
-    e.preventDefault();
-  });
-
-  // 5. Prevent initial hash-based scroll on page load
-  if (window.location.hash) {
-    window.scrollTo(0, 0);
-  }
 })();
 </script>
 
