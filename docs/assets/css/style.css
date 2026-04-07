@@ -280,33 +280,6 @@ a:hover { text-decoration: underline; }
   border-radius: 10px;
   border: 1px solid var(--border);
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  cursor: zoom-in;
-  transition: opacity 0.2s;
-}
-.screenshot-img img:hover {
-  opacity: 0.85;
-}
-
-/* ── Lightbox Overlay ── */
-.lightbox-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.85);
-  z-index: 10000;
-  cursor: zoom-out;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-}
-.lightbox-overlay.active {
-  display: flex;
-}
-.lightbox-overlay img {
-  max-width: 95vw;
-  max-height: 95vh;
-  border-radius: 8px;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.4);
 }
 
 /* ── Comparison Table ── */
