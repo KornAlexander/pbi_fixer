@@ -877,10 +877,11 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
     _p4ai_load_btn = widgets.Button(description="🔄 Load", layout=widgets.Layout(width="100px", height="32px"))
     _p4ai_save_btn = widgets.Button(description="💾 Save", button_style="success", layout=widgets.Layout(width="100px", height="32px"))
+    _p4ai_gen_btn = widgets.Button(description="🪄 Generate", button_style="warning", layout=widgets.Layout(width="110px", height="32px"))
     _p4ai_append_cb = widgets.Checkbox(value=False, description="Append", indent=False, layout=widgets.Layout(width="100px"))
     _p4ai_status = status_html()
     _p4ai_btn_row = widgets.HBox(
-        [_p4ai_load_btn, _p4ai_save_btn, _p4ai_append_cb],
+        [_p4ai_load_btn, _p4ai_gen_btn, _p4ai_save_btn, _p4ai_append_cb],
         layout=widgets.Layout(gap="8px", align_items="center", margin="4px 0"),
     )
     _p4ai_textarea = widgets.Textarea(
@@ -968,6 +969,31 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
     _p4ai_load_btn.on_click(_on_p4ai_load)
     _p4ai_save_btn.on_click(_on_p4ai_save)
+
+    def _on_p4ai_generate(_):
+        ws = workspace_input.value.strip() if workspace_input else None
+        ws = ws or None
+        ds_input = report_input.value.strip() if report_input else ""
+        items = [x.strip() for x in ds_input.split(",") if x.strip()] if ds_input else []
+        if not items:
+            set_status(_p4ai_status, "No model specified.", "#ff3b30")
+            return
+        ds = items[0]
+        _p4ai_gen_btn.disabled = True
+        _p4ai_gen_btn.description = "Generating…"
+        set_status(_p4ai_status, "Analyzing model structure…", GRAY_COLOR)
+        try:
+            from sempy_labs.semantic_model._PrepForAI import generate_prep_for_ai_text
+            text = generate_prep_for_ai_text(dataset=ds, workspace=ws)
+            _p4ai_textarea.value = text
+            _p4ai_loaded_ds[0] = ds
+            set_status(_p4ai_status, f"Generated ({len(text)} chars) — review and 💾 Save", "#34c759")
+        except Exception as e:
+            set_status(_p4ai_status, f"Error: {e}", "#ff3b30")
+        _p4ai_gen_btn.disabled = False
+        _p4ai_gen_btn.description = "🪄 Generate"
+
+    _p4ai_gen_btn.on_click(_on_p4ai_generate)
 
     preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html, _p4ai_container], flex="1", min_height="450px")
 

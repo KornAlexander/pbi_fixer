@@ -270,14 +270,13 @@ def write_prep_for_ai(
     )
 
 
-def scan_prep_for_ai(
+def generate_prep_for_ai_text(
     dataset: str | UUID,
     workspace: Optional[str | UUID] = None,
-    scan_only: bool = True,
-) -> None:
+) -> str:
     """
-    Check if Prep for AI instructions are configured on a semantic model.
-    Prints findings in the standard fixer format.
+    Auto-generate Prep for AI instructions by analyzing the semantic model
+    structure (tables, columns, measures, relationships).
 
     Parameters
     ----------
@@ -285,37 +284,237 @@ def scan_prep_for_ai(
         Name or ID of the semantic model.
     workspace : str | uuid.UUID, optional
         Workspace name or ID.
-    scan_only : bool, default=True
-        Always True for this fixer (instructions require manual input).
+
+    Returns
+    -------
+    str
+        Generated CustomInstructions text.
     """
+    from sempy_labs.tom import connect_semantic_model
+
+    workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
+
+    lines = []
+
+    with connect_semantic_model(dataset=dataset, readonly=True, workspace=workspace_id) as tom:
+        model_name = str(tom.model.Name) if tom.model.Name else str(dataset)
+        lines.append(f"# Semantic Model: {model_name}")
+        lines.append("")
+
+        # ── Classify tables ──
+        fact_tables = []
+        dim_tables = []
+        calc_tables = []
+        date_table = None
+        measure_table = None
+
+        for t in tom.model.Tables:
+            t_name = str(t.Name)
+            # Detect date table
+            if t.DataCategory == "Time":
+                date_table = t_name
+                dim_tables.append(t_name)
+                continue
+            # Detect calculation groups
+            try:
+                if t.CalculationGroup is not None:
+                    calc_tables.append(t_name)
+                    continue
+            except Exception:
+                pass
+            # Detect measure-only tables (no columns besides RowNumber)
+            real_cols = [c for c in t.Columns if str(c.Name) != "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61"]
+            has_measures = any(True for _ in t.Measures)
+            if len(real_cols) == 0 and has_measures:
+                measure_table = t_name
+                continue
+            # Heuristic: fact tables typically have many numeric columns and relationships as "from"
+            from_rels = sum(1 for r in tom.model.Relationships if str(r.FromTable.Name) == t_name)
+            to_rels = sum(1 for r in tom.model.Relationships if str(r.ToTable.Name) == t_name)
+            if from_rels > to_rels and from_rels > 0:
+                fact_tables.append(t_name)
+            elif to_rels > 0:
+                dim_tables.append(t_name)
+            else:
+                # No relationships — classify by column count
+                if len(real_cols) > 10:
+                    fact_tables.append(t_name)
+                else:
+                    dim_tables.append(t_name)
+
+        # ── Model overview ──
+        lines.append("## Model Structure")
+        if fact_tables:
+            lines.append(f"- **Fact tables** (transactional data): {', '.join(fact_tables)}")
+        if dim_tables:
+            lines.append(f"- **Dimension tables** (lookup/reference): {', '.join(dim_tables)}")
+        if date_table:
+            lines.append(f"- **Date table**: {date_table}")
+        if measure_table:
+            lines.append(f"- **Measure table**: {measure_table}")
+        if calc_tables:
+            lines.append(f"- **Calculation groups**: {', '.join(calc_tables)}")
+        lines.append("")
+
+        # ── Relationships (star schema) ──
+        rels = []
+        for r in tom.model.Relationships:
+            from_t = str(r.FromTable.Name)
+            from_c = str(r.FromColumn.Name)
+            to_t = str(r.ToTable.Name)
+            to_c = str(r.ToColumn.Name)
+            active = "active" if r.IsActive else "inactive"
+            cross = str(r.CrossFilteringBehavior)
+            rels.append(f"- '{from_t}'[{from_c}] → '{to_t}'[{to_c}] ({active}, {cross})")
+        if rels:
+            lines.append("## Relationships")
+            lines.extend(rels)
+            lines.append("")
+
+        # ── Measures ──
+        measures_info = []
+        for m in tom.all_measures():
+            m_name = str(m.Name)
+            m_desc = str(m.Description).strip() if m.Description else ""
+            m_expr = str(m.Expression).strip() if m.Expression else ""
+            m_table = str(m.Parent.Name)
+            m_folder = str(m.DisplayFolder).strip() if m.DisplayFolder else ""
+
+            info = f"- **{m_name}**"
+            if m_folder:
+                info += f" (folder: {m_folder})"
+            if m_desc:
+                info += f": {m_desc}"
+            elif m_expr:
+                # Summarize short expressions
+                short = m_expr.replace("\n", " ").replace("\r", "").strip()
+                if len(short) <= 120:
+                    info += f" = `{short}`"
+                else:
+                    # Extract the top-level function
+                    first_line = m_expr.split("\n")[0].strip()
+                    if len(first_line) <= 80:
+                        info += f" = `{first_line} ...`"
+            measures_info.append(info)
+
+        if measures_info:
+            lines.append(f"## Measures ({len(measures_info)} total)")
+            lines.extend(measures_info)
+            lines.append("")
+
+        # ── Key columns with descriptions ──
+        described_cols = []
+        for t in tom.model.Tables:
+            t_name = str(t.Name)
+            for c in t.Columns:
+                c_name = str(c.Name)
+                if c_name == "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61":
+                    continue
+                desc = str(c.Description).strip() if c.Description else ""
+                if desc:
+                    described_cols.append(f"- '{t_name}'[{c_name}]: {desc}")
+        if described_cols:
+            lines.append("## Column Descriptions")
+            lines.extend(described_cols)
+            lines.append("")
+
+        # ── Data categories ──
+        categorized = []
+        for t in tom.model.Tables:
+            for c in t.Columns:
+                cat = str(c.DataCategory).strip() if c.DataCategory else ""
+                if cat and cat not in ("Uncategorized", "Regular"):
+                    categorized.append(f"- '{t.Name}'[{c.Name}]: {cat}")
+        if categorized:
+            lines.append("## Data Categories")
+            lines.extend(categorized)
+            lines.append("")
+
+        # ── Hierarchies ──
+        hierarchies = []
+        for t in tom.model.Tables:
+            for h in t.Hierarchies:
+                levels = [str(lev.Name) for lev in h.Levels]
+                hierarchies.append(f"- '{t.Name}'.{h.Name}: {' → '.join(levels)}")
+        if hierarchies:
+            lines.append("## Hierarchies")
+            lines.extend(hierarchies)
+            lines.append("")
+
+        # ── Usage guidance ──
+        lines.append("## Usage Guidance")
+        lines.append("- When users ask about totals or aggregations, use the pre-defined measures rather than summing columns directly.")
+        if date_table:
+            lines.append(f"- Time-based analysis should use the '{date_table}' table for filtering.")
+        if calc_tables:
+            lines.append(f"- Calculation groups ({', '.join(calc_tables)}) modify measure behavior — apply them as filters, not as values.")
+        lines.append("- Respect the star schema: filter from dimensions to facts, not the reverse.")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def fix_prep_for_ai(
+    dataset: str | UUID,
+    workspace: Optional[str | UUID] = None,
+    scan_only: bool = False,
+) -> None:
+    """
+    Auto-generate and write Prep for AI instructions for a semantic model.
+    In scan_only mode, shows what would be generated without writing.
+
+    Parameters
+    ----------
+    dataset : str | uuid.UUID
+        Name or ID of the semantic model.
+    workspace : str | uuid.UUID, optional
+        Workspace name or ID.
+    scan_only : bool, default=False
+        If True, only shows the generated text without writing.
+    """
+    # Check current state first
     try:
         result = read_prep_for_ai(dataset=dataset, workspace=workspace)
     except Exception as e:
         print(f"{icons.yellow_dot} Could not read Prep for AI: {e}")
         return
 
-    instructions = result["custom_instructions"]
+    current = result["custom_instructions"]
     verified = result["verified_answers"]
-
-    if not instructions:
-        print(
-            f"{icons.yellow_dot} Prep for AI: CustomInstructions are empty. "
-            f"Configure them in the Model Explorer → Prep for AI section, "
-            f"or in Power BI Desktop / Service."
-        )
-    elif len(instructions) < 50:
-        print(
-            f"{icons.yellow_dot} Prep for AI: CustomInstructions are very short "
-            f"({len(instructions)} chars). Consider adding more context."
-        )
-    else:
-        print(
-            f"{icons.green_dot} Prep for AI: CustomInstructions configured "
-            f"({len(instructions)} chars)."
-        )
-
     va_count = len(verified) if isinstance(verified, list) else 0
-    if va_count == 0:
-        print(f"{icons.info} Prep for AI: No verified answers configured.")
-    else:
-        print(f"{icons.green_dot} Prep for AI: {va_count} verified answer(s) configured.")
+
+    if current and len(current) >= 50:
+        print(
+            f"{icons.green_dot} Prep for AI: CustomInstructions already configured "
+            f"({len(current)} chars). Skipping auto-generation."
+        )
+        if va_count > 0:
+            print(f"{icons.green_dot} Prep for AI: {va_count} verified answer(s) configured.")
+        return
+
+    # Generate
+    print(f"{icons.in_progress} Generating Prep for AI instructions from model structure…")
+    try:
+        text = generate_prep_for_ai_text(dataset=dataset, workspace=workspace)
+    except Exception as e:
+        print(f"{icons.yellow_dot} Could not generate Prep for AI text: {e}")
+        return
+
+    if scan_only:
+        print(
+            f"{icons.yellow_dot} Prep for AI: CustomInstructions are "
+            f"{'empty' if not current else f'short ({len(current)} chars)'}. "
+            f"Would auto-generate {len(text)} chars."
+        )
+        if va_count == 0:
+            print(f"{icons.info} Prep for AI: No verified answers configured.")
+        return
+
+    # Write
+    try:
+        write_prep_for_ai(dataset=dataset, workspace=workspace, instructions=text)
+    except Exception as e:
+        print(f"{icons.yellow_dot} Could not write Prep for AI: {e}")
+        return
+
+    print(f"{icons.green_dot} Prep for AI: Auto-generated {len(text)} chars from model structure.")

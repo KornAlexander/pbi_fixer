@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.277"
+__version__ = "1.2.278"
 
 import ipywidgets as widgets
 import io
@@ -2291,7 +2291,7 @@ def pbi_fixer(
     add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
     add_measures_from_columns = _lazy_import("sempy_labs.semantic_model._Add_MeasuresFromColumns", "add_measures_from_columns")
     add_py_measures = _lazy_import("sempy_labs.semantic_model._Add_PYMeasures", "add_py_measures")
-    scan_prep_for_ai = _lazy_import("sempy_labs.semantic_model._PrepForAI", "scan_prep_for_ai")
+    fix_prep_for_ai = _lazy_import("sempy_labs.semantic_model._PrepForAI", "fix_prep_for_ai")
 
     # Inline fallbacks for MeasuresFromColumns and PYMeasures
     if add_measures_from_columns is None:
@@ -4356,9 +4356,9 @@ def pbi_fixer(
 
     # ── AI ──
     _model_fixer_cbs["── AI ──"] = _noop
-    if scan_prep_for_ai is not None:
-        _model_fixer_cbs["  Check Prep for AI"] = lambda **kw: scan_prep_for_ai(
-            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=True
+    if fix_prep_for_ai is not None:
+        _model_fixer_cbs["  Auto-Generate Prep for AI"] = lambda **kw: fix_prep_for_ai(
+            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
 
     # ── CRUD: Create & Delete ──
