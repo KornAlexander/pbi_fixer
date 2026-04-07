@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.254"
+__version__ = "1.2.255"
 
 import ipywidgets as widgets
 import io
@@ -256,9 +256,14 @@ def _translations_tab(workspace_input=None, report_input=None):
     auto_translate_btn = widgets.Button(description="🌐 Auto-Translate", button_style="info", layout=widgets.Layout(width="150px"))
     apply_btn = widgets.Button(description="✓ Apply Changes", button_style="success", layout=widgets.Layout(width="140px"), disabled=True)
     conn_status = status_html()
+    progress_bar = widgets.IntProgress(
+        value=0, min=0, max=1, bar_style="info",
+        layout=widgets.Layout(width="200px", display="none"),
+    )
+    progress_label = widgets.Label(value="", layout=widgets.Layout(display="none"))
 
     nav_row = widgets.HBox(
-        [load_btn, lang_dropdown, add_lang_btn, auto_translate_btn, apply_btn, conn_status],
+        [load_btn, lang_dropdown, add_lang_btn, auto_translate_btn, apply_btn, conn_status, progress_bar, progress_label],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0", flex_wrap="wrap"),
     )
 
@@ -451,6 +456,22 @@ def _translations_tab(workspace_input=None, report_input=None):
         auto_translate_btn.disabled = True
         auto_translate_btn.description = "Translating…"
 
+        # Count total names to translate across all languages
+        total_names = 0
+        for lang in _languages:
+            target_lang = lang.split("-")[0].lower()
+            if target_lang == "en":
+                continue
+            for obj_type, table_name, obj_name, _ in _objects:
+                key = _obj_key(obj_type, table_name, obj_name)
+                if not _trans_data[key].get(lang):
+                    total_names += 1
+        progress_bar.value = 0
+        progress_bar.max = max(total_names, 1)
+        progress_bar.layout.display = ""
+        progress_label.value = f"0 / {total_names}"
+        progress_label.layout.display = ""
+
         def _translate_bg():
             try:
                 from synapse.ml.services import Translate
@@ -458,7 +479,7 @@ def _translations_tab(workspace_input=None, report_input=None):
                 from pyspark.sql.functions import flatten, col
                 from sempy_labs._helper_functions import _create_spark_session
 
-                set_status(conn_status, "Initializing Spark session…", GRAY_COLOR)
+                progress_label.value = "Starting Spark…"
                 spark = _create_spark_session()
                 schema = StructType([StructField("text", StringType(), True)])
                 total = 0
@@ -504,9 +525,9 @@ def _translations_tab(workspace_input=None, report_input=None):
                         chunk_keys = keys_to_update[chunk_start:chunk_end]
 
                         if _first_call[0]:
-                            set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): translating {len(chunk_names)} names — first call may take 2-5 min (SynapseML cold start)…", GRAY_COLOR)
+                            progress_label.value = f"{lang}: first call (cold start ~2-5 min)…"
                         else:
-                            set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_start}/{len(to_translate)} names…", GRAY_COLOR)
+                            progress_label.value = f"{lang}: {chunk_start}/{len(to_translate)}…"
 
                         df_names = spark.createDataFrame([(n,) for n in chunk_names], schema)
                         df_result = (
@@ -524,14 +545,16 @@ def _translations_tab(workspace_input=None, report_input=None):
                                 _trans_data[key][lang] = str(translated_list[0])
                                 total += 1
                                 lang_translated += 1
+                                progress_bar.value = total
 
-                        set_status(conn_status, f"{lang} ({lang_idx+1}/{lang_count}): {chunk_end}/{len(to_translate)} names translated", GRAY_COLOR)
+                        progress_label.value = f"{lang}: {chunk_end}/{len(to_translate)} translated"
 
                     translated_langs += 1
-                    set_status(conn_status, f"✓ {lang}: {lang_translated} translated ({translated_langs}/{lang_count} languages done)", "#34c759")
+                    progress_label.value = f"✓ {lang} done ({translated_langs}/{lang_count})"
                     _render_grid()
 
                 _render_preview()
+                progress_label.value = f"✓ {total} translated"
                 set_status(conn_status, f"✓ Auto-translated {total} names across {translated_langs} language(s) via Azure AI Translator.", "#34c759")
             except ImportError:
                 set_status(conn_status, "SynapseML not available. Run in a Fabric Notebook.", "#ff3b30")
@@ -540,6 +563,8 @@ def _translations_tab(workspace_input=None, report_input=None):
             finally:
                 auto_translate_btn.disabled = False
                 auto_translate_btn.description = "🌐 Auto-Translate"
+                progress_bar.layout.display = "none"
+                progress_label.layout.display = "none"
 
         import threading
         threading.Thread(target=_translate_bg, daemon=True).start()
