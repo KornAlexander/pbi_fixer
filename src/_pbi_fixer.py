@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.296"
+__version__ = "1.2.297"
 
 import ipywidgets as widgets
 import io
@@ -4186,6 +4186,26 @@ def pbi_fixer(
     # Direct Lake Pre-warm Cache
     _setup_cache_warming = _lazy_import("sempy_labs.semantic_model._Setup_CacheWarming", "setup_cache_warming")
     if _setup_cache_warming is not None:
+        # Monkey-patch: ensure _Setup_CacheWarming has endDateTime in schedule payload
+        # (the installed version may be missing this required field)
+        try:
+            import sempy_labs.semantic_model._Setup_CacheWarming as _cw_mod
+            import types, textwrap, inspect
+            _orig_src = inspect.getsource(_cw_mod.setup_cache_warming)
+            if "endDateTime" not in _orig_src:
+                # Patch: wrap the original to inject endDateTime into its _base_api calls
+                _orig_base = _cw_mod._base_api
+                def _patched_base(request="", method="get", payload=None, status_codes=None, **kw):
+                    if payload and isinstance(payload, dict) and "configuration" in payload:
+                        cfg = payload.get("configuration", {})
+                        if "startDateTime" in cfg and "endDateTime" not in cfg:
+                            cfg["endDateTime"] = "2099-12-31T23:59:59Z"
+                    if status_codes:
+                        return _orig_base(request=request, method=method, payload=payload, status_codes=status_codes, **kw)
+                    return _orig_base(request=request, method=method, payload=payload, **kw)
+                _cw_mod._base_api = _patched_base
+        except Exception:
+            pass
         _model_fixer_cbs["  Direct Lake Pre-warm Cache"] = lambda **kw: _setup_cache_warming(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
