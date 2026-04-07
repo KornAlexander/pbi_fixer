@@ -914,7 +914,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             va = result.get("verified_answers", [])
             va_count = len(va) if isinstance(va, list) else 0
             stale = result.get("is_stale", False)
+            qna = result.get("qna_enabled")
             info_parts = []
+            if qna is False:
+                info_parts.append("⚠️ Q&A is disabled — enable it in Settings → Q&A")
+            elif qna is True:
+                info_parts.append("✅ Q&A enabled")
             if va_count:
                 info_parts.append(f"{va_count} verified answer(s)")
             if stale:

@@ -39,8 +39,8 @@ def _pbi_headers() -> dict:
     }
 
 
-def _discover_cluster_uri(workspace_id: str, item_id: str, token: str) -> str:
-    """Discover the semantic model home cluster from the Power BI dataset API."""
+def _get_dataset_info(workspace_id: str, item_id: str, token: str) -> dict:
+    """Get dataset info including home cluster and Q&A status."""
     import requests
 
     url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{item_id}"
@@ -51,20 +51,30 @@ def _discover_cluster_uri(workspace_id: str, item_id: str, token: str) -> str:
     )
     response.raise_for_status()
 
-    home_cluster = response.headers.get("home-cluster-uri")
-    if home_cluster:
-        return home_cluster.rstrip("/")
-
     body = response.json() if response.text.strip() else {}
-    odata_context = str(body.get("@odata.context", "")).strip()
-    if odata_context.startswith("https://"):
-        parts = odata_context.split("/", 3)
-        if len(parts) >= 3:
-            return "/".join(parts[:3])
+    home_cluster = response.headers.get("home-cluster-uri", "").rstrip("/")
+    if not home_cluster:
+        odata_context = str(body.get("@odata.context", "")).strip()
+        if odata_context.startswith("https://"):
+            parts = odata_context.split("/", 3)
+            if len(parts) >= 3:
+                home_cluster = "/".join(parts[:3])
 
-    raise RuntimeError(
-        "Could not discover the home cluster for this semantic model."
-    )
+    return {
+        "cluster_uri": home_cluster,
+        "qna_enabled": body.get("isQnAEnabled", None),
+    }
+
+
+def _discover_cluster_uri(workspace_id: str, item_id: str, token: str) -> str:
+    """Discover the semantic model home cluster from the Power BI dataset API."""
+    info = _get_dataset_info(workspace_id, item_id, token)
+    cluster = info.get("cluster_uri", "")
+    if not cluster:
+        raise RuntimeError(
+            "Could not discover the home cluster for this semantic model."
+        )
+    return cluster
 
 
 def _get_baseline_version(
@@ -166,13 +176,18 @@ def read_prep_for_ai(
     item_id = str(item_id)
 
     token = _get_pbi_token()
-    cluster_uri = _discover_cluster_uri(workspace_id, item_id, token)
+    ds_info = _get_dataset_info(workspace_id, item_id, token)
+    cluster_uri = ds_info.get("cluster_uri", "")
+    if not cluster_uri:
+        raise RuntimeError("Could not discover the home cluster for this semantic model.")
+    qna_enabled = ds_info.get("qna_enabled")
     lsdl, is_stale = _get_linguistic_schema(cluster_uri, workspace_id, item_id, token)
 
     return {
         "custom_instructions": str(lsdl.get("CustomInstructions", "")).strip(),
         "verified_answers": lsdl.get("VerifiedAnswers", []),
         "is_stale": is_stale,
+        "qna_enabled": qna_enabled,
     }
 
 
@@ -482,6 +497,16 @@ def fix_prep_for_ai(
     current = result["custom_instructions"]
     verified = result["verified_answers"]
     va_count = len(verified) if isinstance(verified, list) else 0
+    qna_enabled = result.get("qna_enabled")
+
+    # Q&A check
+    if qna_enabled is False:
+        print(
+            f"{icons.yellow_dot} Q&A is disabled on this semantic model. "
+            f"Enable it in Power BI Service → Settings → Q&A to use Prep for AI."
+        )
+    elif qna_enabled is True:
+        print(f"{icons.green_dot} Q&A is enabled on this semantic model.")
 
     if current and len(current) >= 50:
         print(
