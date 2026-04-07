@@ -1130,8 +1130,6 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         [props_label, props_placeholder, props_container],
         layout=widgets.Layout(
             flex="0 0 220px",
-            min_height="450px",
-            max_height="600px",
             overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}",
             border_radius="8px",
@@ -1144,7 +1142,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", gap="2px", overflow_x="hidden"))
     panels = widgets.HBox(
         [tree_col, props_box, preview_box],
-        layout=widgets.Layout(width="100%", gap="8px"),
+        layout=widgets.Layout(width="100%", gap="8px", height="460px", align_items="stretch"),
     )
     tree_header = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Model Objects</div>'
