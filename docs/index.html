@@ -957,10 +957,10 @@
 </footer>
 
 <script>
-// When embedded in a cross-origin iframe (e.g. WordPress.com), the iframe
-// has height:22000px + scrolling="no". The parent page scrolls the iframe
-// into view. Anchor clicks inside the iframe must NOT cause internal
-// viewport scrolling — that desynchronizes the parent's scroll position.
+// When embedded in a cross-origin iframe (e.g. WordPress.com), anchor
+// navigation can't scroll the parent page. Instead, rewrite all anchor
+// links to point to the full standalone GitHub Pages URL so clicking
+// them opens the standalone site at the correct section.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
@@ -973,22 +973,17 @@
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
 
-  // Prevent anchor clicks from scrolling inside the iframe.
-  // The parent page handles all scrolling — internal scroll breaks the view.
-  document.addEventListener('click', function(e) {
-    var link = e.target.closest('a[href^="#"]');
-    if (!link) return;
-    e.preventDefault();
-    // Update the hash so the browser knows which section was targeted
-    var hash = link.getAttribute('href');
+  // Rewrite all internal anchor links to full standalone URLs with target=_top
+  // so they navigate the parent window to the GitHub Pages site
+  var base = 'https://kornalexander.github.io/pbi_fixer/';
+  var anchors = document.querySelectorAll('a[href^="#"]');
+  for (var i = 0; i < anchors.length; i++) {
+    var a = anchors[i];
+    var hash = a.getAttribute('href');
     if (hash && hash !== '#') {
-      history.replaceState(null, '', hash);
+      a.href = base + hash;
+      a.target = '_top';
     }
-  });
-
-  // Prevent hash-based scroll on initial load
-  if (window.location.hash) {
-    window.scrollTo(0, 0);
   }
 })();
 </script>
