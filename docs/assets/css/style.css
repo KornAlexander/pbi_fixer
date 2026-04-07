@@ -445,6 +445,72 @@ a:hover { text-decoration: underline; }
   margin-bottom: 1rem;
 }
 
+/* ── History Timeline ── */
+.history-timeline {
+  position: relative;
+  padding-left: 3rem;
+  max-width: 700px;
+  margin: 0 auto;
+}
+.history-timeline::before {
+  content: '';
+  position: absolute;
+  left: 1.1rem;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.history-item {
+  position: relative;
+  margin-bottom: 2rem;
+}
+.history-item::before {
+  content: '';
+  position: absolute;
+  left: -2.15rem;
+  top: 0.35rem;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.history-year {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+.history-content h3 {
+  font-size: 1.15rem;
+  margin: 0 0 0.35rem;
+}
+.history-content h3 a {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+.history-content h3 a:hover {
+  color: var(--accent-dark);
+}
+.history-content p {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.history-content code {
+  background: var(--accent-light);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
 /* ── Highlights Section ── */
 .highlights-grid {
   display: grid;

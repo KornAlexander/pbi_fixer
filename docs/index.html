@@ -28,7 +28,7 @@
       <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#api">Standalone API</a></li>
       <li><a href="#ai">AI &amp; CLI</a></li>
-      <li><a href="#comparison">v1 vs v2</a></li>
+      <li><a href="#history">History</a></li>
       <li><a href="#quickstart">Quick Start</a></li>
       <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
     </ul>
@@ -746,41 +746,47 @@
   </div>
 </section>
 
-<!-- ═══════════════ v1 vs v2 Comparison ═══════════════ -->
-<section class="section" id="comparison">
+<!-- ═══════════════ History ═══════════════ -->
+<section class="section" id="history">
   <div class="container">
     <div class="section-header">
-      <h2>v1 → v2: A Quantum Leap</h2>
-      <p>From a PowerShell script with 9 fixers to a full cloud-native development environment with 45+.</p>
+      <h2>How We Got Here</h2>
+      <p>The PBI Fixer didn't start as a Fabric notebook tool. It evolved through four generations of Power BI automation — each one building on the lessons of the last.</p>
     </div>
 
-    <table class="comparison-table">
-      <thead>
-        <tr>
-          <th>Capability</th>
-          <th>Power BI Fixer v1</th>
-          <th>Power BI Fixer v2</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td><strong>Platform</strong></td><td>PowerShell (local)</td><td>Python / Fabric Notebook (cloud)</td></tr>
-        <tr><td><strong>UI</strong></td><td>Windows dialog boxes</td><td>Full interactive widget (12 tabs)</td></tr>
-        <tr><td><strong>Report Fixers</strong></td><td>4</td><td class="check">15</td></tr>
-        <tr><td><strong>Model Fixers</strong></td><td>5</td><td class="check">11</td></tr>
-        <tr><td><strong>BPA Auto-Fixers</strong></td><td class="cross">0</td><td class="check">19 (15 unique)</td></tr>
-        <tr><td><strong>Total Fixers</strong></td><td>~9</td><td class="check">45+</td></tr>
-        <tr><td><strong>Model Explorer</strong></td><td class="cross">—</td><td class="check">Full tree + DAX editing</td></tr>
-        <tr><td><strong>Report Explorer</strong></td><td class="cross">—</td><td class="check">Live preview + properties</td></tr>
-        <tr><td><strong>Memory Analysis</strong></td><td class="cross">—</td><td class="check">Vertipaq (6 subtabs)</td></tr>
-        <tr><td><strong>Translations</strong></td><td class="cross">—</td><td class="check">AI auto-translate</td></tr>
-        <tr><td><strong>Perspectives</strong></td><td class="cross">—</td><td class="check">Full CRUD editor</td></tr>
-        <tr><td><strong>Prototyping</strong></td><td class="cross">—</td><td class="check">Screenshots + Excalidraw</td></tr>
-        <tr><td><strong>Scan Mode</strong></td><td class="cross">No</td><td class="check">Yes</td></tr>
-        <tr><td><strong>Multi-Report</strong></td><td>All or nothing</td><td class="check">Selective (comma-separated)</td></tr>
-        <tr><td><strong>Cost</strong></td><td>Free</td><td>Free</td></tr>
-        <tr><td><strong>Setup</strong></td><td>PS modules + local install</td><td class="check">One line of pip install</td></tr>
-      </tbody>
-    </table>
+    <div class="history-timeline">
+      <div class="history-item">
+        <div class="history-year">2023</div>
+        <div class="history-content">
+          <h3><a href="https://actionablereporting.com/2023/12/06/power-bi-pimp-script/" target="_blank">Power BI Pimp Script</a></h3>
+          <p>A C# script for Tabular Editor that automated common data model tasks — calendar tables, measure tables, calculation groups, time intelligence. The first attempt at codifying best practices into one-click actions.</p>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="history-year">2024</div>
+        <div class="history-content">
+          <h3><a href="https://actionablereporting.com/2024/10/30/my-power-bi-toolbox-80-tabular-editor-macros-to-automate-data-model-development/" target="_blank">Tabular Editor Toolbox</a></h3>
+          <p>80+ Tabular Editor macros organized into categories — measure creation, calc groups, model documentation, formatting. The Pimp Script's ideas, expanded into a full library with Stream Deck shortcuts.</p>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="history-year">2025</div>
+        <div class="history-content">
+          <h3><a href="https://actionablereporting.com/2025/01/02/power-bi-fixer-holy-grail-of-power-bi/" target="_blank">PBI Fixer v1 (PowerShell)</a></h3>
+          <p>The jump to workspace-wide automation. A PowerShell script that downloaded all reports, replaced pie charts, applied themes, fixed page sizes, and re-uploaded — touching both the report layer and the semantic model. 9 fixers, Windows dialogs, local execution.</p>
+        </div>
+      </div>
+
+      <div class="history-item">
+        <div class="history-year">2026</div>
+        <div class="history-content">
+          <h3><a href="https://actionablereporting.com/2026/02/22/power-bi-fixer-one-line-to-fix-them-all/" target="_blank">PBI Fixer v2 (Fabric Notebook)</a></h3>
+          <p>Everything moved to the cloud. A full interactive UI running natively in Fabric Notebooks — 45+ fixers, 12 tabs, scan mode, multi-report editing, BPA auto-fix, and zero local installs. One line: <code>pbi_fixer()</code></p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
