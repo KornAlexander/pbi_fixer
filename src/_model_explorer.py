@@ -875,14 +875,14 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     _p4ai_label = widgets.HTML(
         value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">🤖 Prep for AI</div>'
     )
-    _p4ai_load_btn = widgets.Button(description="🔄 Load", layout=widgets.Layout(width="100px", height="32px"))
-    _p4ai_save_btn = widgets.Button(description="💾 Save", button_style="success", layout=widgets.Layout(width="100px", height="32px"))
-    _p4ai_gen_btn = widgets.Button(description="🪄 Generate", button_style="warning", layout=widgets.Layout(width="110px", height="32px"))
+    _p4ai_load_btn = widgets.Button(description="🔄 Load", layout=widgets.Layout(width="100px", min_width="100px", height="32px"))
+    _p4ai_save_btn = widgets.Button(description="💾 Save", button_style="success", layout=widgets.Layout(width="100px", min_width="100px", height="32px"))
+    _p4ai_gen_btn = widgets.Button(description="🪄 Generate", button_style="warning", layout=widgets.Layout(width="120px", min_width="120px", height="32px"))
     _p4ai_append_cb = widgets.Checkbox(value=False, description="Append", indent=False, layout=widgets.Layout(width="100px"))
     _p4ai_status = status_html()
     _p4ai_btn_row = widgets.HBox(
         [_p4ai_load_btn, _p4ai_gen_btn, _p4ai_save_btn, _p4ai_append_cb],
-        layout=widgets.Layout(gap="8px", align_items="center", margin="4px 0"),
+        layout=widgets.Layout(gap="8px", align_items="center", margin="4px 0", flex_flow="row wrap"),
     )
     _p4ai_textarea = widgets.Textarea(
         value="", placeholder="Click 🔄 Load to fetch CustomInstructions from the semantic model.",
