@@ -1273,8 +1273,9 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         if errors:
             summary = f"\u26a0\ufe0f {action}: {len(unique) - errors} OK, {errors} error(s)."
         if all_output:
-            first_line = all_output[0].splitlines()[0][:80]
-            summary += f" {first_line}"
+            last_lines = all_output[-1].splitlines()
+            last_line = last_lines[-1][:80] if last_lines else ""
+            summary += f" {last_line}"
         set_status(conn_status, summary, "#34c759" if not errors else "#ff9500")
 
     def on_scan(_):
