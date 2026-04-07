@@ -956,6 +956,36 @@
   </div>
 </footer>
 
+<!-- ═══════════════ Lightbox Overlay ═══════════════ -->
+<div class="lightbox-overlay" id="lightbox">
+  <img id="lightboxImg" src="" alt="Enlarged screenshot" />
+</div>
+
+<script>
+// Lightbox: click any screenshot image to enlarge
+(function() {
+  var overlay = document.getElementById('lightbox');
+  var lbImg = document.getElementById('lightboxImg');
+  document.querySelectorAll('.screenshot-img img').forEach(function(img) {
+    img.addEventListener('click', function() {
+      lbImg.src = this.src;
+      lbImg.alt = this.alt;
+      overlay.classList.add('active');
+    });
+  });
+  overlay.addEventListener('click', function() {
+    overlay.classList.remove('active');
+    lbImg.src = '';
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      overlay.classList.remove('active');
+      lbImg.src = '';
+    }
+  });
+})();
+</script>
+
 <script>
 // Iframe-mode: when embedded in a cross-origin iframe (WordPress), we can't
 // scroll the parent directly. Instead, the WordPress page has invisible anchor
