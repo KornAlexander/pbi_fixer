@@ -995,7 +995,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
     _p4ai_gen_btn.on_click(_on_p4ai_generate)
 
-    preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html, _p4ai_container], flex="1", min_height="450px")
+    preview_box = panel_box([preview_label, format_row, table_row_dropdown, preview, table_preview_html, _p4ai_container], flex="1")
 
     # -- editable properties --
     props_label = widgets.HTML(
