@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.266"
+__version__ = "1.2.267"
 
 import ipywidgets as widgets
 import io
@@ -3696,8 +3696,6 @@ def pbi_fixer(
     _rpt_fixer_cbs["── Chart Fixers ──"] = _rpt_noop
     if fix_piecharts is not None:
         _rpt_fixer_cbs["Fix Pie Charts"] = lambda **kw: fix_piecharts(**kw)
-    if fix_column_to_line is not None:
-        _rpt_fixer_cbs["Fix Column\u2192Line"] = lambda **kw: fix_column_to_line(**kw)
     if fix_charts is not None:
         _rpt_fixer_cbs["Fix All Charts"] = lambda **kw: fix_charts(**kw)
     if fix_ibcs_variance is not None:

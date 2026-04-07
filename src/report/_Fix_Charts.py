@@ -92,7 +92,7 @@ def fix_charts(
     Covers bar, column, line, and combo chart types. Applies per-type rules:
     - Bar/Column: remove axis titles, remove value axis labels, add data labels, remove gridlines
     - Line/Combo: same but keeps the Y value axis visible
-    - IBCS type swaps: non-time column charts → bar, time-axis bar charts → column
+    - IBCS type swaps: Date-axis columns → line, non-time columns → bar, time-axis bars → column
 
     Parameters
     ----------
@@ -160,12 +160,30 @@ def fix_charts(
             charts_found += 1
             changed = False
 
-            # IBCS type swap: non-time column → bar, time bar → column
+            # IBCS type swaps:
+            #   1. Column with Date/DateTime axis → lineChart (too many data points for columns)
+            #   2. Column with non-time axis → bar (IBCS horizontal)
+            #   3. Bar with time axis → column (IBCS vertical for time)
             if do_type_swap and vtype in (_COLUMN_CHART_TYPES | _BAR_CHART_TYPES):
                 category_fields = _get_category_fields(visual)
                 is_time = any(_is_time_field(t, c, date_columns) for t, c in category_fields)
+                has_date_axis = any((t, c) in date_columns for t, c in category_fields)
 
-                if vtype in _COLUMN_CHART_TYPES and not is_time:
+                if vtype in _COLUMN_CHART_TYPES and has_date_axis:
+                    # Date axis → line chart (daily/monthly dates are too granular for columns)
+                    new_type = "lineChart"
+                    cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+                    if scan_only:
+                        print(f"{icons.yellow_dot} {file_path} — {vtype} [{cols_str}] → should be {new_type}")
+                    else:
+                        old_type = vtype
+                        visual["visual"]["visualType"] = new_type
+                        vtype = new_type
+                        changed = True
+                        charts_swapped += 1
+                        print(f"{icons.green_dot} Type swap: {old_type} → {new_type} [{cols_str}]")
+
+                elif vtype in _COLUMN_CHART_TYPES and not is_time:
                     new_type = _COL_TO_BAR[vtype]
                     cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
                     if scan_only:
