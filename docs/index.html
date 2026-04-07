@@ -957,10 +957,11 @@
 </footer>
 
 <script>
-// Iframe-mode: when embedded in a cross-origin iframe (WordPress), native anchor
-// scrolling can't reach the parent page. Instead, we navigate the parent to
-// actionablereporting.com/pbi-fixer/#section which scrolls to invisible anchor
-// markers placed in the WordPress page at matching offsets.
+// Iframe-mode: when embedded in a cross-origin iframe (WordPress), we can't
+// scroll the parent directly. Instead, the WordPress page has invisible anchor
+// markers at every 200px interval (s0, s200, s400, ..., s25000). We calculate
+// the actual section offset at the current rendered width, round to nearest 200,
+// and navigate the parent to that anchor.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
@@ -973,10 +974,19 @@
   var hero = document.querySelector('.hero');
   if (hero) hero.style.paddingTop = '3rem';
 
-  // Navigate the PARENT page to the correct anchor
   var parentBase = 'https://actionablereporting.com/pbi-fixer/';
+  var GRID = 200; // anchor grid interval in px
 
-  // Nav links → navigate parent to #section
+  function scrollParentTo(hash) {
+    var target = document.querySelector(hash);
+    if (!target) return;
+    var offset = target.offsetTop;
+    var snapped = Math.round(offset / GRID) * GRID;
+    try { window.top.location.href = parentBase + '#s' + snapped; }
+    catch(err) { target.scrollIntoView({ behavior: 'auto', block: 'start' }); }
+  }
+
+  // Nav links → calculate actual offset, navigate parent to nearest grid anchor
   var navLinks = document.querySelector('.nav-links');
   if (navLinks) navLinks.addEventListener('click', function(e) {
     var link = e.target.closest('a[href^="#"]');
@@ -984,11 +994,7 @@
     var hash = link.getAttribute('href');
     if (!hash || hash === '#') return;
     e.preventDefault();
-    try { window.top.location.href = parentBase + hash; }
-    catch(err) {
-      var t = document.querySelector(hash);
-      if (t) t.scrollIntoView({ behavior: 'auto', block: 'start' });
-    }
+    scrollParentTo(hash);
   });
 
   // Logo → scroll parent to top
