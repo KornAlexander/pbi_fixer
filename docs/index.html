@@ -939,5 +939,44 @@
   </div>
 </footer>
 
+<script>
+// Fix anchor scrolling when embedded in an iframe (e.g. WordPress)
+// Native anchor scroll moves the iframe's internal viewport which breaks
+// when scrolling="no" is set. Instead, scroll the parent window.
+(function() {
+  var inIframe = false;
+  try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
+  if (!inIframe) return;
+
+  // Disable CSS smooth scroll inside iframe — we handle it manually
+  document.documentElement.style.scrollBehavior = 'auto';
+
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a[href^="#"]');
+    if (!link) return;
+    var id = link.getAttribute('href').slice(1);
+    var target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+
+    // Get the iframe's position in the parent page
+    var iframeRect = window.frameElement ? window.frameElement.getBoundingClientRect() : null;
+    var targetY = target.getBoundingClientRect().top;
+
+    if (iframeRect && window.parent) {
+      // Scroll parent window: iframe top in parent + element offset inside iframe
+      var parentScrollY = window.parent.pageYOffset || window.parent.document.documentElement.scrollTop;
+      window.parent.scrollTo({
+        top: parentScrollY + iframeRect.top + targetY - 20,
+        behavior: 'smooth'
+      });
+    } else {
+      // Fallback: scroll within iframe
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
