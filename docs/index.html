@@ -948,43 +948,41 @@
 </footer>
 
 <script>
-// Fix anchor scrolling when embedded in a cross-origin iframe (WordPress).
-// The iframe has height:14000px + scrolling="no", so all content is laid out
-// in the parent's scroll context. CSS scroll-behavior:smooth on <html> causes
-// the iframe to internally scroll its own viewport, breaking parent scrolling.
-// Fix: prevent all internal scroll, neutralize anchor default behavior.
+// Fix scrolling when embedded in a cross-origin iframe (WordPress.com).
+// The iframe has height:14000px + scrolling="no". All content is visible
+// through the parent page's scroll. The problem: CSS scroll-behavior:smooth
+// and anchor clicks cause the iframe to internally scroll its viewport,
+// which desynchronizes from the parent scroll and makes the page stuck.
+//
+// Solution: Lock iframe viewport completely. Hide the nav bar (parent page
+// scrolls — the nav is redundant). Prevent all anchor-based scrolling.
 (function() {
   var inIframe = false;
   try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
   if (!inIframe) return;
 
-  // Kill CSS smooth scroll — root cause of the stuck-scroll bug
+  // 1. Kill all internal scrolling capability
   document.documentElement.style.scrollBehavior = 'auto';
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
 
-  // Prevent anchor clicks from scrolling inside the iframe.
-  // The content is already visible in the parent's scroll context.
+  // 2. Hide the sticky nav — it's useless inside the iframe since we can't
+  //    scroll the parent cross-origin. Users scroll the WordPress page instead.
+  var nav = document.querySelector('.nav');
+  if (nav) nav.style.display = 'none';
+
+  // 3. Remove the hero top padding that compensated for the sticky nav
+  var hero = document.querySelector('.hero');
+  if (hero) hero.style.paddingTop = '3rem';
+
+  // 4. Intercept anchor clicks — prevent default to avoid any scroll attempts
   document.addEventListener('click', function(e) {
     var link = e.target.closest('a[href^="#"]');
     if (!link) return;
-    var id = link.getAttribute('href').slice(1);
-    if (!id) return;
-    var target = document.getElementById(id);
-    if (!target) return;
     e.preventDefault();
-    // Update hash without triggering scroll
-    history.replaceState(null, null, '#' + id);
-    // Navigate the parent page to the correct position.
-    // Since we can't access parent DOM (cross-origin), change parent location hash
-    // which forces the parent to scroll to the iframe, then the browser finds
-    // the named anchor. We use top.location if allowed, otherwise no-op.
-    try {
-      window.top.location.hash = '';
-    } catch(ex) {
-      // Cross-origin — can't control parent. Just prevent the internal scroll.
-    }
   });
 
-  // Also prevent initial hash-based scroll on page load inside iframe
+  // 5. Prevent initial hash-based scroll on page load
   if (window.location.hash) {
     window.scrollTo(0, 0);
   }
