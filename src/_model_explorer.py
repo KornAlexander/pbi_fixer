@@ -664,8 +664,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 8px 0"),
     )
 
-    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="320px", height="420px", font_family="monospace"))
-    tree_search = widgets.Text(placeholder="\U0001F50D Filter tree\u2026", layout=widgets.Layout(width="320px"))
+    tree = widgets.SelectMultiple(options=[], rows=18, layout=widgets.Layout(width="100%", height="420px", font_family="monospace"))
+    tree_search = widgets.Text(placeholder="\U0001F50D Filter tree\u2026", layout=widgets.Layout(width="100%"))
     _all_tree_options = []  # unfiltered options
 
     def _refresh_tree():
@@ -1264,7 +1264,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
 
     # Three-column layout: Tree (with search) | Properties | Preview (side by side)
-    tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", gap="2px", overflow_x="hidden"))
+    tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", min_width="280px", max_width="400px", gap="2px", overflow_x="hidden"))
     panels = widgets.HBox(
         [tree_col, props_box, preview_box],
         layout=widgets.Layout(width="100%", gap="8px", height="460px", align_items="stretch"),
