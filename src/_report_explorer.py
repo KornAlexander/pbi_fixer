@@ -1318,9 +1318,23 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
 
         total_violations = 0
 
-        def _scan_pages(pages, report_prefix=""):
+        # Count total pages for progress
+        all_pages = []
+        if _report_data.get("reports"):
+            for r_name, r_data in _report_data["reports"].items():
+                for p_name in r_data.get("pages", {}):
+                    all_pages.append((r_name, p_name))
+        else:
+            for p_name in _report_data.get("pages", {}):
+                all_pages.append((None, p_name))
+        total_pages = len(all_pages)
+
+        def _scan_pages(pages, report_prefix="", page_offset=0):
             nonlocal total_violations
-            for p_name, p in pages.items():
+            for p_idx, (p_name, p) in enumerate(pages.items()):
+                current = page_offset + p_idx + 1
+                scan_btn.description = f"{current}/{total_pages}"
+                set_status(conn_status, f"Scanning page '{p_name}' ({current}/{total_pages})", GRAY_COLOR)
                 page_key = f"page:{report_prefix}{p_name}" if report_prefix else f"page:{p_name}"
                 page_count = 0
                 for v_name, v in p.get("visuals", {}).items():
@@ -1341,9 +1355,12 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     _scan_results[page_key] = page_count
 
         if _report_data.get("reports"):
+            offset = 0
             for r_name, r_data in _report_data["reports"].items():
                 prefix = f"{r_name}\x1f"
-                _scan_pages(r_data.get("pages", {}), report_prefix=prefix)
+                pages = r_data.get("pages", {})
+                _scan_pages(pages, report_prefix=prefix, page_offset=offset)
+                offset += len(pages)
                 # Aggregate to report level
                 rpt_total = sum(v for k, v in _scan_results.items() if k.startswith(f"page:{prefix}"))
                 if rpt_total > 0:

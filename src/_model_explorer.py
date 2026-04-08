@@ -1948,9 +1948,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         skip_fixers = {"  Auto-Create Measures from Columns", "  Add PY Measures (Y-1)", "  Format All DAX"}
         fixer_names = [k for k in fixer_callbacks if k not in skip_fixers and k != "Select action..." and not k.startswith("──")]
 
+        total_steps = len(items) * len(fixer_names)
+        step = 0
         for ds in items:
-            set_status(conn_status, f"Scanning '{ds}'\u2026", GRAY_COLOR)
             for fixer_name in fixer_names:
+                step += 1
+                scan_btn.description = f"{step}/{total_steps}"
+                set_status(conn_status, f"Scanning '{ds}' — {fixer_name.strip()} ({step}/{total_steps})", GRAY_COLOR)
                 try:
                     buf = _io.StringIO()
                     with _redirect(buf):
