@@ -1904,7 +1904,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
     # Scan results detail panel (below save row)
     scan_results_box = widgets.VBox(layout=widgets.Layout(display="none", gap="4px",
-        max_height="400px", overflow_y="auto",
+        max_height="500px", overflow_y="auto", overflow_x="auto",
         border=f"1px solid {BORDER_COLOR}", border_radius="8px",
         padding="8px", background_color=SECTION_BG, margin="8px 0 0 0"))
 
@@ -1957,31 +1957,48 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
 
         # Build results panel with Fix buttons
         if all_findings:
-            result_widgets = []
-            result_widgets.append(widgets.HTML(
-                value=f'<div style="font-size:12px; font-weight:600; color:{ICON_ACCENT}; font-family:{FONT_FAMILY}; '
-                f'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">'
-                f'\u26a0\ufe0f {total_findings} Finding(s)</div>'
-            ))
-            # Table header
-            result_widgets.append(widgets.HTML(
-                value=f'<div style="display:grid; grid-template-columns:120px 200px 1fr 60px; font-size:11px; font-weight:600; color:#555; font-family:{FONT_FAMILY}; '
-                f'padding:4px 8px; border-bottom:1px solid {BORDER_COLOR}; gap:8px;">'
-                f'<span>Model</span>'
-                f'<span>Check</span>'
-                f'<span>Finding</span>'
-                f'<span></span>'
-                f'</div>'
-            ))
-            for ds, fixer_name, detail in all_findings:
+            # Build an HTML table for the findings (no grid, proper wrapping)
+            tbl_rows = []
+            for idx, (ds, fixer_name, detail) in enumerate(all_findings):
                 no_action = "no action needed" in detail.lower()
-                if no_action:
-                    action_widget = widgets.HTML(value='<span style="width:60px;display:inline-block;"></span>')
-                else:
+                severity_icon = "🟢" if no_action else "🟠"
+                bg = "#fff" if idx % 2 == 0 else "#fafafa"
+                tbl_rows.append(
+                    f'<tr style="background:{bg};">'
+                    f'<td style="padding:4px 6px;font-size:11px;white-space:nowrap;vertical-align:top;">{severity_icon}</td>'
+                    f'<td style="padding:4px 6px;font-size:11px;white-space:nowrap;vertical-align:top;color:#333;">{ds}</td>'
+                    f'<td style="padding:4px 6px;font-size:11px;white-space:nowrap;vertical-align:top;color:{ICON_ACCENT};font-weight:600;">{fixer_name.strip()}</td>'
+                    f'<td style="padding:4px 6px;font-size:11px;vertical-align:top;color:#555;word-break:break-word;">{detail}</td>'
+                    f'</tr>'
+                )
+            html_table = (
+                f'<div style="font-size:12px;font-weight:600;color:{ICON_ACCENT};font-family:{FONT_FAMILY};'
+                f'text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">'
+                f'\u26a0\ufe0f {total_findings} Finding(s)</div>'
+                f'<table style="width:100%;border-collapse:collapse;font-family:{FONT_FAMILY};">'
+                f'<thead><tr style="border-bottom:2px solid {BORDER_COLOR};">'
+                f'<th style="padding:4px 6px;font-size:11px;text-align:left;color:#555;"></th>'
+                f'<th style="padding:4px 6px;font-size:11px;text-align:left;color:#555;">Model</th>'
+                f'<th style="padding:4px 6px;font-size:11px;text-align:left;color:#555;">Check</th>'
+                f'<th style="padding:4px 6px;font-size:11px;text-align:left;color:#555;">Finding</th>'
+                f'</tr></thead><tbody>{"".join(tbl_rows)}</tbody></table>'
+            )
+            # Build Fix buttons separately (one per non-green finding)
+            result_widgets = [widgets.HTML(value=html_table)]
+            # Add Fix buttons row
+            fixable_findings = [(ds, fn, det) for ds, fn, det in all_findings if "no action needed" not in det.lower()]
+            if fixable_findings:
+                fix_btns = []
+                seen = set()
+                for ds, fixer_name, _det in fixable_findings:
+                    key = (ds, fixer_name)
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     fix_btn = widgets.Button(
-                        description="Fix",
+                        description=f"Fix: {fixer_name.strip()}",
                         button_style="warning",
-                        layout=widgets.Layout(width="60px", height="24px"),
+                        layout=widgets.Layout(width="auto", height="28px"),
                     )
                     def _make_fix(fn, model):
                         def _handler(_):
@@ -1996,18 +2013,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
                                 set_status(conn_status, f"Error: {e}", "#ff3b30")
                         return _handler
                     fix_btn.on_click(_make_fix(fixer_name, ds))
-                    action_widget = fix_btn
-                row = widgets.HBox([
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#333; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{ds}</span>',
-                        layout=widgets.Layout(width="120px")),
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:{ICON_ACCENT}; width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{fixer_name}</span>',
-                        layout=widgets.Layout(width="200px")),
-                    widgets.HTML(value=f'<span style="font-size:11px; font-family:{FONT_FAMILY}; color:#555;">{detail[:120]}</span>',
-                        layout=widgets.Layout(flex="1")),
-                    action_widget,
-                ], layout=widgets.Layout(align_items="center", gap="8px", padding="2px 8px",
-                    border_bottom=f"1px solid #f0f0f0"))
-                result_widgets.append(row)
+                    fix_btns.append(fix_btn)
+                result_widgets.append(widgets.HBox(fix_btns, layout=widgets.Layout(gap="6px", flex_wrap="wrap", margin="8px 0 0 0")))
             scan_results_box.children = result_widgets
             scan_results_box.layout.display = ""
         else:
