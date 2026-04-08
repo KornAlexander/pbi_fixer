@@ -1288,9 +1288,17 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
     )
     props_container.layout.display = "none"
-    # CSS to suppress per-widget scrollbar arrows inside the properties panel
+    # CSS: kill ALL scrollbars on children, keep panel-level scrollbar
     _props_css = widgets.HTML(
-        value='<style>.pbi-props .widget-text, .pbi-props .widget-inline-hbox { overflow: hidden !important; }</style>'
+        value=(
+            '<style>'
+            '.pbi-props * { scrollbar-width: none !important; -ms-overflow-style: none !important; }'
+            '.pbi-props *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }'
+            '.pbi-props > .widget-container { overflow-y: auto !important; scrollbar-width: thin !important; }'
+            '.pbi-props > .widget-container::-webkit-scrollbar { display: block !important; width: 6px !important; }'
+            '.pbi-props > .widget-container::-webkit-scrollbar-thumb { background: #ccc !important; border-radius: 3px !important; }'
+            '</style>'
+        )
     )
     props_box = widgets.VBox(
         [_props_css, props_label, props_placeholder, props_container],
