@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.305"
+__version__ = "1.2.306"
 
 import ipywidgets as widgets
 import io
@@ -4117,13 +4117,17 @@ def pbi_fixer(
 
         _model_fixer_cbs["  Add Calendar Table"] = _calendar_with_proposals
     if add_last_refresh_table is not None:
-        _model_fixer_cbs["  Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(**kw)
+        _model_fixer_cbs["  Add Last Refresh Table"] = lambda **kw: add_last_refresh_table(
+            report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
     if add_measure_table is not None:
-        _model_fixer_cbs["  Add Measure Table"] = lambda **kw: add_measure_table(**kw)
+        _model_fixer_cbs["  Add Measure Table"] = lambda **kw: add_measure_table(
+            report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
     if add_calc_group_units is not None:
-        _model_fixer_cbs["  Add Units Calc Group"] = lambda **kw: add_calc_group_units(**kw)
+        _model_fixer_cbs["  Add Units Calc Group"] = lambda **kw: add_calc_group_units(
+            report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
     if add_calc_group_time_intelligence is not None:
-        _model_fixer_cbs["  Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(**kw)
+        _model_fixer_cbs["  Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(
+            report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
     if add_measures_from_columns is not None:
         _model_fixer_cbs["  Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
@@ -4150,7 +4154,8 @@ def pbi_fixer(
     _model_fixer_cbs["── Formatting & Setup ──"] = _noop
     _model_fixer_cbs["  Format All DAX"] = lambda **kw: _format_all_dax(**kw)
     if fix_discourage_implicit_measures is not None:
-        _model_fixer_cbs["  Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(**kw)
+        _model_fixer_cbs["  Discourage Implicit Measures"] = lambda **kw: fix_discourage_implicit_measures(
+            report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     # Incremental Refresh setup
     _setup_ir = _lazy_import("sempy_labs.semantic_model._Setup_IncrementalRefresh", "setup_incremental_refresh")
