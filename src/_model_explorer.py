@@ -1293,10 +1293,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         layout=widgets.Layout(
             flex="0 0 220px",
             overflow_y="auto",
+            overflow_x="hidden",
             border=f"1px solid {BORDER_COLOR}",
             border_radius="8px",
             padding="6px",
             background_color=SECTION_BG,
+            max_height="460px",
         ),
     )
 
