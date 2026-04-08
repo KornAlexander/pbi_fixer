@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.317"
+__version__ = "1.2.319"
 
 import ipywidgets as widgets
 import io
@@ -301,9 +301,9 @@ def _translations_tab(workspace_input=None, report_input=None):
             return
         langs = _languages
         col_w_type = "40px"
-        col_w_table = "160px"
-        col_w_name = "180px"
-        col_w_lang = "160px"
+        col_w_table = "200px"
+        col_w_name = "220px"
+        col_w_lang = "200px"
 
         header_style = f"font-size:11px; font-weight:700; font-family:monospace; padding:4px 6px; border-bottom:2px solid {BORDER_COLOR};"
         # Header row
@@ -332,7 +332,7 @@ def _translations_tab(workspace_input=None, report_input=None):
                 txt = widgets.Text(
                     value=val,
                     placeholder=obj_name,
-                    layout=widgets.Layout(width=col_w_lang, height="26px"),
+                    layout=widgets.Layout(width=col_w_lang),
                 )
                 txt._trans_key = key
                 txt._trans_lang = lang
@@ -2119,17 +2119,20 @@ print(f"Hidden {count} column(s).")
 
 
 def pbi_fixer(
+    all_tabs: bool = False,
     workspace: Optional[str | UUID] = None,
     report: Optional[str | UUID] = None,
     page_name: Optional[str] = None,
     show_fixer_tab: bool = False,
-    all_tabs: bool = False,
 ):
     """
     Launches an interactive UI for scanning and fixing Power BI report visuals.
 
     Parameters
     ----------
+    all_tabs : bool, default=False
+        If False (default), only shows Fix All, Semantic Model, Report, and About tabs for fast startup.
+        If True, shows all tabs (Perspectives, Translations, Memory Analyzer, BPA, etc.).
     workspace : str | uuid.UUID, default=None
         The Fabric workspace name or ID.
         Defaults to None which resolves to the workspace of the attached lakehouse
@@ -2142,16 +2145,13 @@ def pbi_fixer(
     show_fixer_tab : bool, default=False
         If True, shows the Fixer tab. By default hidden since all fixers
         are accessible via action dropdowns in the Report and SM tabs.
-    all_tabs : bool, default=False
-        If False (default), only shows Semantic Model, Report, and About tabs for fast startup.
-        If True, shows all tabs (Perspectives, Translations, Memory Analyzer, BPA, etc.).
 
     Examples
     --------
-    >>> pbi_fixer()                              # Minimal: SM + Report + About
-    >>> pbi_fixer(all_tabs=True)                 # All tabs
-    >>> pbi_fixer("", "Bad Report")              # SM + Report, pre-filled report name
-    >>> pbi_fixer(all_tabs=True, report="Sales") # All tabs, pre-filled report
+    >>> pbi_fixer()                                    # Minimal: SM + Report + About
+    >>> pbi_fixer(True)                                # All tabs
+    >>> pbi_fixer(False, "", "Bad Report")             # Pre-filled report name
+    >>> pbi_fixer(True, "My Workspace", "My Report")   # All tabs, pre-filled
     """
 
     # Suppress stale widget comm errors from previous runs (cosmetic log spam)
