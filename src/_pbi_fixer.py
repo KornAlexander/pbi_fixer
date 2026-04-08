@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.307"
+__version__ = "1.2.308"
 
 import ipywidgets as widgets
 import io
@@ -4129,13 +4129,37 @@ def pbi_fixer(
         _model_fixer_cbs["  Add Time Intelligence"] = lambda **kw: add_calc_group_time_intelligence(
             report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
     if add_measures_from_columns is not None:
-        _model_fixer_cbs["  Auto-Create Measures from Columns"] = lambda **kw: add_measures_from_columns(
-            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
-        )
+        def _run_measures_from_columns(**kw):
+            ds = kw.get("report", "")
+            ws = kw.get("workspace")
+            scan = kw.get("scan_only", False)
+            sel_columns = kw.get("columns", [])
+            if sel_columns:
+                # Extract unique table names from selected column keys
+                sel_tables = set()
+                for c in sel_columns:
+                    # Column key is "TableName.ColumnName" or just "ColumnName"
+                    if "." in c:
+                        sel_tables.add(c.split(".", 1)[0])
+                if sel_tables:
+                    print(f"Running on selected tables: {', '.join(sorted(sel_tables))}")
+                    for tbl in sorted(sel_tables):
+                        add_measures_from_columns(dataset=ds, workspace=ws, target_table=tbl, scan_only=scan)
+                    return
+            add_measures_from_columns(dataset=ds, workspace=ws, scan_only=scan)
+        _model_fixer_cbs["  Auto-Create Measures from Columns"] = lambda **kw: _run_measures_from_columns(**kw)
     if add_py_measures is not None:
-        _model_fixer_cbs["  Add PY Measures (Y-1)"] = lambda **kw: add_py_measures(
-            dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
-        )
+        def _run_py_measures(**kw):
+            ds = kw.get("report", "")
+            ws = kw.get("workspace")
+            scan = kw.get("scan_only", False)
+            sel_measures = kw.get("measures", [])
+            if sel_measures:
+                print(f"Running on selected measures: {', '.join(sel_measures)}")
+                add_py_measures(dataset=ds, workspace=ws, measures=sel_measures, scan_only=scan)
+            else:
+                add_py_measures(dataset=ds, workspace=ws, scan_only=scan)
+        _model_fixer_cbs["  Add PY Measures (Y-1)"] = lambda **kw: _run_py_measures(**kw)
 
     def _format_all_dax(**kw):
         """Format all DAX expressions via daxformatter.com API."""
