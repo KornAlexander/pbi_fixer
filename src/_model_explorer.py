@@ -1040,8 +1040,8 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
     def _prop_input(label_text, width="100%", disabled=False):
         lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
-        inp = widgets.Text(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
-        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
+        inp = widgets.Text(layout=widgets.Layout(width=width, height="30px", overflow="hidden"), disabled=disabled)
+        row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0", overflow="hidden"))
         return inp, row
 
     prop_name, prop_name_row = _prop_input("Name")
@@ -1282,7 +1282,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         [prop_name_row, prop_table_row, prop_type_row, prop_format_row, prop_folder_row,
          prop_summarize_row, prop_is_key_row, prop_sort_by_row, prop_data_cat_row,
          prop_encoding_row, prop_nullable_row, prop_is_hidden_row, prop_desc_row],
-        layout=widgets.Layout(gap="2px"),
+        layout=widgets.Layout(gap="4px"),
     )
     props_placeholder = widgets.HTML(
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
@@ -1298,7 +1298,6 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             border_radius="8px",
             padding="6px",
             background_color=SECTION_BG,
-            max_height="460px",
         ),
     )
 
