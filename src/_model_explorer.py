@@ -1288,8 +1288,12 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         value=f'<div style="padding:12px; color:{GRAY_COLOR}; font-size:13px; font-family:{FONT_FAMILY}; font-style:italic;">Select an object to view properties</div>',
     )
     props_container.layout.display = "none"
+    # CSS to suppress per-widget scrollbar arrows inside the properties panel
+    _props_css = widgets.HTML(
+        value='<style>.pbi-props .widget-text, .pbi-props .widget-inline-hbox { overflow: hidden !important; }</style>'
+    )
     props_box = widgets.VBox(
-        [props_label, props_placeholder, props_container],
+        [_props_css, props_label, props_placeholder, props_container],
         layout=widgets.Layout(
             flex="0 0 220px",
             overflow_y="auto",
@@ -1300,6 +1304,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             background_color=SECTION_BG,
         ),
     )
+    props_box.add_class("pbi-props")
 
     # Three-column layout: Tree (with search) | Properties | Preview (side by side)
     tree_col = widgets.VBox([tree_search, tree], layout=widgets.Layout(width="320px", min_width="280px", max_width="400px", gap="2px", overflow_x="hidden"))
