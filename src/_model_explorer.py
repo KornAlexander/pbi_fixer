@@ -1040,7 +1040,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
     def _prop_input(label_text, width="100%", disabled=False):
         lbl = widgets.HTML(value=f'<span style="font-size:10px; font-weight:600; color:#555; font-family:{FONT_FAMILY};">{label_text}</span>')
-        inp = widgets.Text(layout=widgets.Layout(width=width, height="28px"), disabled=disabled)
+        inp = widgets.Text(layout=widgets.Layout(width=width), disabled=disabled)
         row = widgets.VBox([lbl, inp], layout=widgets.Layout(gap="0px", margin="0"))
         return inp, row
 
