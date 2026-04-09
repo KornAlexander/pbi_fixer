@@ -1393,15 +1393,15 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         tooltip="Close",
     )
     _fmt_header = widgets.HBox(
-        [widgets.HTML(value=f'<b style="font-size:18px;">\U0001F4CB PBIR Status</b>'), _fmt_close_btn],
-        layout=widgets.Layout(justify_content="space-between", align_items="center"),
+        [widgets.HTML(value=f'<b style="font-size:16px; line-height:1.4;">\U0001F4CB PBIR Status</b>'), _fmt_close_btn],
+        layout=widgets.Layout(justify_content="space-between", align_items="center", min_height="32px"),
     )
     format_container = widgets.VBox(
         [_fmt_header, format_html],
         layout=widgets.Layout(
             display="none", max_height="300px", overflow_y="auto",
             border=f"1px solid {BORDER_COLOR}", border_radius="8px",
-            padding="8px", background_color=SECTION_BG,
+            padding="10px 8px 8px 8px", background_color=SECTION_BG,
         ),
     )
     _fmt_close_btn.on_click(lambda _: setattr(format_container.layout, "display", "none"))
@@ -1415,8 +1415,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         _format_data.clear()
         try:
             rpt_list = _list_workspace_reports(ws)
-            html = '<table style="border-collapse:collapse; font-size:14px; font-family:monospace; width:100%;">'
-            html += '<tr style="background:#f5f5f5;"><th style="padding:6px 12px 6px 8px; text-align:left; font-size:15px;">Report</th><th style="padding:6px 8px; text-align:left; font-size:15px;">Format</th></tr>'
+            html = '<table style="border-collapse:collapse; font-size:12px; font-family:monospace;">'
+            html += '<tr style="background:#f5f5f5;"><th style="padding:3px 12px 3px 8px; text-align:left;">Report</th><th style="padding:3px 8px; text-align:left;">Format</th></tr>'
             n_legacy = 0
             for name, fmt in rpt_list:
                 _format_data.append((name, fmt))
@@ -1427,10 +1427,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
                     n_legacy += 1
                 else:
                     badge = f'<span style="color:#888;">{fmt or "unknown"}</span>'
-                html += f'<tr><td style="padding:4px 12px 4px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{name}</td>'
-                html += f'<td style="padding:4px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{badge}</td></tr>'
+                html += f'<tr><td style="padding:2px 12px 2px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{name}</td>'
+                html += f'<td style="padding:2px 8px; border-bottom:1px solid #f0f0f0; white-space:nowrap;">{badge}</td></tr>'
             html += '</table>'
-            html += f'<div style="font-size:13px; color:#555; margin-top:6px;">{len(rpt_list)} report(s), {n_legacy} legacy</div>'
+            html += f'<div style="font-size:11px; color:#555; margin-top:4px;">{len(rpt_list)} report(s), {n_legacy} legacy</div>'
             format_html.value = html
             format_container.layout.display = ""
             if n_legacy > 0:
