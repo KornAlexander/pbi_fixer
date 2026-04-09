@@ -169,29 +169,30 @@ Two conversion approaches exist in Semantic Link Labs:
 
 ---
 
-## Tab Layout (v1.2.216)
+## Tab Layout (v1.2.322)
 
 | Tab | Icon | Source | Description |
 | --- | --- | --- | --- |
 | Fix All | ⚡ | `_pbi_fixer.py` (inline) | Top-level scan+fix across all 4 categories: Report Fixers, Model Fixers, Model BPA, Report BPA. Always visible (first tab). |
-| Semantic Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + scan + search filter + actions dropdown |
+| Model | 📊 | `_model_explorer.py` | Tree + DAX preview + table data preview + properties + Prep for AI + scan + search filter + actions dropdown |
 | Report | 📄 | `_report_explorer.py` | Tree + visual preview + properties + format overview + scan + search filter + actions dropdown |
 | Fixer | ⚡ | `_pbi_fixer.py` (inline) | Checkbox-based fixer selection, God Button, Scan/Fix/Scan+Fix modes |
 | Perspectives | 👁 | `_perspective_editor.py` | Perspective Editor (based on m-kovalsky) |
 | Memory Analyzer | 💾 | `_pbi_fixer.py` (`_vertipaq_tab`) | Vertipaq stats with model dropdown, subtab DataFrames |
-| BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with category tabs, severity badges, grouped checkbox fixers for 19 rule types |
+| Model BPA | 📋 | `_pbi_fixer.py` (`_bpa_tab`) | Model BPA with category tabs, severity badges, grouped checkbox fixers for 19 rule types |
 | Report BPA | 📄 | `_pbi_fixer.py` (`_report_bpa_tab`) | Report BPA via `run_report_bpa()`, auto-converts PBIRLegacy |
 | Delta Analyzer | 📐 | `_pbi_fixer.py` (`_delta_analyzer_tab`) | Delta table analysis: summary, parquet files, row groups, column chunks |
 | Prototype | ✏️ | `report/_report_prototype.py` | Report prototype with SVG + Excalidraw export, optional page screenshots |
-| Translations | 🌐 | `_pbi_fixer.py` (`_translations_tab`) | Load, auto-translate (Azure AI Translator via SynapseML), preview diff, apply via XMLA |
+| Translations | 🌐 | `_pbi_fixer.py` (`_translations_tab`) | Load existing translations, editable Text widgets for manual editing, preview diff, apply via XMLA |
 | Model Diagram | 🗺 | `_pbi_fixer.py` (`_diagram_tab`) | SVG relationship diagram with nearest-edge connections |
 | About | ℹ️ | `_pbi_fixer.py` (inline) | Author info, links, tech credits (SLL, ipywidgets, powerbiclient, SynapseML, DAX Formatter) |
 
 * **Fix All tab** is always visible as the first tab, even with `all_tabs=False`. Scans all 4 categories and auto-fixes BPA findings that have standalone fixers.
 * **Fixer tab** is hidden by default (`show_fixer_tab=False`); all fixers are accessible via actions dropdowns in SM and Report tabs.
 * **Script Runner tab** exists but is disabled pending security review.
-* Tab order: Fix All → SM → Report → Fixer (if enabled) → Perspectives → Translations → Memory Analyzer → BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
-* `all_tabs=True`: All tabs shown. Tabs after Fixer are loaded via deferred placeholders (instant display, background population). `all_tabs=False` (default): Only Fix All, SM, Report, About.
+* Tab order: Fix All → Model → Report → Fixer (if enabled) → Perspectives → Translations → Memory Analyzer → Model BPA → Report BPA → Delta Analyzer → Prototype → Model Diagram → About.
+* `all_tabs=True`: All tabs shown. Tabs after Fixer are loaded via deferred placeholders (instant display, background population). `all_tabs=False` (default): Only Fix All, Model, Report, About.
+* **"Show All Tabs" button** (v1.2.221): Dynamically inserts extra tabs without needing `all_tabs=True` parameter.
 
 ---
 
@@ -275,7 +276,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ## Release History
 
-### Completed (54 features)
+### Completed (76 features)
 
 #### 🏗 Core & Foundation
 
@@ -377,6 +378,45 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 74 | Tab Width Reduction | v1.2.231 | 2026-04-07 | Reduced `tab_selector.style.button_width` from 155px to 120px for more compact tab bar layout. |
 | 75 | Page Navigation Detection + Perf | v1.2.232 | 2026-04-07 | Prototype: extracts real page navigation edges from `visualLink` data in all visuals (PageNavigation with navigationSection target). Blue dashed arrows for button nav, orange for drillthrough. Perf: pre-resolve reportId once (skip N×list_items), backoff polling (1→2→3s), `_return_bytes` skips lakehouse file I/O. Status shows nav link count. |
 | 76 | Duplicate Indent Fix | v1.2.233 | 2026-04-07 | Fixed SyntaxError: `else:` block in `_rpt_duplicate_selected` was at indent 16 instead of 20, misaligned with its `if item_type == "page":`. |
+
+#### 🔧 Bug Fixes & Polish (v1.2.234–v1.2.322)
+
+| # | Feature | Version | Date | Summary |
+|---|---------|---------|------|---------|
+| 77 | Tab Width & Prototype Polish | v1.2.234–v1.2.237 | 2026-04-07 | Tab width 120→110px, prototype output overflow fix (strip base64 >2MB), screenshot throttle max 5 concurrent, prototype tab icon changed to pencil ✏️. |
+| 78 | Tab Renaming | v1.2.238–v1.2.239 | 2026-04-07 | Renamed "Semantic Model" tab → "Model", "BPA" tab → "Model BPA" for clarity. |
+| 79 | Model Root Node Info | v1.2.240 | 2026-04-07 | Show Compat Level / Default Mode labels when model root node is selected. |
+| 80 | Excalidraw Nav Map | v1.2.241 | 2026-04-07 | Excalidraw nav map box diagram in Prototype tab, replaced SVG drillthrough spider web. |
+| 81 | Properties & Expression Polish | v1.2.242–v1.2.243 | 2026-04-07 | Properties panel max-height increased to 600px, expression panel uses placeholder attribute when no measure selected. |
+| 82 | Report Fixer Dropdown Categories | v1.2.244–v1.2.245 | 2026-04-07 | Report fixer dropdown grouped with separator categories, show actual error messages on fixer failures. |
+| 83 | Prototype Nav Extraction Fixes | v1.2.246–v1.2.248 | 2026-04-07 | Fallback for non-PBIR nav extraction, robust payload handling, folder-to-page lookup, pass selected_keys only to CRUD actions. |
+| 84 | Model Load Error Messages | v1.2.247–v1.2.249 | 2026-04-07 | Show actual error message in red when model/report load fails instead of being overwritten by summary. |
+| 85 | Prototype Navigation Layout | v1.2.250–v1.2.252 | 2026-04-07 | Navigation-based column layout in Prototype tab. Buttons-only nav extraction, skip back buttons, first page as root. |
+| 86 | IBCS Year Slicer | v1.2.251–v1.2.257 | 2026-04-07 | IBCS variance fixer: auto-recalc after calendar add, continue after calendar creation, add year slicer at top-right, resolve folder to displayName for `_add_visual`. |
+| 87 | Status Bar & Scrollbar Polish | v1.2.253–v1.2.254 | 2026-04-07 | Model explorer: hide horizontal scrollbar on tree column. Status bar: show last output line instead of first. |
+| 88 | Translations Improvements | v1.2.255–v1.2.262 | 2026-04-07 | Progress bar + label for real-time feedback, time estimates. Fast REST API path with Spark/SynapseML fallback, 5s timeout on REST getToken, remove REST path entirely (v1.2.262). |
+| 89 | Fix All Charts Consolidation | v1.2.263–v1.2.267 | 2026-04-07 | IBCS column↔bar type swaps, `fix_bar_to_column()`, consolidated dropdown. Fix All Charts includes column-to-line swap for Date axes, removed separate Fix Column→Line from dropdown. |
+| 90 | Report Auto-Refresh Preview | v1.2.268 | 2026-04-07 | Report Explorer: auto-refresh preview on re-load. |
+| 91 | Fix All Polish | v1.2.269–v1.2.272 | 2026-04-07 | Remove 'God Mode' text from Fix All tab. Show per-fixer scan progress in status bar. Fix model fixer name mismatch, ok counter, select/deselect feedback. |
+| 92 | Display Folders as Tree Nodes | v1.2.265–v1.2.273 | 2026-04-07 | Show column display folders as nested tree nodes in Model Explorer. Fix duplicate folder icons. |
+| 93 | Report Properties as Widgets | v1.2.274 | 2026-04-07 | Unify page properties as widget fields, removed HTML table rendering. |
+| 94 | Prep for AI | v1.2.275–v1.2.287 | 2026-04-08 | Read/write `CustomInstructions` in Model Explorer + Fix All scan. Auto-generate Prep for AI from model structure. Check Q&A enabled on semantic model. Enable Q&A button (PATCH API). Reset UI when switching models. Graceful 500 handling. Various layout fixes (buttons, scrollbars, preview). |
+| 95 | Cache Warming Fixes | v1.2.288–v1.2.290, v1.2.297–v1.2.299 | 2026-04-08 | Fix schedule Z suffix, error details, remove broken MARKDOWN cell. Monkey-patch `_Setup_CacheWarming` for endDateTime. Fix TOM `.Find()` indexer, use local persp ref. Auto-detect job type via GET /jobs, fallback to RunNotebook. |
+| 96 | Incremental Refresh M Fix | v1.2.291–v1.2.293 | 2026-04-08 | Fix M expression syntax — proper in/step parsing, comma placement, newlines. Inline IR setup to bypass broken `tom._model.py p.Expression`. Use `p.Source.Expression` instead. |
+| 97 | Scan Output & Error Polish | v1.2.292–v1.2.296 | 2026-04-08 | Increase error truncation 60→200 chars. Show captured stdout in `scan_results_box` after Run action. Fix output text color #e0e0e0→#333. Add endDateTime to schedule API. |
+| 98 | Translations Editable Text | v1.2.295 | 2026-04-08 | Translations tab: editable Text widgets for manual editing, disabled auto-translate. |
+| 99 | TOM .Find() Fixes | v1.2.299–v1.2.303 | 2026-04-08 | Replace `[]` indexer with `.Find()` across cache warming, IR setup (Tables, Columns, Partitions), and perspective editor. Fix IR `Partitions[0]` indexer — capture source expression during loop. |
+| 100 | en-US Translation Option | v1.2.304 | 2026-04-08 | Add en-US to translation language dropdown options. |
+| 101 | Perspective Editor State Fix | v1.2.305 | 2026-04-08 | Suppress observers during bulk load, manually sync all UI state after to fix state drift. |
+| 102 | Model Fixer Lambda Fix | v1.2.306 | 2026-04-08 | Fix all model fixer lambdas — extract `(report, workspace, scan_only)` params instead of passing `**kw` to strict-signature functions. |
+| 103 | Properties Panel Scrollbar | v1.2.307–v1.2.315 | 2026-04-09 | Multi-attempt fix for per-field scrollbar arrows: max_height + overflow_x hidden (v307), overflow:hidden on Text (v309, broke editability), revert (v312), remove fixed height (v313), CSS injection (v314), nuclear CSS `scrollbar-width:none` + `::-webkit-scrollbar { display:none }` on `.pbi-props *` with panel-level scrollbar re-enabled (v315). |
+| 104 | Selection-Aware SM Actions | v1.2.308 | 2026-04-09 | PY Measures and Auto-Create Measures respect tree selection — use selected measures/columns if any, otherwise all. |
+| 105 | CalcCalendar Display Folders | v1.2.310 | 2026-04-09 | Re-apply display folders after `SaveChanges()` — server regenerates CalculatedTableColumn objects on save and drops display folders. Also fix `[]` to `.Find()` for hierarchy display folder assignment. |
+| 106 | Scan Results HTML Table | v1.2.311 | 2026-04-09 | Rewrite scan results from grid-of-HBox-widgets to HTML `<table>` — full width, word-wrap, severity icons (🟢/🟠), alternating row backgrounds, deduplicated Fix buttons below table. |
+| 107 | Scan Progress Indicators | v1.2.316 | 2026-04-09 | Model Explorer: status bar shows `Scanning 'ModelName' — Check Name (3/18)`, scan button shows `3/18`. Report Explorer: status shows `Scanning page 'PageName' (2/12)`, scan button shows `2/12`. |
+| 108 | pip Install Support | v1.2.317–v1.2.318 | 2026-04-09 | Export `pbi_fixer` from `sempy_labs/__init__.py` — enables `from sempy_labs import pbi_fixer; pbi_fixer()`. Reorder `pbi_fixer()` params to match `pbi_fixer_v2` — `all_tabs` first. |
+| 109 | Translation Editor Column Widths | v1.2.319 | 2026-04-09 | Widen translation columns (table 200px, name 220px, lang 200px), remove fixed height from Text inputs. |
+| 110 | PBIR Status Heading Fix | v1.2.320–v1.2.322 | 2026-04-09 | Increase PBIR Status heading from 13px to 16px with line-height:1.4, add min-height 32px on header row, 10px top padding. Revert table body to compact 12px. |
 
 ---
 
