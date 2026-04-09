@@ -911,7 +911,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _p4ai_load_btn.description = "Loading…"
         set_status(_p4ai_status, "Reading Prep for AI…", GRAY_COLOR)
         try:
-            from sempy_labs.semantic_model._PrepForAI import read_prep_for_ai
+            from sempy_labs.semantic_model._Add_PrepForAI import read_prep_for_ai
             result = read_prep_for_ai(dataset=ds, workspace=ws)
             _p4ai_textarea.value = result.get("custom_instructions", "")
             va = result.get("verified_answers", [])
@@ -962,7 +962,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _p4ai_save_btn.description = "Saving…"
         set_status(_p4ai_status, "Saving Prep for AI… this may take up to 60s", GRAY_COLOR)
         try:
-            from sempy_labs.semantic_model._PrepForAI import write_prep_for_ai
+            from sempy_labs.semantic_model._Add_PrepForAI import write_prep_for_ai
             import io as _io
             from contextlib import redirect_stdout as _redirect
             buf = _io.StringIO()
@@ -996,7 +996,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _p4ai_gen_btn.description = "Generating…"
         set_status(_p4ai_status, "Analyzing model structure…", GRAY_COLOR)
         try:
-            from sempy_labs.semantic_model._PrepForAI import generate_prep_for_ai_text
+            from sempy_labs.semantic_model._Add_PrepForAI import generate_prep_for_ai_text
             text = generate_prep_for_ai_text(dataset=ds, workspace=ws)
             _p4ai_textarea.value = text
             _p4ai_loaded_ds[0] = ds
@@ -1019,7 +1019,7 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
         _p4ai_qna_btn.description = "Enabling…"
         set_status(_p4ai_status, "Enabling Q&A on model…", GRAY_COLOR)
         try:
-            from sempy_labs.semantic_model._PrepForAI import enable_qna
+            from sempy_labs.semantic_model._Add_PrepForAI import enable_qna
             enable_qna(dataset=ds, workspace=ws)
             _p4ai_qna_btn.layout.display = "none"
             set_status(_p4ai_status, "✅ Q&A enabled successfully", "#34c759")

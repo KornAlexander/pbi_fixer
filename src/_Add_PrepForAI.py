@@ -512,7 +512,7 @@ def generate_prep_for_ai_text(
     return "\n".join(lines)
 
 
-def fix_prep_for_ai(
+def add_prep_for_ai(
     dataset: str | UUID,
     workspace: Optional[str | UUID] = None,
     scan_only: bool = False,

@@ -1,7 +1,7 @@
 # Interactive PBI Report Fixer UI (ipywidgets)
 # Orchestrates report visual fixers and semantic model fixers via a single notebook widget.
 
-__version__ = "1.2.322"
+__version__ = "1.2.323"
 
 import ipywidgets as widgets
 import io
@@ -2188,7 +2188,7 @@ def pbi_fixer(
     add_measure_table = _lazy_import("sempy_labs.semantic_model._Add_CalculatedTable_MeasureTable", "add_measure_table")
     add_measures_from_columns = _lazy_import("sempy_labs.semantic_model._Add_MeasuresFromColumns", "add_measures_from_columns")
     add_py_measures = _lazy_import("sempy_labs.semantic_model._Add_PYMeasures", "add_py_measures")
-    fix_prep_for_ai = _lazy_import("sempy_labs.semantic_model._PrepForAI", "fix_prep_for_ai")
+    add_prep_for_ai = _lazy_import("sempy_labs.semantic_model._Add_PrepForAI", "add_prep_for_ai")
 
     # Inline fallbacks for MeasuresFromColumns and PYMeasures
     if add_measures_from_columns is None:
@@ -2771,7 +2771,7 @@ def pbi_fixer(
 
         _skip_rpt = {"Convert to PBIR", "Show Theme Summary", "Apply IBCS Theme", "Delete Selected", "Duplicate Selected"}
         _skip_sm = {"── Add Objects ──", "── Formatting & Setup ──", "── BPA Fixers ──", "── Create & Delete ──",
-                     "  Format All DAX", "  Setup Incremental Refresh", "  Direct Lake Pre-warm Cache",
+                     "  Format All DAX", "  Add Incremental Refresh", "  Direct Lake Pre-warm Cache",
                      "  Add Calendar Table", "  Add Last Refresh Table", "  Add Measure Table",
                      "  Add Units Calc Group", "  Add Time Intelligence",
                      "  Auto-Create Measures from Columns", "  Add PY Measures (Y-1)"}
@@ -4182,8 +4182,8 @@ def pbi_fixer(
             report=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False))
 
     # Incremental Refresh setup
-    _setup_ir = _lazy_import("sempy_labs.semantic_model._Setup_IncrementalRefresh", "setup_incremental_refresh")
-    if _setup_ir is not None:
+    _add_ir = _lazy_import("sempy_labs.semantic_model._Add_IncrementalRefresh", "add_incremental_refresh")
+    if _add_ir is not None:
         def _run_ir(**kw):
             ds = kw.get("report", "")
             ws = kw.get("workspace")
@@ -4209,18 +4209,18 @@ def pbi_fixer(
                     has_date = any(col.DataType == TOM.DataType.DateTime for col in table.Columns)
                     if not has_date:
                         continue
-                    _setup_ir(dataset=ds, table_name=table.Name, workspace=ws, scan_only=scan)
-        _model_fixer_cbs["  Setup Incremental Refresh"] = lambda **kw: _run_ir(**kw)
+                    _add_ir(dataset=ds, table_name=table.Name, workspace=ws, scan_only=scan)
+        _model_fixer_cbs["  Add Incremental Refresh"] = lambda **kw: _run_ir(**kw)
 
     # Direct Lake Pre-warm Cache
-    _setup_cache_warming = _lazy_import("sempy_labs.semantic_model._Setup_CacheWarming", "setup_cache_warming")
-    if _setup_cache_warming is not None:
-        # Monkey-patch: ensure _Setup_CacheWarming has endDateTime in schedule payload
+    _add_cache_warming = _lazy_import("sempy_labs.semantic_model._Add_CacheWarming", "add_cache_warming")
+    if _add_cache_warming is not None:
+        # Monkey-patch: ensure _Add_CacheWarming has endDateTime in schedule payload
         # (the installed version may be missing this required field)
         try:
-            import sempy_labs.semantic_model._Setup_CacheWarming as _cw_mod
+            import sempy_labs.semantic_model._Add_CacheWarming as _cw_mod
             import types, textwrap, inspect
-            _orig_src = inspect.getsource(_cw_mod.setup_cache_warming)
+            _orig_src = inspect.getsource(_cw_mod.add_cache_warming)
             if "endDateTime" not in _orig_src:
                 # Patch: wrap the original to inject endDateTime into its _base_api calls
                 _orig_base = _cw_mod._base_api
@@ -4235,7 +4235,7 @@ def pbi_fixer(
                 _cw_mod._base_api = _patched_base
         except Exception:
             pass
-        _model_fixer_cbs["  Direct Lake Pre-warm Cache"] = lambda **kw: _setup_cache_warming(
+        _model_fixer_cbs["  Direct Lake Pre-warm Cache"] = lambda **kw: _add_cache_warming(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
 
@@ -4302,8 +4302,8 @@ def pbi_fixer(
 
     # ── AI ──
     _model_fixer_cbs["── AI ──"] = _noop
-    if fix_prep_for_ai is not None:
-        _model_fixer_cbs["  Auto-Generate Prep for AI"] = lambda **kw: fix_prep_for_ai(
+    if add_prep_for_ai is not None:
+        _model_fixer_cbs["  Auto-Generate Prep for AI"] = lambda **kw: add_prep_for_ai(
             dataset=kw.get("report", ""), workspace=kw.get("workspace"), scan_only=kw.get("scan_only", False)
         )
 

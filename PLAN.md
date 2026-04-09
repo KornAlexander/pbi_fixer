@@ -88,7 +88,7 @@ src/
     _Add_CalcGroup_TimeIntelligence.py
     _Add_MeasuresFromColumns.py
     _Add_PYMeasures.py
-    _Setup_IncrementalRefresh.py  # Incremental refresh setup (Feature 27)
+    _Add_IncrementalRefresh.py  # Incremental refresh setup (Feature 27)
     _Fix_FloatingPointDataType.py
     _Fix_IsAvailableInMdx.py
     _Fix_IsAvailableInMdxTrue.py
@@ -235,7 +235,7 @@ All SM fixers have their own file in `semantic_model/`, accept `(report/dataset,
 | Add Time Intelligence | `_Add_CalcGroup_TimeIntelligence.py` | `add_calc_group_time_intelligence()` | ✅ | ✅ | ✅ |
 | Auto-Create Measures from Columns | `_Add_MeasuresFromColumns.py` | `add_measures_from_columns()` | ✅ | ❌ | ✅ |
 | Add PY Measures (Y-1) | `_Add_PYMeasures.py` | `add_py_measures()` | ✅ | ❌ | ✅ |
-| Direct Lake Pre-warm Cache | `_Setup_CacheWarming.py` | `setup_cache_warming()` | ✅ | ❌ | ✅ |
+| Direct Lake Pre-warm Cache | `_Add_CacheWarming.py` | `add_cache_warming()` | ✅ | ❌ | ✅ |
 | Format All DAX | _(inline in `_pbi_fixer.py`)_ | `tom.format_dax()` | ❌ | ❌ | ✅ |
 
 ### BPA Auto-Fixers (19 total — standalone files + dropdown in `_bpa_tab`)
@@ -296,7 +296,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 |---|---------|---------|------|---------|
 | 2 | SM Properties & Editing | v1.2.x | 2026-03-27 | Properties panel, editable DAX, save button, Perspective Editor tab |
 | 19 | Table Data Preview | v1.2.114 | 2026-04-04 | Top N rows via `evaluate_dax(TOPN(...))` in preview panel |
-| 21 | Incremental Refresh Setup | v1.2.142 | 2026-04-04 | `_Setup_IncrementalRefresh.py`, auto date column detection |
+| 21 | Incremental Refresh Setup | v1.2.142 | 2026-04-04 | `_Add_IncrementalRefresh.py`, auto date column detection |
 | 25 | Model Diagram Tab | v1.2.146–1.2.180 | 2026-04-05 | 🗺 SVG relationship diagram, auto layout, model dropdown. v1.2.180: actual box heights + nearest-edge connection lines |
 | 29a | Extended Properties (in-memory) | v1.2.165 | 2026-04-05 | Columns: is_key, sort_by, data_category, encoding, nullable. Measures: is_hidden. Relationships: security_filtering, rely_on_rri |
 | 31 | Read Stats from Data Toggle | v1.2.160 | 2026-04-05 | `read_stats_from_data=True` checkbox for Direct Lake models in Memory Analyzer |
@@ -401,7 +401,7 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 | 92 | Display Folders as Tree Nodes | v1.2.265–v1.2.273 | 2026-04-07 | Show column display folders as nested tree nodes in Model Explorer. Fix duplicate folder icons. |
 | 93 | Report Properties as Widgets | v1.2.274 | 2026-04-07 | Unify page properties as widget fields, removed HTML table rendering. |
 | 94 | Prep for AI | v1.2.275–v1.2.287 | 2026-04-08 | Read/write `CustomInstructions` in Model Explorer + Fix All scan. Auto-generate Prep for AI from model structure. Check Q&A enabled on semantic model. Enable Q&A button (PATCH API). Reset UI when switching models. Graceful 500 handling. Various layout fixes (buttons, scrollbars, preview). |
-| 95 | Cache Warming Fixes | v1.2.288–v1.2.290, v1.2.297–v1.2.299 | 2026-04-08 | Fix schedule Z suffix, error details, remove broken MARKDOWN cell. Monkey-patch `_Setup_CacheWarming` for endDateTime. Fix TOM `.Find()` indexer, use local persp ref. Auto-detect job type via GET /jobs, fallback to RunNotebook. |
+| 95 | Cache Warming Fixes | v1.2.288–v1.2.290, v1.2.297–v1.2.299 | 2026-04-08 | Fix schedule Z suffix, error details, remove broken MARKDOWN cell. Monkey-patch `_Add_CacheWarming` for endDateTime. Fix TOM `.Find()` indexer, use local persp ref. Auto-detect job type via GET /jobs, fallback to RunNotebook. |
 | 96 | Incremental Refresh M Fix | v1.2.291–v1.2.293 | 2026-04-08 | Fix M expression syntax — proper in/step parsing, comma placement, newlines. Inline IR setup to bypass broken `tom._model.py p.Expression`. Use `p.Source.Expression` instead. |
 | 97 | Scan Output & Error Polish | v1.2.292–v1.2.296 | 2026-04-08 | Increase error truncation 60→200 chars. Show captured stdout in `scan_results_box` after Run action. Fix output text color #e0e0e0→#333. Add endDateTime to schedule API. |
 | 98 | Translations Editable Text | v1.2.295 | 2026-04-08 | Translations tab: editable Text widgets for manual editing, disabled auto-translate. |
