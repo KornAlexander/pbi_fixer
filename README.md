@@ -2,7 +2,7 @@
 
 **One line of Python to assess, standardize, and fix any Power BI report.**
 
-The Power BI Fixer is a free, open-source, notebook-native tool built on [Semantic Link Labs](https://github.com/microsoft/semantic-link-labs) that combines **34+ fixers** for both the report layer and the semantic model into a single interactive UI with 10 tabs. No installs. No downloads. No license costs. Just one line of Python in a Microsoft Fabric Notebook.
+The Power BI Fixer is a free, open-source, notebook-native tool built on [Semantic Link Labs](https://github.com/microsoft/semantic-link-labs) that combines **50+ fixers** for both the report layer and the semantic model into a single interactive UI with 9 tabs. No installs. No downloads. No license costs. Just one line of Python in a Microsoft Fabric Notebook.
 
 ---
 
@@ -61,19 +61,26 @@ pbi_fixer(workspace="Your Workspace Name")
 
 ## What It Does
 
-### Report Fixers (7 — Visual Layer, PBIR Format)
+### Report Fixers (14 — Visual Layer, PBIR Format)
 
 | Fixer | What It Does |
 |-------|-------------|
 | **Fix Pie Charts** | Replaces all pie charts with clustered bar charts (or any target visual type) |
 | **Fix Bar Charts** | Removes axis titles/values, adds data labels, removes gridlines |
 | **Fix Column Charts** | Same clean-up as bar charts, applied to column charts |
+| **Fix All Charts** | Consolidated fixer that applies bar, column, and column-to-line fixes |
+| **Fix Column to Line** | Converts column charts to line charts when the x-axis is a date |
 | **Fix Page Size** | Upgrades default 720×1280 pages to 1080×1920 (Full HD) |
 | **Hide Visual Filters** | Sets `isHiddenInViewMode` on all visual-level filters |
+| **Disable ShowItemsNoData** | Disables "Show items with no data" on all visuals |
+| **Remove Unused Custom Visuals** | Removes custom visuals not used on any page |
+| **Migrate Report-Level Measures** | Moves report-level measures into the semantic model |
+| **Visual Alignment** | Aligns and distributes visuals on report pages |
 | **Upgrade to PBIR** | Converts PBIRLegacy reports to PBIR via REST round-trip |
-| **Migrate Slicer to Slicerbar** | Migrates slicers to the new slicerbar format (optional) |
+| **Migrate Slicer to Slicerbar** | Migrates slicers to the new slicerbar format |
+| **IBCS Variance** | Generates IBCS-compliant variance charts |
 
-### Semantic Model Fixers — Additive (8 — XMLA Endpoint)
+### Semantic Model Fixers — Additive (11 — XMLA Endpoint)
 
 | Fixer | What It Does |
 |-------|-------------|
@@ -85,6 +92,9 @@ pbi_fixer(workspace="Your Workspace Name")
 | **Add Time Intelligence Calc Group** | Generates AC, Y-1/Y-2/Y-3, YTD, absolute/relative/achievement variances |
 | **Auto-Create Measures from Columns** | Creates measures from columns with SummarizeBy set |
 | **Add PY Measures (Y-1)** | Creates PY, ΔPY, ΔPY% measures for all or selected measures |
+| **Add Cache Warming** | Configures Direct Lake pre-warm cache settings |
+| **Add Incremental Refresh** | Sets up incremental refresh policies on tables |
+| **Add Prep for AI** | Auto-generates AI/Copilot instructions from model structure |
 
 ### BPA Auto-Fixers (19 — Fix Best Practice Violations)
 
@@ -119,6 +129,8 @@ These fix specific violations found by `run_model_bpa()`. Available as per-row f
 | **Format All DAX** | Formats all DAX expressions via daxformatter.com API |
 | **Clone Report** | Clones a report (appends `_copy`) |
 | **Clone Model** | Clones a semantic model via getDefinition + create_semantic_model_from_bim |
+| **Report Prototype** | Auto-generates report page prototypes from semantic model structure |
+| **Report Theme** | Extracts and applies report themes |
 
 ---
 
@@ -180,6 +192,27 @@ fix_upgrade_to_pbir(report="My Report", workspace="My Workspace", scan_only=Fals
 
 from sempy_labs.report._Fix_MigrateSlicerToSlicerbar import fix_migrate_slicer_to_slicerbar
 fix_migrate_slicer_to_slicerbar(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_Charts import fix_all_charts
+fix_all_charts(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_ColumnToLine import fix_column_to_line
+fix_column_to_line(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_DisableShowItemsNoData import fix_disable_show_items_no_data
+fix_disable_show_items_no_data(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_RemoveUnusedCustomVisuals import fix_remove_unused_custom_visuals
+fix_remove_unused_custom_visuals(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_MigrateReportLevelMeasures import fix_migrate_report_level_measures
+fix_migrate_report_level_measures(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_VisualAlignment import fix_visual_alignment
+fix_visual_alignment(report="My Report", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.report._Fix_IBCSVariance import fix_ibcs_variance
+fix_ibcs_variance(report="My Report", workspace="My Workspace", scan_only=True)
 ```
 
 ### Semantic Model Fixers — Additive
@@ -208,6 +241,15 @@ add_measures_from_columns(dataset="My Model", workspace="My Workspace", scan_onl
 
 from sempy_labs.semantic_model._Add_PYMeasures import add_py_measures
 add_py_measures(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_CacheWarming import add_cache_warming
+add_cache_warming(dataset="My Model", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_IncrementalRefresh import add_incremental_refresh
+add_incremental_refresh(dataset="My Model", table_name="FactSales", workspace="My Workspace", scan_only=True)
+
+from sempy_labs.semantic_model._Add_PrepForAI import add_prep_for_ai
+add_prep_for_ai(dataset="My Model", workspace="My Workspace", scan_only=True)
 ```
 
 ### BPA Auto-Fixers
@@ -299,47 +341,66 @@ If "Export reports as image files" is **disabled** (the default in many tenants)
 
 ```
 src/
-├── _pbi_fixer.py                              # Main orchestrator, inline tabs (Memory, BPA, Report BPA, Delta, About)
-├── _ui_components.py                          # Shared theme, icons, tree-building, layout helpers
-├── _sm_explorer.py                            # Semantic Model Explorer tab
-├── _report_explorer.py                        # Report Explorer tab
-├── _perspective_editor.py                     # Perspective Editor tab
-├── report/
-│   ├── _Fix_PieChart.py                       # Replace pie charts with bar charts
-│   ├── _Fix_BarChart.py                       # Clean up bar chart formatting
-│   ├── _Fix_ColumnChart.py                    # Clean up column chart formatting
-│   ├── _Fix_PageSize.py                       # Upgrade default page size to Full HD
-│   ├── _Fix_HideVisualFilters.py              # Hide visual-level filters
-│   ├── _Fix_UpgradeToPbir.py                  # Convert PBIRLegacy → PBIR
-│   └── _Fix_MigrateSlicerToSlicerbar.py       # Migrate slicers to slicerbar
-└── semantic_model/
-    ├── _Fix_DiscourageImplicitMeasures.py     # Set DiscourageImplicitMeasures = True
-    ├── _Add_CalculatedTable_Calendar.py       # Add calculated calendar table
-    ├── _Add_CalculatedTable_MeasureTable.py   # Add empty measure table
-    ├── _Add_Table_LastRefresh.py              # Add Last Refresh table with M partition
-    ├── _Add_CalcGroup_Units.py                # Add Units calculation group
-    ├── _Add_CalcGroup_TimeIntelligence.py     # Add Time Intelligence calculation group
-    ├── _Add_MeasuresFromColumns.py            # Auto-create measures from SummarizeBy columns
-    ├── _Add_PYMeasures.py                     # Add PY time intelligence measures
-    ├── _Fix_FloatingPointDataType.py          # BPA: Double → Decimal
-    ├── _Fix_IsAvailableInMdx.py               # BPA: IsAvailableInMDX → False
-    ├── _Fix_IsAvailableInMdxTrue.py           # BPA: IsAvailableInMDX → True
-    ├── _Fix_MeasureDescriptions.py            # BPA: Set description to DAX expression
-    ├── _Fix_DateColumnFormat.py               # BPA: Date columns → mm/dd/yyyy
-    ├── _Fix_MonthColumnFormat.py              # BPA: Month columns → MMMM yyyy
-    ├── _Fix_MeasureFormat.py                  # BPA: Unformatted measures → #,0
-    ├── _Fix_HideForeignKeys.py                # BPA: Hide FK columns
-    ├── _Fix_UseDivideFunction.py              # BPA: Replace / with DIVIDE()
-    ├── _Fix_AvoidAdding0.py                   # BPA: Remove 0+ prefix
-    ├── _Fix_DoNotSummarize.py                 # BPA: SummarizeBy → None
-    ├── _Fix_MarkPrimaryKeys.py                # BPA: IsKey → True on PK columns
-    ├── _Fix_TrimObjectNames.py                # BPA: Trim whitespace from names
-    ├── _Fix_CapitalizeObjectNames.py          # BPA: Capitalize first letter
-    ├── _Fix_PercentageFormat.py               # BPA: Percentage measures → #,0.0%
-    ├── _Fix_WholeNumberFormat.py              # BPA: Whole number measures → #,0
-    ├── _Fix_FlagColumnFormat.py               # BPA: Flag columns → Yes/No
-    ├── _Fix_SortMonthColumn.py                # BPA: Sort month name by number
-    └── _Fix_DataCategory.py                   # BPA: Set DataCategory by naming convention
+├── _pbi_fixer.py                        # Main orchestrator, inline tabs (Memory, BPA, Report BPA, Delta, About)
+├── _ui_components.py                    # Shared theme, icons, tree-building, layout helpers
+├── _model_explorer.py                   # Semantic Model Explorer tab
+├── _report_explorer.py                  # Report Explorer tab
+├── _perspective_editor.py               # Perspective Editor tab
+├── _fix_model_bpa.py                    # SM BPA scan runner
+├── _fix_report_bpa.py                   # Report BPA scan runner
+├── _report_helper.py                    # Report helper utilities
+├── _report_prototype.py                 # Auto-generate report prototypes
+├── _report_theme.py                     # Extract and apply report themes
+│
+├── # ── Report Fixers ──
+├── _Fix_PieChart.py                     # Replace pie charts with bar charts
+├── _Fix_BarChart.py                     # Clean up bar chart formatting
+├── _Fix_ColumnChart.py                  # Clean up column chart formatting
+├── _Fix_Charts.py                       # Consolidated chart fixer
+├── _Fix_ColumnToLine.py                 # Column-to-line for date axes
+├── _Fix_PageSize.py                     # Upgrade page size to Full HD
+├── _Fix_HideVisualFilters.py            # Hide visual-level filters
+├── _Fix_DisableShowItemsNoData.py       # Disable ShowItemsNoData
+├── _Fix_RemoveUnusedCustomVisuals.py    # Remove unused custom visuals
+├── _Fix_MigrateReportLevelMeasures.py   # Migrate report-level measures
+├── _Fix_VisualAlignment.py              # Align and distribute visuals
+├── _Fix_UpgradeToPbir.py                # Convert PBIRLegacy → PBIR
+├── _Fix_MigrateSlicerToSlicerbar.py     # Migrate slicers to slicerbar
+├── _Fix_IBCSVariance.py                 # IBCS-compliant variance charts
+│
+├── # ── SM Additive Fixers ──
+├── _Fix_DiscourageImplicitMeasures.py   # Set DiscourageImplicitMeasures = True
+├── _Add_CalculatedTable_Calendar.py     # Add calculated calendar table
+├── _Add_CalculatedTable_MeasureTable.py # Add empty measure table
+├── _Add_Table_LastRefresh.py            # Add Last Refresh table with M partition
+├── _Add_CalcGroup_Units.py              # Add Units calculation group
+├── _Add_CalcGroup_TimeIntelligence.py   # Add Time Intelligence calculation group
+├── _Add_MeasuresFromColumns.py          # Auto-create measures from SummarizeBy columns
+├── _Add_PYMeasures.py                   # Add PY time intelligence measures
+├── _Add_CacheWarming.py                 # Configure Direct Lake pre-warm cache
+├── _Add_IncrementalRefresh.py           # Set up incremental refresh policies
+├── _Add_PrepForAI.py                    # Auto-generate AI/Copilot instructions
+│
+├── # ── BPA Auto-Fixers (19) ──
+├── _Fix_FloatingPointDataType.py        # Double → Decimal
+├── _Fix_IsAvailableInMdx.py             # IsAvailableInMDX → False
+├── _Fix_IsAvailableInMdxTrue.py         # IsAvailableInMDX → True
+├── _Fix_MeasureDescriptions.py          # Set description to DAX expression
+├── _Fix_DateColumnFormat.py             # Date columns → mm/dd/yyyy
+├── _Fix_MonthColumnFormat.py            # Month columns → MMMM yyyy
+├── _Fix_MeasureFormat.py                # Unformatted measures → #,0
+├── _Fix_HideForeignKeys.py              # Hide FK columns
+├── _Fix_UseDivideFunction.py            # Replace / with DIVIDE()
+├── _Fix_AvoidAdding0.py                 # Remove 0+ prefix
+├── _Fix_DoNotSummarize.py               # SummarizeBy → None
+├── _Fix_MarkPrimaryKeys.py              # IsKey → True on PK columns
+├── _Fix_TrimObjectNames.py              # Trim whitespace from names
+├── _Fix_CapitalizeObjectNames.py        # Capitalize first letter
+├── _Fix_PercentageFormat.py             # Percentage measures → #,0.0%
+├── _Fix_WholeNumberFormat.py            # Whole number measures → #,0
+├── _Fix_FlagColumnFormat.py             # Flag columns → Yes/No
+├── _Fix_SortMonthColumn.py              # Sort month name by number
+└── _Fix_DataCategory.py                 # Set DataCategory by naming convention
 ```
 
 ---
