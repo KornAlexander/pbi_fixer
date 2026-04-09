@@ -10,6 +10,7 @@ from sempy_labs._helper_functions import (
     resolve_dataset_from_report,
 )
 from sempy_labs.tom import connect_semantic_model
+from sempy_labs._refresh_semantic_model import refresh_semantic_model
 
 # ---------------------------------------------------------------------------
 # The full DAX expression for the calculated calendar table.
@@ -207,6 +208,16 @@ def add_calculated_calendar(
         #    hierarchies can reference them.
         tom.model.SaveChanges()
 
+        # 4b. Re-apply display folders AFTER SaveChanges — the server
+        #     regenerates CalculatedTableColumn objects during save and
+        #     may drop display folders set before the round-trip.
+        cal_table = tom.model.Tables.Find(_CAL_TABLE_NAME)
+        if cal_table is not None:
+            for col_name, _sc, _dt, _fmt, _ik, _hid, _sum, folder in _COLUMNS:
+                col_obj = cal_table.Columns.Find(col_name)
+                if col_obj is not None and folder:
+                    col_obj.DisplayFolder = folder
+
         # 5. Set sort-by-column relationships
         for col_name, sort_col in _SORT_BY:
             tom.set_sort_by_column(
@@ -223,8 +234,11 @@ def add_calculated_calendar(
                 columns=columns,
                 levels=levels,
             )
-            # Set display folder on the hierarchy object
-            tom.model.Tables[_CAL_TABLE_NAME].Hierarchies[hier_name].DisplayFolder = folder
+            # Set display folder on the hierarchy object (use .Find() for pythonnet safety)
+            if cal_table is not None:
+                hier_obj = cal_table.Hierarchies.Find(hier_name)
+                if hier_obj is not None:
+                    hier_obj.DisplayFolder = folder
 
         # 7. Create relationships to Date/DateTime columns
         #    If relationships=None, auto-detect all Date/DateTime columns not already in a relationship.
@@ -271,6 +285,16 @@ def add_calculated_calendar(
             f"'{dataset_name}' with {len(_COLUMNS)} columns, "
             f"{len(_HIERARCHIES)} hierarchies{rel_msg}."
         )
+
+    # Refresh to populate the calculated table data
+    print(f"{icons.in_progress} Refreshing CalcCalendar table...")
+    refresh_semantic_model(
+        dataset=dataset_id,
+        tables=[_CAL_TABLE_NAME],
+        refresh_type="calculate",
+        workspace=dataset_workspace_id,
+    )
+    print(f"{icons.green_dot} CalcCalendar table refreshed.")
 
 # Sample usage:
 # add_calculated_calendar(report="My Report")

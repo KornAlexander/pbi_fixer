@@ -17,6 +17,7 @@ from sempy._utils._log import log
 import sempy_labs._icons as icons
 from sempy_labs.report._reportwrapper import connect_report
 from sempy_labs._helper_functions import resolve_dataset_from_report
+from sempy_labs._refresh_semantic_model import refresh_semantic_model
 
 # Visual types this fixer targets
 _TARGET_TYPES = {
@@ -265,6 +266,70 @@ def _set_sort_descending(visual: dict, ac_table: str, ac_measure: str) -> None:
     }
 
 
+def _build_year_slicer(cal_table: str, year_col: str) -> dict:
+    """Build a PBIR slicer visual.json for a Year dropdown on the calendar table."""
+    return {
+        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+        "name": "placeholder",
+        "position": {
+            "x": 0,
+            "y": 0,
+            "z": 20000,
+            "height": 55,
+            "width": 180,
+            "tabOrder": 0,
+        },
+        "visual": {
+            "visualType": "slicer",
+            "drillFilterOtherVisuals": True,
+            "query": {
+                "queryState": {
+                    "Values": {
+                        "projections": [
+                            {
+                                "field": {
+                                    "Column": {
+                                        "Expression": {
+                                            "SourceRef": {"Entity": cal_table}
+                                        },
+                                        "Property": year_col,
+                                    }
+                                },
+                                "queryRef": f"{cal_table}.{year_col}",
+                                "nativeQueryRef": year_col,
+                                "active": True,
+                            }
+                        ]
+                    }
+                }
+            },
+            "objects": {
+                "data": [
+                    {
+                        "properties": {
+                            "mode": _set_literal("'Dropdown'"),
+                        }
+                    }
+                ],
+                "general": [
+                    {
+                        "properties": {
+                            "orientation": _set_literal("0D"),
+                        }
+                    }
+                ],
+                "header": [
+                    {
+                        "properties": {
+                            "show": _set_literal("false"),
+                        }
+                    }
+                ],
+            },
+        },
+    }
+
+
 @log
 def fix_ibcs_variance(
     report: str | UUID,
@@ -501,12 +566,14 @@ def fix_ibcs_variance(
         return
 
     # --- Phase 4: Create calendar if needed ---
+    cal_created = False
     if cal_table is None:
         print(f"{icons.in_progress} No calendar table found — creating CalcCalendar...")
         from sempy_labs.semantic_model._Add_CalculatedTable_Calendar import add_calculated_calendar
         add_calculated_calendar(report=report, workspace=workspace, scan_only=False)
         cal_table = "CalcCalendar"
         cal_date_col = "Date"
+        cal_created = True
         # Update PY measure expressions that were deferred
         for i, (tbl, name, expr) in enumerate(measures_to_create):
             if "SAMEPERIODLASTYEAR" in expr and "None" in expr:
@@ -562,6 +629,16 @@ def fix_ibcs_variance(
 
             tom.model.SaveChanges()
         print(f"{icons.green_dot} {len(measures_to_create)} measure(s) created.")
+
+        # Recalculate the model so PY measures can resolve
+        if cal_created:
+            print(f"{icons.in_progress} Recalculating model...")
+            refresh_semantic_model(
+                dataset=dataset_id,
+                refresh_type="calculate",
+                workspace=dataset_workspace_id,
+            )
+            print(f"{icons.green_dot} Model recalculated.")
 
     # --- Phase 6: Apply IBCS formatting to visuals ---
     with connect_report(report=report, workspace=workspace, readonly=False, show_diffs=False) as rw:
@@ -639,8 +716,31 @@ def fix_ibcs_variance(
             charts_fixed += 1
             print(f"{icons.green_dot} Applied IBCS variance to {file_path} — [{ac_measure}] ({final_type})")
 
-        # Check for year slicers and warn
+        # Check for year slicers — add one if missing
         pages_warned = set()
+        year_col = "Year"  # Default column name in CalcCalendar
+        if cal_table:
+            # Try to find a Year-like column on the calendar table
+            for _, row in df_cols.iterrows():
+                if row["Table Name"] == cal_table and _TIME_NAME_PATTERN.search(row["Column Name"]):
+                    if "year" in row["Column Name"].lower():
+                        year_col = row["Column Name"]
+                        break
+
+        # Build folder → displayName lookup from page.json files
+        _folder_to_display = {}
+        for fp2 in paths_df["Path"]:
+            if fp2.endswith("/page.json"):
+                try:
+                    pj = rw.get(file_path=fp2)
+                    parts = fp2.split("/")
+                    for i, p in enumerate(parts):
+                        if p == "pages" and i + 1 < len(parts):
+                            _folder_to_display[parts[i + 1]] = pj.get("displayName", parts[i + 1])
+                            break
+                except Exception:
+                    pass
+
         for _, _, _, _, pg in candidates:
             if pg and pg not in pages_warned:
                 pages_warned.add(pg)
@@ -659,8 +759,11 @@ def fix_ibcs_variance(
                                 break
                     if has_slicer:
                         break
-                if not has_slicer:
-                    print(f"{icons.yellow_dot} Page '{pg}' — no Year/FiscalYear slicer found. Consider adding one.")
+                if not has_slicer and cal_table:
+                    page_display = _folder_to_display.get(pg, pg)
+                    slicer_payload = _build_year_slicer(cal_table, year_col)
+                    rw._add_visual(page=page_display, payload=slicer_payload, generate_id=True)
+                    print(f"{icons.green_dot} Added Year slicer to page '{page_display}' — [{cal_table}][{year_col}]")
 
         if charts_fixed == 0:
             print(f"{icons.info} No charts to fix.")

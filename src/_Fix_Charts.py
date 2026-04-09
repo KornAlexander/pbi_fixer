@@ -1,7 +1,8 @@
 # Unified Chart Fixer — covers bar, column, line, and combo charts.
 # Each chart type has its own checks config (axis semantics differ).
 # Line charts keep the Y value axis visible.
-# Column↔Bar fixer: converts non-time column charts to bar charts (IBCS).
+# Column↔Bar fixer: converts non-time column charts to bar charts (IBCS)
+#                    and time-axis bar charts to column charts.
 
 import re
 from uuid import UUID
@@ -91,6 +92,7 @@ def fix_charts(
     Covers bar, column, line, and combo chart types. Applies per-type rules:
     - Bar/Column: remove axis titles, remove value axis labels, add data labels, remove gridlines
     - Line/Combo: same but keeps the Y value axis visible
+    - IBCS type swaps: Date-axis columns → line, non-time columns → bar, time-axis bars → column
 
     Parameters
     ----------
@@ -119,10 +121,27 @@ def fix_charts(
             )
             return
 
+        # Build date column set for IBCS type swap detection
+        do_type_swap = not chart_types  # Only swap types when running "all"
+        date_columns = set()
+        if do_type_swap:
+            try:
+                dataset_id, _, dataset_workspace_id, _ = resolve_dataset_from_report(
+                    report=rw._report_id, workspace=rw._workspace_id
+                )
+                import sempy.fabric as fabric
+                df_cols = fabric.list_columns(dataset=dataset_id, workspace=dataset_workspace_id)
+                for _, row in df_cols.iterrows():
+                    if row.get("Data Type") in _DATE_DATA_TYPES:
+                        date_columns.add((row["Table Name"], row["Column Name"]))
+            except Exception:
+                do_type_swap = False
+
         paths_df = rw.list_paths()
         charts_found = 0
         charts_fixed = 0
         charts_need_fixing = 0
+        charts_swapped = 0
 
         page_id = rw.resolve_page_name(page_name) if page_name else None
 
@@ -139,24 +158,78 @@ def fix_charts(
                 continue
 
             charts_found += 1
-            checks = _TYPE_CHECKS[vtype]
+            changed = False
 
+            # IBCS type swaps:
+            #   1. Column with Date/DateTime axis → lineChart (too many data points for columns)
+            #   2. Column with non-time axis → bar (IBCS horizontal)
+            #   3. Bar with time axis → column (IBCS vertical for time)
+            if do_type_swap and vtype in (_COLUMN_CHART_TYPES | _BAR_CHART_TYPES):
+                category_fields = _get_category_fields(visual)
+                is_time = any(_is_time_field(t, c, date_columns) for t, c in category_fields)
+                has_date_axis = any((t, c) in date_columns for t, c in category_fields)
+
+                if vtype in _COLUMN_CHART_TYPES and has_date_axis:
+                    # Date axis → line chart (daily/monthly dates are too granular for columns)
+                    new_type = "lineChart"
+                    cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+                    if scan_only:
+                        print(f"{icons.yellow_dot} {file_path} — {vtype} [{cols_str}] → should be {new_type}")
+                    else:
+                        old_type = vtype
+                        visual["visual"]["visualType"] = new_type
+                        vtype = new_type
+                        changed = True
+                        charts_swapped += 1
+                        print(f"{icons.green_dot} Type swap: {old_type} → {new_type} [{cols_str}]")
+
+                elif vtype in _COLUMN_CHART_TYPES and not is_time:
+                    new_type = _COL_TO_BAR[vtype]
+                    cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+                    if scan_only:
+                        print(f"{icons.yellow_dot} {file_path} — {vtype} [{cols_str}] → should be {new_type}")
+                    else:
+                        old_type = vtype
+                        visual["visual"]["visualType"] = new_type
+                        vtype = new_type
+                        changed = True
+                        charts_swapped += 1
+                        print(f"{icons.green_dot} Type swap: {old_type} → {new_type} [{cols_str}]")
+
+                elif vtype in _BAR_CHART_TYPES and is_time:
+                    new_type = _BAR_TO_COL[vtype]
+                    cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+                    if scan_only:
+                        print(f"{icons.yellow_dot} {file_path} — {vtype} [{cols_str}] → should be {new_type}")
+                    else:
+                        old_type = vtype
+                        visual["visual"]["visualType"] = new_type
+                        vtype = new_type
+                        changed = True
+                        charts_swapped += 1
+                        print(f"{icons.green_dot} Type swap: {old_type} → {new_type} [{cols_str}]")
+
+            # Formatting checks (use current vtype after potential swap)
+            checks = _TYPE_CHECKS.get(vtype, [])
             issues = [
                 label
                 for obj, prop, val, label in checks
                 if _get_visual_property(visual, obj, prop) != val
             ]
 
-            if not issues:
+            if not issues and not changed:
                 if scan_only:
-                    print(f"{icons.green_dot} {file_path} — {_TYPE_LABELS[vtype]} OK")
+                    print(f"{icons.green_dot} {file_path} — {_TYPE_LABELS.get(vtype, vtype)} OK")
                 continue
 
-            charts_need_fixing += 1
-            type_label = _TYPE_LABELS[vtype]
+            if issues:
+                charts_need_fixing += 1
+
+            type_label = _TYPE_LABELS.get(vtype, vtype)
 
             if scan_only:
-                print(f"{icons.yellow_dot} {file_path} — {type_label} needs fixing: {', '.join(issues)}")
+                if issues:
+                    print(f"{icons.yellow_dot} {file_path} — {type_label} needs fixing: {', '.join(issues)}")
                 continue
 
             for obj, prop, val, _ in checks:
@@ -164,21 +237,29 @@ def fix_charts(
 
             rw.update(file_path=file_path, payload=visual)
             charts_fixed += 1
-            print(f"{icons.green_dot} Fixed {type_label} in {file_path}")
+            if issues:
+                print(f"{icons.green_dot} Fixed {type_label} formatting in {file_path}")
 
         type_desc = "chart" if len(target_types) > 2 else "/".join(sorted({_TYPE_LABELS[t] for t in target_types}))
 
         if charts_found == 0:
             print(f"{icons.info} No {type_desc}s found in the '{rw._report_name}' report.")
         elif scan_only:
-            if charts_need_fixing == 0:
+            total_issues = charts_need_fixing + charts_swapped
+            if total_issues == 0:
                 print(f"\n{icons.green_dot} Scanned {charts_found} {type_desc}(s) — all have correct settings.")
             else:
-                print(f"\n{icons.yellow_dot} Scanned {charts_found} {type_desc}(s) — {charts_need_fixing} need fixing.")
-        elif charts_fixed == 0:
-            print(f"{icons.info} Found {charts_found} {type_desc}(s) — all already have correct settings.")
+                print(f"\n{icons.yellow_dot} Scanned {charts_found} {type_desc}(s) — {total_issues} need fixing.")
         else:
-            print(f"{icons.green_dot} Successfully fixed {charts_fixed} of {charts_found} {type_desc}(s).")
+            parts = []
+            if charts_fixed:
+                parts.append(f"{charts_fixed} formatted")
+            if charts_swapped:
+                parts.append(f"{charts_swapped} type-swapped")
+            if parts:
+                print(f"{icons.green_dot} Fixed {charts_found} {type_desc}(s): {', '.join(parts)}.")
+            else:
+                print(f"{icons.info} Found {charts_found} {type_desc}(s) — all already have correct settings.")
 
 
 # Convenience wrappers for backward compatibility
@@ -231,6 +312,13 @@ _COL_TO_BAR = {
     "columnChart": "barChart",
     "clusteredColumnChart": "clusteredBarChart",
 }
+
+_BAR_TO_COL = {
+    "barChart": "columnChart",
+    "clusteredBarChart": "clusteredColumnChart",
+}
+
+_BAR_CHART_TYPES = {"barChart", "clusteredBarChart"}
 
 
 def _get_category_fields(visual: dict) -> list[tuple[str, str]]:
@@ -370,3 +458,104 @@ def fix_column_to_bar(
             print(f"{icons.info} Found {charts_found} column chart(s) — all have time-based axes.")
         else:
             print(f"{icons.green_dot} Converted {charts_converted} of {charts_found} column chart(s) to bar charts.")
+
+
+@log
+def fix_bar_to_column(
+    report: str | UUID,
+    page_name: Optional[str] = None,
+    workspace: Optional[str | UUID] = None,
+    scan_only: bool = False,
+) -> None:
+    """
+    Converts bar charts to column charts when the category axis IS time-based (IBCS).
+
+    IBCS rule: time series use vertical columns (left→right). This fixer detects
+    bar charts whose category axis contains date/time fields and converts them
+    to column charts.
+
+    Parameters
+    ----------
+    report : str | uuid.UUID
+        Name or ID of the report.
+    page_name : str, default=None
+        Page to apply changes to. None = all pages.
+    workspace : str | uuid.UUID, default=None
+        The Fabric workspace name or ID.
+    scan_only : bool, default=False
+        If True, only scans without applying fixes.
+    """
+
+    with connect_report(report=report, workspace=workspace, readonly=scan_only, show_diffs=False) as rw:
+        if rw.format != "PBIR":
+            print(
+                f"{icons.red_dot} Report '{rw._report_name}' is in '{rw.format}' format, not PBIR. "
+                f"Run 'Upgrade to PBIR' first."
+            )
+            return
+
+        dataset_id, _, dataset_workspace_id, _ = resolve_dataset_from_report(
+            report=rw._report_id, workspace=rw._workspace_id
+        )
+        import sempy.fabric as fabric
+
+        df_cols = fabric.list_columns(dataset=dataset_id, workspace=dataset_workspace_id)
+        date_columns = set()
+        for _, row in df_cols.iterrows():
+            if row.get("Data Type") in _DATE_DATA_TYPES:
+                date_columns.add((row["Table Name"], row["Column Name"]))
+
+        paths_df = rw.list_paths()
+        charts_found = 0
+        charts_converted = 0
+        charts_need_fixing = 0
+
+        page_id = rw.resolve_page_name(page_name) if page_name else None
+
+        for file_path in paths_df["Path"]:
+            if not file_path.endswith("/visual.json"):
+                continue
+            if page_id and f"/{page_id}/" not in file_path:
+                continue
+
+            visual = rw.get(file_path=file_path)
+            vtype = visual.get("visual", {}).get("visualType")
+
+            if vtype not in _BAR_CHART_TYPES:
+                continue
+
+            charts_found += 1
+            category_fields = _get_category_fields(visual)
+
+            is_time = any(_is_time_field(t, c, date_columns) for t, c in category_fields)
+
+            if not is_time:
+                if scan_only:
+                    cols = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+                    print(f"{icons.green_dot} {file_path} — {vtype} with non-time axis [{cols}] — keep as bar")
+                continue
+
+            charts_need_fixing += 1
+            cols_str = ", ".join(f"{t}.{c}" for t, c in category_fields) or "(no fields)"
+            target_type = _BAR_TO_COL[vtype]
+
+            if scan_only:
+                print(f"{icons.yellow_dot} {file_path} — {vtype} [{cols_str}] → should be {target_type}")
+                continue
+
+            visual["visual"]["visualType"] = target_type
+            rw.update(file_path=file_path, payload=visual)
+            charts_converted += 1
+            print(f"{icons.green_dot} Changed {vtype} → {target_type}: {file_path} [{cols_str}]")
+
+        if charts_found == 0:
+            print(f"{icons.info} No bar charts found in '{rw._report_name}'.")
+        elif scan_only:
+            if charts_need_fixing == 0:
+                print(f"\n{icons.green_dot} Scanned {charts_found} bar chart(s) — all have non-time axes.")
+            else:
+                print(f"\n{icons.yellow_dot} Scanned {charts_found} bar chart(s) — {charts_need_fixing} should be column charts.")
+        elif charts_converted == 0:
+            print(f"{icons.info} Found {charts_found} bar chart(s) — all have non-time axes.")
+        else:
+            print(f"{icons.green_dot} Converted {charts_converted} of {charts_found} bar chart(s) to column charts.")
