@@ -1393,7 +1393,7 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
         tooltip="Close",
     )
     _fmt_header = widgets.HBox(
-        [widgets.HTML(value=f'<b style="font-size:13px;">\U0001F4CB PBIR Status</b>'), _fmt_close_btn],
+        [widgets.HTML(value=f'<b style="font-size:18px;">\U0001F4CB PBIR Status</b>'), _fmt_close_btn],
         layout=widgets.Layout(justify_content="space-between", align_items="center"),
     )
     format_container = widgets.VBox(
