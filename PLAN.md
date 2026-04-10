@@ -667,6 +667,76 @@ IBCS rule: time series use vertical columns (left→right), structural compariso
   - Column name matches pattern: contains "Date", "Month", "Year", "Quarter", "Period", "Week", "Day" (case-insensitive)
 * If time-based → keep as column chart (no change).
 * If NOT time-based → convert to bar chart. **Standalone mode**: preserve stacked/clustered (`columnChart`→`barChart`, `clusteredColumnChart`→`clusteredBarChart`). **Called from IBCS fixer**: always → `clusteredBarChart`.
+
+---
+
+## Copilot Skill Plan
+
+### Goal
+
+Create a single unified Copilot skill (`pbi-fixer`) that teaches AI agents how to use all PBI Fixer functions — both standalone Python calls in Fabric Notebooks and the interactive UI. The skill emphasizes **scan-first**: always run with `scan_only=True` first, show results, then confirm before applying fixes.
+
+### Structure
+
+```
+.github/copilot/skills/pbi-fixer/
+├── SKILL.md                              # Main skill: install, must/prefer/avoid, function catalog
+└── references/
+    ├── report-fixers-reference.md        # 14 report fixers (params, when to use, scan/fix output)
+    ├── sm-fixers-reference.md            # 30 SM fixers (11 additive + 19 BPA)
+    ├── ui-tabs-reference.md              # Interactive UI tab-by-tab navigation guide
+    └── decision-tree.md                  # When to use UI vs standalone, which fixer for which problem
+```
+
+### SKILL.md Content
+
+- **YAML frontmatter**: name, description, triggers ("fix report", "scan report", "BPA", "fix pie charts", etc.)
+- **Install**: `%pip install git+https://github.com/KornAlexander/semantic-link-labs.git@feature/pbi-fixer-ui`
+- **Must/Prefer/Avoid**:
+  - MUST: Run in Fabric Notebook, scan first (`scan_only=True`), verify PBIR format before report fixes, verify XMLA before SM fixes
+  - PREFER: Standalone functions for targeted fixes, UI for interactive exploration
+  - AVOID: Running report fixers on PBIRLegacy without upgrading, skipping scan mode
+- **Function catalog**: Every public function with signature, one-sentence description, prerequisites (PBIR? XMLA? Direct Lake?)
+- **BPA mapping table**: Maps BPA rule names → fixer function names
+
+### Reference Files
+
+- **report-fixers-reference.md** (~400 lines): For each of 14 report fixers — module path, signature, parameters table, when to use, prerequisites, scan output example, fix output example
+- **sm-fixers-reference.md** (~600 lines): 11 additive fixers + 19 BPA auto-fixers, same format. Each BPA fixer includes the BPA rule it addresses
+- **ui-tabs-reference.md** (~200 lines): Tab-by-tab guide (SM Explorer, Report Explorer, Perspectives, Memory, BPA, Report BPA, Delta, About)
+- **decision-tree.md** (~150 lines): Scenario → approach mapping (interactive vs scripted, which fixer for which problem)
+
+### Design Decisions
+
+- **One skill, not three** — fix/scan split is artificial (same function, different `scan_only` flag). UI is just another launch mode
+- **scan_only emphasis** — the skill's #1 rule: always offer scan first before modifying anything
+- **BPA mapping** is the main value-add — agent knows "BPA rule X → call function Y"
+- **Notebook-only** — all functions require Fabric Notebook runtime (TOM/.NET, Spark auth, sempy)
+
+### Path to Official Contribution
+
+| Phase | Action | Status |
+|-------|--------|--------|
+| **Now** | Build the skill locally in `.github/copilot/skills/pbi-fixer/`, use it, iterate | Ready |
+| **After SLL merge** | Update install line from feature branch to `%pip install semantic-link-labs` | Blocked on PRs #1141–#1162 |
+| **Then** | Fork `microsoft/skills-for-fabric`, add `skills/pbi-fixer/`, submit PR | After merge |
+| **Optional** | Open an issue on `skills-for-fabric` first to gauge interest before writing the PR | Anytime |
+
+**Blocker**: Cannot submit to official repo until SLL merge — they won't accept a dependency on a personal GitHub fork.
+
+### Work Items
+
+| # | Task | Effort | Dependency |
+|---|------|--------|------------|
+| 1 | Enhance docstrings — upgrade one-liner docstrings to full NumPy-style across all 50+ functions | Medium | None |
+| 2 | Extract function signatures — automated script to pull all signatures + docstrings | Small | Task 1 |
+| 3 | Write SKILL.md — frontmatter, ToC, Must/Prefer/Avoid, function catalog | Medium | Task 2 |
+| 4 | Write report-fixers-reference.md — 14 report fixers with full docs | Medium | Task 2 |
+| 5 | Write sm-fixers-reference.md — 30 SM fixers with full docs | Large | Task 2 |
+| 6 | Write ui-tabs-reference.md — tab navigation guide | Small | None |
+| 7 | Write decision-tree.md — scenario-based routing | Small | None |
+| 8 | Test with VS Code Copilot — verify skill triggers and produces correct code | Small | Tasks 3-7 |
+| 9 | Submit to skills-for-fabric (after SLL merge) | Small | Tasks 3-7 + SLL merge |
 * `scan_only` mode: report which column charts would be converted and why (show detected category field + DataType).
 * **Bar chart sorting (IBCS)**: For bar charts only (not column charts — time axis order must be preserved), ensure the AC measure is sorted descending. Check `visual.visual.query.sortDefinition.sort` — if missing or not descending by the AC measure, set it. Uses the AC measure identified in step 2 of the variance fixer. This makes the longest bar appear at the top (IBCS convention for structural comparisons).
 * New checkbox in Fixer tab: "Fix Column↔Bar (IBCS)" or integrate as a sub-check in existing "Fix All Charts".
