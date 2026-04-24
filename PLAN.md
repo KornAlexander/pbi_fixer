@@ -274,6 +274,57 @@ These fix specific Model BPA violations. Each has a **standalone fixer file** in
 
 ---
 
+## TS Port — Fabric AgentHub PBI Fixer (PBI Fixer v0.41+)
+
+The original Python fixers run in a Fabric Notebook against TOM via XMLA. The TS port (AgentHub iframe) cannot use TOM, so each fixer is re-implemented as either:
+- **TS-native** — works on the already-loaded `ReportData` / `ModelData` JSON shape; apply patches PBIR JSON or TMDL via the existing Fabric REST `getDefinition` / `updateDefinition` round-trip (same pattern as `updateMeasureProperties` v0.27).
+- **backend** — handler runs in `Backend/src/services/agenthub/` against TMDL or PBIR parts; called via single endpoint `POST /api/pbi-fixer/fixers/apply` (same shape as `/translations/apply` v0.40).
+
+### Fixer port status (PBI Fixer v0.41 target)
+
+| ID | Scope | Mode | Apply path | Status @ v0.40 | v0.41 plan |
+| --- | --- | --- | --- | --- | --- |
+| Fix_PieChart | report | TS-native | PBIR JSON: `visual.visualType = barChart` | scan only | ship apply |
+| Fix_BarChart | report | TS-native | (cosmetic — defer) | scan only | scan only (no-op apply) |
+| Fix_ColumnChart | report | TS-native | (cosmetic — defer) | scan only | scan only (no-op apply) |
+| Fix_PageSize | report | TS-native | PBIR JSON: page.width/height = 1280×720 | scan only | ship apply |
+| Fix_HideVisualFilters | report | backend | PBIR: every filter `isHiddenInViewMode=true` | NEW | ship scan + apply |
+| Fix_RemoveUnusedCustomVisuals | report | backend | report.json: prune `publicCustomVisuals` not referenced | NEW | ship scan + apply |
+| Fix_DisableShowItemsNoData | report | backend | visual.json: drop `showAll` flags | NEW | ship scan + apply |
+| Fix_UpgradeToPbir | report | backend bridge (sempy-labs) | — | stub | stays stub (needs sempy-labs runtime) |
+| Fix_DiscourageImplicitMeasures | sm | backend | TMDL: numeric column `summarizeBy: none` | stub | ship apply |
+| Fix_FloatingPointDataType | sm | backend | TMDL: column `dataType: double` → `decimal` | NEW | ship scan + apply |
+| Fix_DoNotSummarize | sm | backend | TMDL: numeric col `summarizeBy: none` (alias of DiscourageImplicitMeasures) | NEW | ship scan + apply |
+| Fix_HideForeignKeys | sm | backend | TMDL: rel `from` col `isHidden: true` | NEW | ship scan + apply |
+| Fix_IsAvailableInMdxFalse | sm | backend | TMDL: hidden col `isAvailableInMdx: false` | NEW | ship scan + apply |
+| Fix_MeasureFormat | sm | backend | TMDL: measure missing `formatString` → `#,0` | NEW | ship scan + apply |
+| Fix_PercentageFormat | sm | backend | TMDL: measure with `%` in name → `#,0.0%;-#,0.0%;#,0.0%` | NEW | ship scan + apply |
+| Fix_WholeNumberFormat | sm | backend | TMDL: integer col missing `formatString` → `#,0` | NEW | ship scan + apply |
+
+**Out of scope for v0.41** (need DAX rewrite or sempy-labs runtime): Fix_TrimObjectNames, Fix_CapitalizeObjectNames, Fix_UseDivideFunction, Fix_AvoidAdding0, Fix_MarkPrimaryKeys, Fix_SortMonthColumn, Fix_DataCategory, all Add_* (calc tables, calc groups, measure tables), Fix_MigrateReportLevelMeasures, Fix_VisualAlignment, Fix_MigrateSlicerToSlicerbar, Fix_IBCSVariance, Fix_ColumnToLine, Fix_Charts, Fix_UpgradeToPbir.
+
+### Backend endpoint contract
+
+`POST /api/pbi-fixer/fixers/apply`
+
+Request:
+```json
+{ "workspaceId": "...", "datasetId": "?", "reportId": "?", "fixerId": "Fix_*", "scanOnly": true }
+```
+
+Response:
+```json
+{ "fixerId": "...", "applied": false, "scanOnly": true, "findings": [{"objectPath": "...", "before": "...", "after": "...", "detail": "..."}], "log": ["..."] }
+```
+
+Implementation:
+- New module `Backend/src/services/agenthub/tmdl_model.py`: parser/walker for table TMDL parts (mirrors `tmdl_translations` shape — load text, mutate properties on column/measure/relationship blocks, serialize back).
+- New module `Backend/src/services/agenthub/pbir_report.py`: helpers for PBIR JSON parts.
+- New module `Backend/src/services/agenthub/pbi_fixer_handlers.py`: `FIXER_HANDLERS: dict[str, callable]` registry.
+- Endpoint in `agenthub_controller.py` follows v0.40 pattern (OBO Fabric token → getDefinition LRO → mutate parts → updateDefinition LRO).
+
+---
+
 ## Release History
 
 ### Completed (76 features)
