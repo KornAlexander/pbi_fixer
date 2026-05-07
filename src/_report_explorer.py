@@ -4,6 +4,7 @@
 
 import ipywidgets as widgets
 import time
+import threading
 
 from sempy_labs._ui_components import (
     FONT_FAMILY,
@@ -297,12 +298,13 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     _scan_results = {}  # key -> count (for tree badges)
     _scan_details = {}  # key -> [(fixer_name, description), ...]
 
-    load_btn = widgets.Button(description="Load Report", button_style="primary", layout=widgets.Layout(width="110px"))
+    # Hidden internal button — auto-load replaces the visible "Load Report" button.
+    load_btn = widgets.Button(description="Load Report", button_style="primary", layout=widgets.Layout(width="110px", display="none"))
     stop_btn = widgets.Button(description="\u23f9 Stop", button_style="warning", layout=widgets.Layout(width="80px", display="none"))
     _cancel_load = [False]
-    expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
-    collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
-    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="100px"))
+    expand_btn = widgets.Button(description="Expand All", button_style="primary", layout=widgets.Layout(width="110px"))
+    collapse_btn = widgets.Button(description="Collapse All", button_style="primary", layout=widgets.Layout(width="110px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", button_style="primary", layout=widgets.Layout(width="110px"))
 
     fixer_callbacks = fixer_callbacks or {}
 
@@ -347,8 +349,8 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     )
     run_action_btn = widgets.Button(
         description="\u26A1 Run",
-        button_style="danger",
-        layout=widgets.Layout(width="100px"),
+        button_style="primary",
+        layout=widgets.Layout(width="110px"),
     )
     tolerance_input = widgets.BoundedFloatText(
         value=2.0, min=0.1, max=50.0, step=0.5,
@@ -368,8 +370,10 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     stop_btn.on_click(_on_stop)
 
     conn_status = status_html()
+    # "Load Report" button removed — load triggers automatically when the user
+    # picks a report in the shared connection bar (debounced).
     nav_row = widgets.HBox(
-        [load_btn, stop_btn, expand_btn, collapse_btn, conn_status],
+        [stop_btn, expand_btn, collapse_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
 
@@ -1382,6 +1386,45 @@ def report_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks
     expand_btn.on_click(on_expand_all)
     collapse_btn.on_click(on_collapse_all)
     scan_btn.on_click(on_scan)
+
+    # ------------------------------------------------------------------
+    # Auto-load: load the report automatically as soon as the user picks a
+    # report (or workspace) in the shared connection bar. Replaces the
+    # removed "Load Report" button. Debounced so quick keystrokes / autocomplete
+    # don't fire repeatedly.
+    # ------------------------------------------------------------------
+    _auto_load_timer = [None]
+    _last_auto_signature = [None]
+
+    def _trigger_auto_load():
+        if load_btn.disabled:
+            return
+        rpt_val = report_input.value.strip() if report_input else ""
+        ws_val = workspace_input.value.strip() if workspace_input else ""
+        signature = (ws_val, rpt_val)
+        if signature == _last_auto_signature[0]:
+            return
+        _last_auto_signature[0] = signature
+        try:
+            on_load(None)
+        except Exception:
+            pass
+
+    def _schedule_auto_load(_change=None):
+        if _auto_load_timer[0] is not None:
+            try:
+                _auto_load_timer[0].cancel()
+            except Exception:
+                pass
+        t = threading.Timer(0.7, _trigger_auto_load)
+        t.daemon = True
+        _auto_load_timer[0] = t
+        t.start()
+
+    if workspace_input is not None:
+        workspace_input.observe(_schedule_auto_load, names="value")
+    if report_input is not None:
+        report_input.observe(_schedule_auto_load, names="value")
     run_action_btn.on_click(on_run_action)
 
     # --- PBIR Status panel (rendered below PBI Fixer container) ---

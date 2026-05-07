@@ -637,10 +637,13 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     _selected_keys = []  # all currently selected keys for fixer actions
     _scan_results = {}  # key -> violation count
 
-    load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px"))
-    expand_btn = widgets.Button(description="Expand All", layout=widgets.Layout(width="100px"))
-    collapse_btn = widgets.Button(description="Collapse All", layout=widgets.Layout(width="100px"))
-    scan_btn = widgets.Button(description="\U0001F50D Scan", layout=widgets.Layout(width="110px"))
+    # Hidden internal button used only as a state holder (description/disabled flag)
+    # for the auto-load flow. Not rendered — selecting a model triggers the load
+    # automatically.
+    load_btn = widgets.Button(description="Load Model", button_style="primary", layout=widgets.Layout(width="110px", display="none"))
+    expand_btn = widgets.Button(description="Expand All", button_style="primary", layout=widgets.Layout(width="110px"))
+    collapse_btn = widgets.Button(description="Collapse All", button_style="primary", layout=widgets.Layout(width="110px"))
+    scan_btn = widgets.Button(description="\U0001F50D Scan", button_style="primary", layout=widgets.Layout(width="110px"))
 
     fixer_callbacks = fixer_callbacks or {}
     fixer_dropdown = widgets.Dropdown(
@@ -650,13 +653,15 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
     )
     run_action_btn = widgets.Button(
         description="\u26A1 Run",
-        button_style="danger",
-        layout=widgets.Layout(width="100px"),
+        button_style="primary",
+        layout=widgets.Layout(width="110px"),
     )
 
     conn_status = status_html()
+    # Load Model button removed — model loads automatically when the user picks
+    # a semantic model in the shared report_input combobox (debounced).
     nav_row = widgets.HBox(
-        [load_btn, expand_btn, collapse_btn, conn_status],
+        [expand_btn, collapse_btn, conn_status],
         layout=widgets.Layout(align_items="center", gap="8px", margin="0 0 4px 0"),
     )
     action_row = widgets.HBox(
@@ -2046,6 +2051,49 @@ def model_explorer_tab(workspace_input=None, report_input=None, fixer_callbacks=
             set_status(conn_status, f"\u2713 Scan complete: no issues found.", "#34c759")
 
     scan_btn.on_click(on_scan)
+
+    # ------------------------------------------------------------------
+    # Auto-load: trigger on_load whenever the user picks a workspace or a
+    # semantic model in the shared connection bar. Replaces the removed
+    # "Load Model" button. Debounced so quick keystrokes don't fire the
+    # heavy REST/TOM round-trip more than once.
+    # ------------------------------------------------------------------
+    _auto_load_timer = [None]
+    _last_auto_signature = [None]
+
+    def _trigger_auto_load():
+        # Skip if user is mid-typing in a way that produces an obviously
+        # incomplete value (trailing comma, no workspace yet).
+        if load_btn.disabled:
+            return  # already loading
+        rpt_val = report_input.value.strip() if report_input else ""
+        ws_val = workspace_input.value.strip() if workspace_input else ""
+        signature = (ws_val, rpt_val)
+        if signature == _last_auto_signature[0]:
+            return
+        _last_auto_signature[0] = signature
+        try:
+            on_load(None)
+        except Exception:
+            pass
+
+    def _schedule_auto_load(_change=None):
+        if _auto_load_timer[0] is not None:
+            try:
+                _auto_load_timer[0].cancel()
+            except Exception:
+                pass
+        # 700ms debounce: long enough to absorb autocomplete/typing,
+        # short enough to feel instant after a dropdown pick.
+        t = threading.Timer(0.7, _trigger_auto_load)
+        t.daemon = True
+        _auto_load_timer[0] = t
+        t.start()
+
+    if workspace_input is not None:
+        workspace_input.observe(_schedule_auto_load, names="value")
+    if report_input is not None:
+        report_input.observe(_schedule_auto_load, names="value")
 
     widget = widgets.VBox([nav_row, action_row, tree_header, panels, save_row, refresh_row, scan_results_box], layout=widgets.Layout(padding="12px", gap="4px"))
     return widget, on_load
