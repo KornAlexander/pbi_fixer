@@ -1101,5 +1101,57 @@
 })();
 </script>
 
+<!-- ═══════════════ Screenshot lightbox (click to enlarge) ═══════════════ -->
+<script>
+(function () {
+  var imgs = document.querySelectorAll('.screenshot-img img');
+  if (!imgs.length) return;
+  var box = null;
+
+  function close() {
+    if (!box) return;
+    var b = box; box = null;
+    b.classList.remove('is-open');
+    document.removeEventListener('keydown', onKey);
+    setTimeout(function () { if (b && b.parentNode) b.parentNode.removeChild(b); }, 220);
+  }
+  function onKey(e) { if (e.key === 'Escape' || e.keyCode === 27) close(); }
+
+  function open(srcEl) {
+    if (box) close();
+    var rect = srcEl.getBoundingClientRect();
+    // Host iframe is non-scrolling, so the image rect.top ≈ its absolute Y.
+    var centerY = rect.top + window.pageYOffset + rect.height / 2;
+
+    box = document.createElement('div');
+    box.className = 'pbi-lightbox';
+    box.style.top = (centerY - 1500) + 'px';
+
+    var big = document.createElement('img');
+    big.className = 'pbi-lightbox__img';
+    big.src = srcEl.currentSrc || srcEl.src;
+    big.alt = srcEl.alt || '';
+    big.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    var btn = document.createElement('button');
+    btn.className = 'pbi-lightbox__close';
+    btn.type = 'button';
+    btn.innerHTML = 'Close \u2715';
+
+    box.appendChild(big);
+    box.appendChild(btn);
+    box.addEventListener('click', close);
+    document.body.appendChild(box);
+    void box.offsetWidth; // reflow so the opacity/scale transition runs
+    box.classList.add('is-open');
+    document.addEventListener('keydown', onKey);
+  }
+
+  imgs.forEach(function (img) {
+    img.addEventListener('click', function () { open(img); });
+  });
+})();
+</script>
+
 </body>
 </html>

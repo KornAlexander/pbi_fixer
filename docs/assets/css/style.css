@@ -747,3 +747,69 @@ a:hover { text-decoration: underline; }
   .highlight-card--hero { grid-column: span 1; }
   .ai-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Screenshot lightbox (click to enlarge) ── */
+.screenshot-img img {
+  cursor: zoom-in;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.screenshot-img img:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.16);
+}
+/* Tall fixed-pixel dim band, centered on the clicked image. The iframe host
+   is non-scrolling and cross-origin, so vh / fixed positioning are unusable;
+   a 3000px band reliably covers any real viewport around the click point. */
+.pbi-lightbox {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 3000px;
+  background: rgba(13, 16, 24, 0.84);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  cursor: zoom-out;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.pbi-lightbox.is-open { opacity: 1; }
+.pbi-lightbox__img {
+  position: absolute;
+  left: 50%;
+  top: 1500px;
+  transform: translate(-50%, -50%) scale(.96);
+  max-width: min(1280px, 94vw);
+  max-height: 720px;
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+  cursor: default;
+  transition: transform .18s ease;
+}
+.pbi-lightbox.is-open .pbi-lightbox__img {
+  transform: translate(-50%, -50%) scale(1);
+}
+.pbi-lightbox__close {
+  position: absolute;
+  top: 1500px;
+  margin-top: -392px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.95rem;
+  font: 600 0.85rem/1 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.pbi-lightbox__close:hover { background: rgba(255,255,255,0.26); }
