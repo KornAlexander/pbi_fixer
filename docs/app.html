@@ -19,14 +19,14 @@
 <!-- ═══════════════ Navigation ═══════════════ -->
 <nav class="nav">
   <div class="container">
-    <a href="index.html" class="nav-logo">⚡ Power BI Fixer</a>
+    <a href="https://kornalexander.github.io/pbi_fixer/index.html" class="nav-logo">⚡ Power BI Fixer</a>
     <ul class="nav-links" id="navLinks">
       <li><a href="#features">Features</a></li>
       <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#architecture">Architecture</a></li>
       <li><a href="#why">Why a Browser App?</a></li>
       <li><a href="#quickstart">Get Started</a></li>
-      <li><a href="index.html">Notebook Edition ↗</a></li>
+      <li><a href="https://kornalexander.github.io/pbi_fixer/index.html">Notebook Edition ↗</a></li>
       <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
     </ul>
     <button class="nav-hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Toggle navigation">
@@ -52,7 +52,7 @@
 
     <div class="btn-group">
       <a href="#quickstart" class="btn btn-primary">Get Started →</a>
-      <a href="index.html" class="btn btn-outline">← Notebook Edition</a>
+      <a href="https://kornalexander.github.io/pbi_fixer/index.html" class="btn btn-outline">← Notebook Edition</a>
     </div>
 
     <div class="hero-badges">
@@ -96,7 +96,7 @@
           <li>Runs inside any Fabric Notebook</li>
           <li>Standalone Python API for pipelines</li>
         </ul>
-        <a href="index.html" class="btn btn-outline">Explore the Notebook Edition →</a>
+        <a href="https://kornalexander.github.io/pbi_fixer/index.html" class="btn btn-outline">Explore the Notebook Edition →</a>
       </div>
 
       <div class="tab-card" style="border-color:var(--accent);border-width:2px;">
@@ -560,7 +560,7 @@
 <footer class="footer">
   <div class="container">
     <div class="footer-links">
-      <a href="index.html">Notebook Edition</a>
+      <a href="https://kornalexander.github.io/pbi_fixer/index.html">Notebook Edition</a>
       <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub</a>
       <a href="https://actionablereporting.com" target="_blank">Blog</a>
       <a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank">LinkedIn</a>
@@ -569,6 +569,66 @@
     <p style="margin-top:0.5rem;font-size:0.8rem;">Free &amp; Open Source. Built with ❤️ on Microsoft Fabric &amp; Rayfin.</p>
   </div>
 </footer>
+
+<script>
+// Iframe-mode: when embedded in a cross-origin iframe (WordPress), we can't
+// scroll the parent directly. Instead, the WordPress page has invisible anchor
+// markers at every 200px interval (s0, s200, s400, ..., s25000). We calculate
+// the actual section offset at the current rendered width, round to nearest 200,
+// and navigate the parent to that anchor.
+(function() {
+  var inIframe = false;
+  try { inIframe = window.self !== window.top; } catch(e) { inIframe = true; }
+  if (!inIframe) return;
+
+  // Disable smooth scroll — CSS animation causes viewport desync in iframes
+  document.documentElement.style.scrollBehavior = 'auto';
+
+  // Reduce hero top padding (sticky nav is less useful in iframe)
+  var hero = document.querySelector('.hero');
+  if (hero) hero.style.paddingTop = '3rem';
+
+  var parentBase = 'https://actionablereporting.com/pbi-fixer/';
+  var GRID = 200; // anchor grid interval in px
+
+  function scrollParentTo(hash) {
+    var target = document.querySelector(hash);
+    if (!target) return;
+    var offset = target.offsetTop;
+    var snapped = Math.round(offset / GRID) * GRID;
+    try { window.top.location.href = parentBase + '#s' + snapped; }
+    catch(err) { target.scrollIntoView({ behavior: 'auto', block: 'start' }); }
+  }
+
+  // ALL anchor links (nav, buttons, beta banner) → navigate parent to grid anchor
+  // External links → open in top window (target="_blank" is blocked in cross-origin iframes)
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a');
+    if (!link) return;
+    var href = link.getAttribute('href');
+    if (!href) return;
+
+    // External link → open in top window
+    if (href.startsWith('http')) {
+      e.preventDefault();
+      try { window.top.location.href = href; }
+      catch(err) { window.open(href, '_blank'); }
+      return;
+    }
+
+    // Anchor link → scroll parent
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      if (href === '#') {
+        try { window.top.location.href = parentBase; }
+        catch(err) { window.scrollTo(0, 0); }
+      } else {
+        scrollParentTo(href);
+      }
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
