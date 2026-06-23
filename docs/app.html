@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power BI Fixer as Fabric App (Rayfin)</title>
+  <meta name="description" content="The Power BI Fixer Fabric App edition: a Fabric-authenticated React app that inspects, edits, and fixes Power BI semantic models and reports in the browser. Built on Rayfin, deployed once for your whole team. Writes TMDL / PBIR through a Python User Data Function proxy." />
+  <meta name="author" content="Alexander Korn" />
+  <meta property="og:title" content="Power BI Fixer as Fabric App (Rayfin)" />
+  <meta property="og:description" content="A browser-based Power BI modelling workbench. Edit models & reports, run BPA, AI cleanup, and share team guidelines — deployed once on your Fabric capacity." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://kornalexander.github.io/pbi_fixer/app.html" />
+  <meta property="og:image" content="assets/img/app/app-shell.png" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+</head>
+<body>
+
+<!-- ═══════════════ Navigation ═══════════════ -->
+<nav class="nav">
+  <div class="container">
+    <a href="index.html" class="nav-logo">⚡ Power BI Fixer</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#screenshots">Screenshots</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#why">Why a Browser App?</a></li>
+      <li><a href="#quickstart">Get Started</a></li>
+      <li><a href="index.html">Notebook Edition ↗</a></li>
+      <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
+    </ul>
+    <button class="nav-hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Toggle navigation">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════ Hero ═══════════════ -->
+<section class="hero" id="hero">
+  <div class="container">
+    <h1>The Fabric App Edition.<br/><span class="accent">A Browser-Based Power BI Workbench.</span></h1>
+    <p class="subtitle">
+      A Fabric-authenticated React app that inspects, edits, and fixes Power BI semantic
+      models and reports — directly in the browser. Deploy it once on your Fabric capacity
+      and share it with your whole team.
+    </p>
+
+    <div class="hero-code">
+      <span class="cm"># Deploy as a single Fabric app item</span><br/>
+      rayfin up &nbsp;<span class="cm"># sign in, then start working.</span>
+    </div>
+
+    <div class="btn-group">
+      <a href="#quickstart" class="btn btn-primary">Get Started →</a>
+      <a href="index.html" class="btn btn-outline">← Notebook Edition</a>
+    </div>
+
+    <div class="hero-badges">
+      <span class="badge badge-blue">🌐 Runs in the Browser</span>
+      <span class="badge badge-green">✓ Free &amp; Open Source</span>
+      <span class="badge badge-orange">☁ Single Fabric App Item</span>
+      <span class="badge badge-blue">⚛ React + Fluent UI</span>
+      <span class="badge badge-green">✓ No Local Install</span>
+    </div>
+
+    <p class="hero-credit">Built on <a href="https://github.com/microsoft/rayfin" target="_blank">Rayfin</a> · reads &amp; writes TMDL / PBIR via a Python User Data Function proxy</p>
+  </div>
+</section>
+
+<!-- ═══════════════ Beta Banner ═══════════════ -->
+<div class="beta-banner">
+  <div class="container">
+    <p>🚧 <strong>Beta — Use at Your Own Risk.</strong> The Fabric App edition is in active development. Test on a non-production workspace first. Found a bug? <a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank">Ping me on LinkedIn</a>.</p>
+  </div>
+</div>
+
+<!-- ═══════════════ Editions ═══════════════ -->
+<section class="section" id="editions">
+  <div class="container">
+    <div class="section-header">
+      <h2>Two Ways to Run PBI Fixer</h2>
+      <p>The same mission — scan, fix, and explore Power BI — in two editions. You're viewing the Fabric App edition.</p>
+    </div>
+
+    <div class="tabs-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start;">
+      <div class="tab-card">
+        <div class="icon">📓</div>
+        <span class="badge badge-orange" style="margin-bottom:0.8rem;">Fabric Notebook</span>
+        <h3>Notebook Edition</h3>
+        <p style="margin-bottom:0.8rem;"><strong>Built on Semantic Link Labs</strong> — one line of Python in a Microsoft Fabric Notebook. An ipywidgets UI with 50+ fixers across 12 tabs. No install, no deploy.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-bottom:1rem;">
+          <span class="kw">from</span> sempy_labs <span class="kw">import</span> pbi_fixer<br/>pbi_fixer()
+        </div>
+        <ul class="highlight-list" style="margin-bottom:1rem;">
+          <li>Best for individuals &amp; ad-hoc fixing</li>
+          <li>Runs inside any Fabric Notebook</li>
+          <li>Standalone Python API for pipelines</li>
+        </ul>
+        <a href="index.html" class="btn btn-outline">Explore the Notebook Edition →</a>
+      </div>
+
+      <div class="tab-card" style="border-color:var(--accent);border-width:2px;">
+        <div class="icon">🌐</div>
+        <span class="badge badge-orange" style="margin-bottom:0.8rem;">★ You're viewing this</span>
+        <h3>Fabric App Edition</h3>
+        <p style="margin-bottom:0.8rem;"><strong>Built on Rayfin</strong> — a Fabric-authenticated React app deployed once for your whole team. Reads and writes TMDL / PBIR through a Python backend. No local install.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-bottom:1rem;">
+          <span class="cm"># Deploy as a Fabric app item</span><br/>rayfin up
+        </div>
+        <ul class="highlight-list" style="margin-bottom:1rem;">
+          <li>Best for teams &amp; shared governance</li>
+          <li>Team Best-Practice Guidelines &amp; Survey ★</li>
+          <li>AI cleanup, Workspace Editor, IBCS visual</li>
+        </ul>
+        <a href="#quickstart" class="btn btn-primary">Get Started ↓</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Stats ═══════════════ -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-number">1</div>
+        <div class="stat-label">Fabric App Item</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">0</div>
+        <div class="stat-label">Local Installs</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">2</div>
+        <div class="stat-label">Layers: Model &amp; Report</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">∞</div>
+        <div class="stat-label">Team Members</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">0</div>
+        <div class="stat-label">License Cost</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Features ═══════════════ -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-header">
+      <h2>A Genuine Browser-Based Modelling Workbench</h2>
+      <p>It covers the core model-editing surface people rely on from desktop editors — and adds a full report layer, a free IBCS custom visual, and AI-assisted cleanup you won't find even in paid tooling. ★ marks the top picks.</p>
+    </div>
+
+    <div class="tabs-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));">
+
+      <div class="tab-card">
+        <div class="icon">📄</div>
+        <h3>Semantic Model Editing</h3>
+        <p style="margin-bottom:0.8rem;">Edit your tabular model with full access to all properties — and a lot more.</p>
+        <ul class="highlight-list">
+          <li>★ Edit all properties — display folders, descriptions, field parameters, perspectives, translations</li>
+          <li>DAX Formatter, data preview, Model Adder (calc groups, tables, info views)</li>
+          <li>Model Diagram — live ER diagram with layout, zoom, hidden-object toggles</li>
+          <li>Unused Cleanup &amp; Metric View Migration (Unity Catalog → Direct Lake)</li>
+          <li>Model BPA &amp; Memory Analyzer with batch one-click fixes</li>
+          <li>★ Pre-Warm Direct Lake caching for faster queries</li>
+        </ul>
+      </div>
+
+      <div class="tab-card">
+        <div class="icon">📊</div>
+        <h3>Report Editing</h3>
+        <p style="margin-bottom:0.8rem;">Edit and extend your report — fix, prototype, and document.</p>
+        <ul class="highlight-list">
+          <li>★ PBIR View — browse and edit the report definition (tree, source / diff, pop-out editor)</li>
+          <li>Reverse / Forward Prototype — scaffold and round-trip report layouts</li>
+          <li>IBCS rules &amp; Report BPA — bring visuals in line with the standards</li>
+          <li>★ Add a free, notation-correct IBCS custom visual — no marketplace purchase</li>
+          <li>★ Generate a whole-model documentation page &amp; an AI landing page</li>
+        </ul>
+      </div>
+
+      <div class="tab-card">
+        <div class="icon">🤖</div>
+        <h3>AI-Assisted Cleanup</h3>
+        <p style="margin-bottom:0.8rem;">Runs on your own Copilot subscription via a once-off GitHub device-flow sign-in.</p>
+        <ul class="highlight-list">
+          <li>★ Translations — culture translations for captions and descriptions</li>
+          <li>★ Descriptions — consistent object descriptions across the model</li>
+          <li>★ Display-Folder Organisation — propose a clean, consistent folder structure</li>
+          <li>Diff preview — every fix shows the exact TMDL / PBIR change before it is written</li>
+        </ul>
+      </div>
+
+      <div class="tab-card">
+        <div class="icon">⚙️</div>
+        <h3>Automation &amp; Ops</h3>
+        <p style="margin-bottom:0.8rem;">One-click deploy and workspace tooling.</p>
+        <ul class="highlight-list">
+          <li>★ Sempy Runner and Builder</li>
+          <li>★ Workspace Editor — reorganise items into folders with AI, mass-delete</li>
+          <li>★ Jumpstart Catalog &amp; Awesome Rayfin Apps Catalog</li>
+          <li>Workspace Monitoring</li>
+          <li>History &amp; Undo — every write-back tracked and reversible</li>
+        </ul>
+      </div>
+
+      <div class="tab-card" style="grid-column:1/-1;border-left:4px solid var(--accent);">
+        <div class="icon">⭐</div>
+        <h3>Team Best-Practice Guidelines &amp; Survey</h3>
+        <p>A guided questionnaire captures your team's Power BI conventions, renders them as an in-app Guidelines view, and syncs to OneLake (<code>pbi-fixer-guidelines-conventions.json</code>) so the whole team shares one source of truth. This is the headline feature of the Fabric App edition — turning individual best practices into a shared, living standard for everyone who opens the app.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Screenshots ═══════════════ -->
+<section class="section section-alt" id="screenshots">
+  <div class="container">
+    <div class="section-header">
+      <h2>See It in Action</h2>
+      <p>A visual tour through the app. Screenshots use sample semantic models and reports.</p>
+    </div>
+
+    <!-- App Shell -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>🧭 The App Shell</h3>
+          <p>Model and report tooling in one Fluent UI shell, with light and dark themes.</p>
+          <ul>
+            <li>Sign in with your Fabric identity</li>
+            <li>Model layer &amp; report layer side by side</li>
+            <li>Consistent Fluent UI v9 experience</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/app-shell.png" alt="Power BI Fixer app shell with model and report tooling in Fluent UI" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Explorer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>📄 Model Explorer</h3>
+          <p>Browse and edit a model's tables, columns, and measures with inline TMDL, a live properties pane, and one-click organise actions.</p>
+          <ul>
+            <li>Full object tree with display folders</li>
+            <li>Inline TMDL editing &amp; live properties pane</li>
+            <li>One-click organise actions</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/model-explorer.png" alt="Model Explorer showing table tree, inline TMDL, and properties pane" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model BPA -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>📋 Model BPA</h3>
+          <p>The Best Practice Analyzer with per-rule findings, severity chips, and one-click fixes for findings the engine can repair automatically.</p>
+          <ul>
+            <li>Per-rule findings with severity chips</li>
+            <li>One-click and batch auto-fixes</li>
+            <li>Diff preview before every write-back</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/model-bpa.png" alt="Model Best Practice Analyzer with per-rule findings and one-click fixes" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Analyzer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>💾 Memory Analyzer</h3>
+          <p>Column and table size plus cardinality insights, with auto-fixable findings to shrink the model.</p>
+          <ul>
+            <li>Column / table size breakdown</li>
+            <li>Cardinality insights</li>
+            <li>Auto-fixable findings to shrink models</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/memory-analyzer.png" alt="Memory Analyzer showing column and table size and cardinality insights" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Diagram -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>🗺 Model Diagram</h3>
+          <p>A live ER diagram of tables and relationships with layout, zoom, and hidden-object toggles.</p>
+          <ul>
+            <li>Live entity-relationship diagram</li>
+            <li>Layout &amp; zoom controls</li>
+            <li>Hidden-object toggles</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/model-diagram.png" alt="Live ER diagram of tables and relationships with layout and zoom" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Explorer -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>📊 Report Explorer</h3>
+          <p>The PBIR tree with a live / wireframe report preview and an editable properties pane.</p>
+          <ul>
+            <li>PBIR tree navigation</li>
+            <li>Live / wireframe report preview</li>
+            <li>Editable properties pane</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/report-explorer.png" alt="Report Explorer with PBIR tree, live preview, and properties pane" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- IBCS Builder -->
+    <div class="screenshot-section">
+      <div class="screenshot-row">
+        <div class="screenshot-text">
+          <h3>⚡ IBCS Builder</h3>
+          <p>Add a marked calendar table and generate previous-year &amp; variance measures (PY, Δ PY, Δ% PY) that drive IBCS variance charts.</p>
+          <ul>
+            <li>Add a marked calendar table</li>
+            <li>Generate PY, Δ PY, Δ% PY measures</li>
+            <li>Drive notation-correct IBCS variance charts</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/ibcs-builder.png" alt="IBCS builder generating previous-year and variance measures" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Translations -->
+    <div class="screenshot-section">
+      <div class="screenshot-row reverse">
+        <div class="screenshot-text">
+          <h3>🌐 AI Translations</h3>
+          <p>Generate culture translations for the whole model with GitHub Copilot via a one-time device-flow sign-in.</p>
+          <ul>
+            <li>Whole-model culture translations</li>
+            <li>Powered by GitHub Copilot</li>
+            <li>One-time device-flow sign-in</li>
+          </ul>
+        </div>
+        <div class="screenshot-img">
+          <img src="assets/img/app/ai-translations.png" alt="AI-assisted translations generating culture translations for the model" loading="lazy" />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Architecture ═══════════════ -->
+<section class="section" id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <h2>How It Works</h2>
+      <p>The whole thing runs as a single Fabric app item — a React SPA served with brokered Fabric auth, talking to a Python backend.</p>
+    </div>
+
+    <div class="hero-code" style="display:block;font-size:0.82rem;line-height:1.5;max-width:760px;margin:0 auto 2.5rem;">
+<span class="cm"># React + Vite SPA (Fluent UI v9)  ──brokered auth──►  Fabric (this app item)</span><br/>
+<span class="cm">#   explorer / pages / components                       static hosting + auth</span><br/>
+<span class="cm">#   services / udfClient        ──────HTTPS invoke──►  Python User Data Functions</span><br/>
+<span class="cm">#                                                        list_workspaces</span><br/>
+<span class="cm">#                                                        list_reports</span><br/>
+<span class="cm">#                                                        apply_report_fixer</span><br/>
+<span class="cm">#                                                        fabric_proxy (generic)</span><br/>
+<span class="cm">#                                                        github_device_* / translate</span>
+    </div>
+
+    <div class="highlights-grid">
+      <div class="highlight-card">
+        <div class="highlight-icon">🔒</div>
+        <div class="highlight-content">
+          <h3>Tokens Stay Server-Side</h3>
+          <p>The SPA never calls Fabric REST directly — all calls go through the Python <code>fabric_proxy</code> UDF, which holds the on-behalf-of token server-side. That avoids browser CORS and keeps tokens out of the client.</p>
+          <span class="highlight-tag">Security</span>
+        </div>
+      </div>
+      <div class="highlight-card">
+        <div class="highlight-icon">⚙️</div>
+        <div class="highlight-content">
+          <h3>Fully Env-Driven Config</h3>
+          <p>No tenant, workspace, or capacity ids are hardcoded in source. Configuration is fully environment-driven, so the same build deploys cleanly across tenants.</p>
+          <span class="highlight-tag">Portable</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Why ═══════════════ -->
+<section class="section section-alt" id="why">
+  <div class="container">
+    <div class="section-header">
+      <h2>Why a Browser App?</h2>
+      <p>If you maintain enterprise semantic models, you know the workflow: install a desktop editor, connect with XMLA, click through dialogs, export scripts, hope the diff is clean. The Fabric App edition takes a different angle.</p>
+    </div>
+
+    <div class="highlights-grid">
+      <div class="highlight-card highlight-card--hero">
+        <div class="highlight-icon">🌐</div>
+        <div class="highlight-content">
+          <h3>A Browser-Based Modelling Workbench</h3>
+          <p>It needs nothing installed locally and runs on top of your existing Fabric capacity. Sign in with your Fabric identity and start working — no license server, no install footprint, no XMLA endpoint plumbing.</p>
+          <span class="highlight-tag">No local install</span>
+        </div>
+      </div>
+      <div class="highlight-card">
+        <div class="highlight-icon">🧰</div>
+        <div class="highlight-content">
+          <h3>Covers the Core Model-Editing Surface</h3>
+          <p>Explore and edit tables, columns, measures, relationships, display folders, descriptions, perspectives, field parameters, and the raw TMDL — everything you rely on from the free desktop editors.</p>
+          <span class="highlight-tag">Everyday editing</span>
+        </div>
+      </div>
+      <div class="highlight-card">
+        <div class="highlight-icon">✨</div>
+        <div class="highlight-content">
+          <h3>Adds What Paid Tooling Doesn't</h3>
+          <p>A full report layer (PBIR explorer, diff, one-click fixes), a free IBCS-compliant custom visual, and AI-assisted cleanup for translations, descriptions, and display-folder organisation.</p>
+          <span class="highlight-tag">Unique</span>
+        </div>
+      </div>
+      <div class="highlight-card">
+        <div class="highlight-icon">👥</div>
+        <div class="highlight-content">
+          <h3>Built for Teams</h3>
+          <p>Deploy once, share a link. The Team Best-Practice Guidelines &amp; Survey turns individual conventions into a shared, living standard synced to OneLake for everyone who opens the app.</p>
+          <span class="highlight-tag">Shared governance</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlight-disclaimer">
+      <p>⚠️ <strong>Fair warning:</strong> The Fabric App edition is in Beta. It extends your workflow rather than replacing your desktop tools. Expect rough edges, and test on a non-production workspace first. Contributions and feedback are welcome.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Get Started ═══════════════ -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <div class="section-header">
+      <h2>Get Started in 3 Steps</h2>
+      <p>Deploy the app to your Fabric capacity with Rayfin, then share the link with your team.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Get the Template</h3>
+        <p>Grab the Power BI Fixer app template from the Awesome Rayfin catalog.</p>
+        <code>github.com/microsoft/awesome-rayfin → templates/pbi-fixer</code>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Deploy</h3>
+        <p>Sign in and deploy the app as a single Fabric app item:</p>
+        <code>rayfin up</code>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Share &amp; Fix</h3>
+        <p>Open the app, capture your team guidelines, and start editing models &amp; reports in the browser.</p>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:3rem;">
+      <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank" class="btn btn-primary">View the Project on GitHub →</a>
+    </div>
+
+    <div style="margin-top:3rem;">
+      <div class="section-header">
+        <h3>Requirements</h3>
+      </div>
+      <div class="tabs-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">☁</div>
+          <h3>Microsoft Fabric</h3>
+          <p>F or P capacity to host the app item</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">🐍</div>
+          <h3>User Data Functions</h3>
+          <p>Python backend (the Fabric proxy)</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">🐙</div>
+          <h3>GitHub Copilot</h3>
+          <p>Optional — for the AI cleanup features</p>
+        </div>
+        <div class="tab-card" style="text-align:center;">
+          <div class="icon">📄</div>
+          <h3>PBIR Format</h3>
+          <p>For report fixes (auto-convert available)</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlight-disclaimer" style="margin-top:2.5rem;">
+      <p>🌍 <strong>Check region availability first.</strong> Fabric Apps (the workload this edition runs on) are not yet available in every capacity region. Before you deploy, confirm that the <strong>Fabric Apps</strong> workload is supported for your capacity's region in the official <a href="https://learn.microsoft.com/en-us/fabric/admin/region-availability#all-workloads" target="_blank">Fabric region availability</a> list.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Credits ═══════════════ -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-header">
+      <h2>Open Source &amp; Credits</h2>
+      <p>This tool would not exist without two people.</p>
+    </div>
+
+    <div class="tabs-grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
+      <div class="tab-card">
+        <h3><a href="https://github.com/m-kovalsky" target="_blank">Michael Kovalsky</a></h3>
+        <p>For showing me that something like this is even <em>possible</em> with Rayfin — the spark for the whole project — and for Semantic Link Labs.</p>
+      </div>
+      <div class="tab-card">
+        <h3><a href="https://www.linkedin.com/in/lukasz-obst-3672083a2/" target="_blank">Lukasz Obst</a></h3>
+        <p>With whom I started this tool. Whenever you see AI infused into PBI Fixer, it is most likely thanks to him.</p>
+      </div>
+      <div class="tab-card">
+        <h3><a href="https://github.com/microsoft/rayfin" target="_blank">Rayfin</a></h3>
+        <p>Brokered Fabric auth + static hosting — so the whole thing runs as a single Fabric app item with a Python backend.</p>
+      </div>
+      <div class="tab-card">
+        <h3>Built With</h3>
+        <p>React, Vite, Fluent UI v9, Python User Data Functions, and Microsoft Fabric.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ Footer ═══════════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-links">
+      <a href="index.html">Notebook Edition</a>
+      <a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub</a>
+      <a href="https://actionablereporting.com" target="_blank">Blog</a>
+      <a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank">LinkedIn</a>
+    </div>
+    <p>Power BI Fixer — Fabric App Edition — by Alexander Korn — <a href="https://actionablereporting.com">actionablereporting.com</a></p>
+    <p style="margin-top:0.5rem;font-size:0.8rem;">Free &amp; Open Source. Built with ❤️ on Microsoft Fabric &amp; Rayfin.</p>
+  </div>
+</footer>
+
+</body>
+</html>

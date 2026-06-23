@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Power BI Fixer — Scan, Fix, and Explore Your Power BI Reports</title>
-  <meta name="description" content="The Power BI Fixer is a free, open-source, notebook-native tool with 50+ automated fixers for Power BI reports and semantic models. One line of Python in a Microsoft Fabric Notebook." />
+  <meta name="description" content="The Power BI Fixer is a free, open-source tool with 50+ automated fixers for Power BI reports and semantic models. Available in two editions: a Notebook edition (one line of Python in a Microsoft Fabric Notebook) and a Fabric App edition (a browser app deployed for your team)." />
   <meta name="author" content="Alexander Korn" />
   <meta property="og:title" content="Power BI Fixer — One Line to Fix Them All" />
   <meta property="og:description" content="50+ automated fixers for Power BI reports and semantic models. Free. Open source. Runs in Microsoft Fabric Notebooks." />
@@ -22,14 +22,15 @@
   <div class="container">
     <a href="#" class="nav-logo">⚡ Power BI Fixer</a>
     <ul class="nav-links" id="navLinks">
+      <li><a href="#editions">Editions</a></li>
       <li><a href="#features">Features</a></li>
       <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#fixers">All Fixers</a></li>
       <li><a href="#why">Why PBI Fixer?</a></li>
       <li><a href="#api">Standalone API</a></li>
-      <li><a href="#ai">AI &amp; CLI</a></li>
       <li><a href="#history">History</a></li>
       <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="https://kornalexander.github.io/pbi_fixer/app.html">Fabric App ↗</a></li>
       <li><a href="https://github.com/KornAlexander/pbi_fixer" target="_blank">GitHub ↗</a></li>
     </ul>
     <button class="nav-hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Toggle navigation">
@@ -45,6 +46,7 @@
     <p class="subtitle">
       The Power BI Fixer is a free, open-source development environment for Power BI reports
       and semantic models — running entirely inside a Microsoft Fabric Notebook.
+      <br/><a href="#editions" style="font-size:0.95rem;">There are two editions — see which one fits you →</a>
     </p>
 
     <div class="hero-code">
@@ -75,6 +77,65 @@
     <p>🚧 <strong>Beta — In Active Development.</strong> The PBI Fixer is not part of Semantic Link Labs yet — we're evaluating if it makes sense. For now, please follow the <a href="#quickstart">Get Started</a> instructions to install and use the Fixer. Found a bug? <a href="https://www.linkedin.com/in/alexanderkorn/" target="_blank">Ping me on LinkedIn</a>.</p>
   </div>
 </div>
+
+<!-- ═══════════════ Editions ═══════════════ -->
+<section class="section" id="editions">
+  <div class="container">
+    <div class="section-header">
+      <h2>Two Ways to Run PBI Fixer</h2>
+      <p>The same mission — scan, fix, and explore Power BI — in two editions. Pick the one that fits how you work.</p>
+    </div>
+
+    <div class="tabs-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start;">
+      <div class="tab-card" style="border-color:var(--accent);border-width:2px;">
+        <div class="icon">📓</div>
+        <span class="badge badge-orange" style="margin-bottom:0.8rem;">★ You're viewing this</span>
+        <h3>Notebook Edition</h3>
+        <p style="margin-bottom:0.8rem;"><strong>Built on Semantic Link Labs</strong> — one line of Python in a Microsoft Fabric Notebook. An ipywidgets UI with 50+ fixers across 12 tabs. No install, no deploy.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-bottom:1rem;">
+          <span class="kw">from</span> sempy_labs <span class="kw">import</span> pbi_fixer<br/>pbi_fixer()
+        </div>
+        <ul class="highlight-list" style="margin-bottom:1rem;">
+          <li>Best for individuals &amp; ad-hoc fixing</li>
+          <li>Runs inside any Fabric Notebook</li>
+          <li>Standalone Python API for pipelines</li>
+        </ul>
+        <a href="#quickstart" class="btn btn-outline">Get Started ↓</a>
+      </div>
+
+      <div class="tab-card">
+        <div class="icon">🌐</div>
+        <span class="badge badge-blue" style="margin-bottom:0.8rem;">Browser app</span>
+        <h3>Fabric App Edition</h3>
+        <p style="margin-bottom:0.8rem;"><strong>Built on Rayfin</strong> — a Fabric-authenticated React app deployed once for your whole team. Reads and writes TMDL / PBIR through a Python backend. No local install.</p>
+        <div class="hero-code" style="display:block;font-size:0.85rem;margin-bottom:1rem;">
+          <span class="cm"># Deploy as a Fabric app item</span><br/>rayfin up
+        </div>
+        <ul class="highlight-list" style="margin-bottom:1rem;">
+          <li>Best for teams &amp; shared governance</li>
+          <li>Team Best-Practice Guidelines &amp; Survey ★</li>
+          <li>AI cleanup, Workspace Editor, IBCS visual</li>
+        </ul>
+        <a href="https://kornalexander.github.io/pbi_fixer/app.html" class="btn btn-primary">Explore the Fabric App →</a>
+      </div>
+    </div>
+
+    <table class="comparison-table" style="margin-top:3rem;">
+      <thead>
+        <tr><th>&nbsp;</th><th>Notebook Edition</th><th>Fabric App Edition</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Runs as</td><td>ipywidgets UI in a Fabric Notebook</td><td>React + Fluent UI app (single Fabric app item)</td></tr>
+        <tr><td>Install / deploy</td><td>One <code>%pip install</code>, then <code>pbi_fixer()</code></td><td>Deploy once with Rayfin, share a link</td></tr>
+        <tr><td>Best for</td><td>Individuals, ad-hoc fixing, notebook workflows</td><td>Teams, shared conventions, everyday editing</td></tr>
+        <tr><td>Read / write</td><td>XMLA + PBIR</td><td>TMDL / PBIR via Fabric UDF proxy</td></tr>
+        <tr><td>Team Guidelines &amp; Survey</td><td class="cross">—</td><td><span class="check">✓</span></td></tr>
+        <tr><td>Standalone Python API</td><td><span class="check">✓</span></td><td class="cross">—</td></tr>
+        <tr><td>Built on</td><td>Semantic Link Labs</td><td>Rayfin</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 <!-- ═══════════════ Stats ═══════════════ -->
 <section class="section">
